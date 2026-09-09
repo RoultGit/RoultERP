@@ -13,7 +13,7 @@ import postgres from "postgres";
 import { conectar, enEmpresa } from "@roulterp/db";
 import {
   crearEmpresa, crearImportacion, agregarItem, agregarGasto, cambiarEstado,
-  confirmarLiquidacion, registrarMovimiento,
+  confirmarLiquidacion, registrarMovimiento, registrarCompra, crearOrden,
 } from "@roulterp/servicios";
 import { money } from "@roulterp/core";
 
@@ -63,6 +63,20 @@ async function main() {
                 WHERE empresa_id = ${empresa.empresaId} AND cuenta = '20111'))
       RETURNING id`;
     productos.push(p!.id);
+  }
+
+  // Centros de costo: la cuenta 639 los exige al contabilizar, que es
+  // exactamente la clase de control de calidad que el plan de cuentas aporta.
+  const centros: string[] = [];
+  for (const [codigo, nombre] of [
+    ["ADM", "Administración"],
+    ["LOG", "Logística e importaciones"],
+    ["COM", "Comercial"],
+  ] as const) {
+    const [c] = await raw<{ id: string }[]>`
+      INSERT INTO centros_costo (empresa_id, codigo, nombre)
+      VALUES (${empresa.empresaId}, ${codigo}, ${nombre}) RETURNING id`;
+    centros.push(c!.id);
   }
 
   const [proveedor] = await raw<{ id: string }[]>`
@@ -222,6 +236,72 @@ async function main() {
       descripcion: "Rodamiento SKF 6204-2RS",
       cantidad: "2000",
       fobUnitario: "1.35",
+    });
+  });
+
+  // Compras nacionales: dejan cuentas por pagar con distintos vencimientos para
+  // ver la antigüedad de saldos con contenido.
+  const [agencia] = await postgres(URL, { max: 1, onnotice: () => {} })
+    .unsafe<{ id: string }[]>(
+      `SELECT id FROM terceros WHERE empresa_id = '${empresa.empresaId}' AND numero_documento = '20100047218'`,
+    );
+
+  await enEmpresa(app, ctx, async (db) => {
+    await registrarCompra(db, ctx.empresaId, ctx.usuarioId, {
+      proveedorId: agencia!.id,
+      tipoDocumento: "01",
+      serie: "F001",
+      numero: "0004417",
+      fechaEmision: "2026-06-18",
+      moneda: "PEN",
+      tipoCambio: "1",
+      detraccionCodigo: "022",
+      lineas: [
+        {
+          descripcion: "Servicio de agenciamiento de aduanas — IMP-2026-0011",
+          cantidad: "1",
+          valorUnitario: "800.00",
+          cuenta: "639",
+          centroCostoId: centros[1]!,
+        },
+      ],
+    });
+
+    await registrarCompra(db, ctx.empresaId, ctx.usuarioId, {
+      proveedorId: agencia!.id,
+      tipoDocumento: "01",
+      serie: "F001",
+      numero: "0004602",
+      fechaEmision: "2026-09-02",
+      moneda: "PEN",
+      tipoCambio: "1",
+      almacenId: almacen!.id,
+      lineas: [
+        {
+          productoId: productos[4]!,
+          descripcion: "Rodamiento SKF 6204-2RS",
+          cantidad: "300",
+          valorUnitario: "4.20",
+        },
+      ],
+    });
+
+    await crearOrden(db, ctx.empresaId, ctx.usuarioId, {
+      numero: "OC-2026-0042",
+      proveedorId: agencia!.id,
+      almacenId: almacen!.id,
+      fecha: "2026-09-08",
+      fechaEntrega: "2026-09-25",
+      moneda: "PEN",
+      tipoCambio: "1",
+      lineas: [
+        {
+          productoId: productos[1]!,
+          descripcion: 'Válvula de bronce 2" roscada',
+          cantidad: "120",
+          valorUnitario: "38.50",
+        },
+      ],
     });
   });
 

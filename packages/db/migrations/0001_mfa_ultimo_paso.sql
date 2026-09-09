@@ -1,0 +1,1 @@
+ALTER TABLE "usuarios" ADD COLUMN "mfa_ultimo_paso" integer;

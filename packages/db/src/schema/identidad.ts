@@ -51,6 +51,12 @@ export const usuarios = pgTable(
     /** Secreto TOTP cifrado con sobre. NULL mientras el usuario no active MFA. */
     mfaSecreto: jsonb("mfa_secreto"),
     mfaActivo: boolean("mfa_activo").notNull().default(false),
+    /**
+     * Último paso TOTP consumido. TOTP por sí solo no impide que un código
+     * interceptado se reutilice dentro de su ventana de 30 s; guardar el paso
+     * y exigir que el siguiente sea mayor sí lo impide.
+     */
+    mfaUltimoPaso: integer("mfa_ultimo_paso"),
     /** Hashes de los códigos de respaldo aún sin usar. */
     mfaRespaldos: text("mfa_respaldos").array(),
     activo: boolean("activo").notNull().default(true),

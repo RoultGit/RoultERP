@@ -18,9 +18,17 @@ import { numeric, timestamp, uuid, text } from "drizzle-orm/pg-core";
 /** Escala de `packages/core/money.ts`. Cambiar una obliga a cambiar la otra. */
 export const ESCALA = 6;
 
-/** Importe monetario o cantidad. Siempre en modo texto. */
+/**
+ * Importe monetario o cantidad.
+ *
+ * `numeric` de drizzle se lee y escribe como texto, que es justo lo que hace
+ * falta: convertirlo a `number` de JavaScript perdería precisión antes de que
+ * `core/money.ts` pudiera hacer nada. Hay una prueba que lo verifica contra la
+ * base real, porque es la clase de garantía que se rompe en silencio al subir
+ * una versión del driver.
+ */
 export const importe = (nombre: string) =>
-  numeric(nombre, { precision: 18, scale: ESCALA, mode: "string" });
+  numeric(nombre, { precision: 18, scale: ESCALA });
 
 /** Importe que no puede faltar; por defecto cero, nunca nulo. */
 export const importeCero = (nombre: string) => importe(nombre).notNull().default("0");

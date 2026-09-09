@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Actualizado: 2026-09-09 · 471 pruebas en verde
+Actualizado: 2026-09-09 · 496 pruebas en verde
 
 ## Cómo levantarlo
 
@@ -49,7 +49,7 @@ DATABASE_URL=postgres://localhost/roulterp_test npm test
 | **Contabilidad** | ✅ | ✅ | ✅ balance, mayor, PLE; **faltan captura manual y EEFF** |
 | **Ventas** | ✅ | ✅ | ✅ lista, emisión, detalle |
 | **Factron (CPE)** | ✅ | ✅ | ✅ certificado, credenciales, series, envío |
-| **Cuentas por cobrar** | — | — | ❌ |
+| **Cuentas por cobrar** | ✅ | ✅ | ✅ cartera, cobranzas, límite de crédito, letras |
 | **Caja y bancos** | — | — | ❌ |
 | **SIG** | — | ✅ | ✅ tablero |
 
@@ -78,23 +78,27 @@ contra el saldo real, retención de IGV del 3 % —la deuda se cancela por el br
 y sale el neto—, reconocimiento de la diferencia de cambio al pagar una factura
 en dólares a otro tipo, y canje y renovación de letras.
 
+**Cobranzas.** La contraparte, con el signo de la diferencia de cambio
+invertido: una cuenta por cobrar es un activo, así que una subida del dólar es
+ganancia. Límite de crédito por cliente, que el sistema informa sin bloquear
+—autorizar una venta por encima del tope es una decisión comercial—, y
+exposición por cliente separando lo vencido de lo por vencer.
+
 ## Qué falta
 
 Por orden de lo que más cerca está de poder usarse:
 
-1. **Cuentas por cobrar**: estado de cuenta, antigüedad, cobranzas, límite de
-   crédito, letras por cobrar. La tabla de letras ya sirve a ambas carteras.
-2. **Caja y bancos**: caja chica, cuentas bancarias, conciliación, arqueos.
-3. **Contabilidad**: captura manual de asientos, estados financieros, cierre de
+1. **Caja y bancos**: caja chica, cuentas bancarias, conciliación, arqueos.
+2. **Contabilidad**: captura manual de asientos, estados financieros, cierre de
    periodo y de ejercicio, ajuste automático por diferencia de cambio al cierre.
-4. **Más formatos de PLE**: 5.1 diario, 6.1 mayor, 8.2 no domiciliados, 12.1
+3. **Más formatos de PLE**: 5.1 diario, 6.1 mayor, 8.2 no domiciliados, 12.1
    inventario en unidades, 14.1 ventas.
-5. **Resumen diario de boletas** y comunicación de baja ante SUNAT.
-6. **Guía de remisión electrónica (GRE)** por su API REST propia.
-7. **Comprobante de retención** y de percepción.
-8. **Notas de crédito y débito** desde la interfaz (el XML ya se genera).
-9. **Pantallas de usuarios, roles y MFA.**
-10. **Pago y protesto de letras** al vencimiento; programación de egresos.
+4. **Resumen diario de boletas** y comunicación de baja ante SUNAT.
+5. **Guía de remisión electrónica (GRE)** por su API REST propia.
+6. **Comprobante de retención** y de percepción.
+7. **Notas de crédito y débito** desde la interfaz (el XML ya se genera).
+8. **Pantallas de usuarios, roles y MFA.**
+9. **Pago y protesto de letras** al vencimiento; programación de egresos.
 
 ## Decisiones que conviene no revertir sin pensarlo
 

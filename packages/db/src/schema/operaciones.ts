@@ -692,3 +692,58 @@ export const credencialesSunat = pgTable(
   },
   (t) => [uniqueIndex("credenciales_sunat_uk").on(t.empresaId)],
 );
+
+// ─── Cobranzas ────────────────────────────────────────────────────────────
+
+/**
+ * Cobranzas de clientes.
+ *
+ * No hay una tabla de documentos por cobrar equivalente a `documentos_cxp`: el
+ * comprobante emitido ya tiene el total y el vencimiento, y el saldo se deriva
+ * restándole lo cobrado. Duplicarlo obligaría a mantener dos verdades
+ * sincronizadas, y la que se desincroniza siempre es la copia.
+ */
+export const cobranzas = pgTable(
+  "cobranzas",
+  {
+    id: id(),
+    empresaId: empresaId().references(() => empresas.id, { onDelete: "cascade" }),
+    numero: text("numero").notNull(),
+    clienteId: uuid("cliente_id").notNull().references(() => terceros.id),
+    fecha: fecha("fecha").notNull(),
+    moneda: text("moneda").notNull(),
+    tipoCambio: importe("tipo_cambio").notNull().default("1"),
+    /** efectivo, transferencia, cheque, deposito, letra */
+    medioCobro: text("medio_cobro").notNull(),
+    importe: importe("importe").notNull(),
+    referencia: text("referencia"),
+    asientoId: uuid("asiento_id"),
+    /** registrada, anulada */
+    estado: text("estado").notNull().default("registrada"),
+    ...auditoria(),
+  },
+  (t) => [
+    uniqueIndex("cobranzas_uk").on(t.empresaId, t.numero),
+    index("cobranzas_cliente_ix").on(t.empresaId, t.clienteId),
+  ],
+);
+
+export const cobranzaAplicaciones = pgTable(
+  "cobranza_aplicaciones",
+  {
+    id: id(),
+    empresaId: empresaId().references(() => empresas.id, { onDelete: "cascade" }),
+    cobranzaId: uuid("cobranza_id")
+      .notNull()
+      .references(() => cobranzas.id, { onDelete: "cascade" }),
+    comprobanteId: uuid("comprobante_id").notNull().references(() => comprobantes.id),
+    importe: importe("importe").notNull(),
+    /** Diferencia de cambio al cobrar en otra moneda o a otro tipo. */
+    diferenciaCambio: importeCero("diferencia_cambio"),
+    ...auditoria(),
+  },
+  (t) => [
+    index("cobranza_aplicaciones_cobranza_ix").on(t.cobranzaId),
+    index("cobranza_aplicaciones_comprobante_ix").on(t.comprobanteId),
+  ],
+);

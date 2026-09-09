@@ -351,22 +351,35 @@ export async function canjearPorLetra(
   }
 
   const ids = datos.documentos.map((d) => d.documentoId);
-  const docs = await db
-    .select()
-    .from(documentosCxp)
-    .where(inArray(documentosCxp.id, ids))
-    .for("update");
-  if (docs.length !== ids.length) {
+  const porPagar = datos.cartera === "pagar";
+
+  /*
+   * Cada cartera canjea documentos de origen distinto.
+   *
+   * Por pagar, la factura del proveedor vive en `documentos_cxp`. Por cobrar,
+   * el documento es el comprobante que la empresa emitió: no hay una tabla
+   * espejo, y su saldo se deriva del total menos lo cobrado y lo ya canjeado.
+   */
+  const pendientes = porPagar
+    ? (await db.select().from(documentosCxp).where(inArray(documentosCxp.id, ids)).for("update"))
+        .map((d) => ({
+          id: d.id,
+          etiqueta: `${d.serie}-${d.numero}`,
+          saldo: dec(d.saldo),
+        }))
+    : await saldosDeComprobantes(db, ids);
+
+  if (pendientes.length !== ids.length) {
     throw new PagoInvalido(["alguno de los documentos no existe en esta empresa"]);
   }
 
   let importe = money.ZERO;
   for (const d of datos.documentos) {
-    const doc = docs.find((x) => x.id === d.documentoId)!;
+    const doc = pendientes.find((x) => x.id === d.documentoId)!;
     const monto = dec(d.importe);
-    if (money.gt(monto, dec(doc.saldo))) {
+    if (money.gt(monto, doc.saldo)) {
       throw new PagoInvalido([
-        `${doc.serie}-${doc.numero} tiene un saldo de ${txt2(dec(doc.saldo))} y se intenta canjear ${txt2(monto)}`,
+        `${doc.etiqueta} tiene un saldo de ${txt2(doc.saldo)} y se intenta canjear ${txt2(monto)}`,
       ]);
     }
     importe = money.add(importe, monto);
@@ -390,9 +403,8 @@ export async function canjearPorLetra(
     .returning({ id: letras.id });
 
   for (const d of datos.documentos) {
-    const doc = docs.find((x) => x.id === d.documentoId)!;
+    const doc = pendientes.find((x) => x.id === d.documentoId)!;
     const monto = dec(d.importe);
-    const saldoNuevo = money.sub(dec(doc.saldo), monto);
 
     await db.insert(letraDocumentos).values({
       empresaId,
@@ -400,16 +412,29 @@ export async function canjearPorLetra(
       documentoId: d.documentoId,
       importe: txt2(monto),
     });
-    await db
-      .update(documentosCxp)
-      .set({
-        saldo: txt2(saldoNuevo),
-        estado: money.isZero(saldoNuevo) ? "canjeado" : "parcial",
-      })
-      .where(eq(documentosCxp.id, d.documentoId));
+
+    // En la cartera por pagar hay que actualizar el saldo de la factura; en la
+    // de cobrar no existe tal columna: el saldo se deriva, y la propia fila de
+    // `letra_documentos` que se acaba de insertar ya lo reduce.
+    if (porPagar) {
+      const saldoNuevo = money.sub(doc.saldo, monto);
+      await db
+        .update(documentosCxp)
+        .set({
+          saldo: txt2(saldoNuevo),
+          estado: money.isZero(saldoNuevo) ? "canjeado" : "parcial",
+        })
+        .where(eq(documentosCxp.id, d.documentoId));
+    }
   }
 
   const periodo = datos.fechaGiro.slice(0, 4) + datos.fechaGiro.slice(5, 7);
+  // Por pagar se traslada de la 4212 a la 4231; por cobrar, de la 1212 a la
+  // 1232, que es la divisionaria de letras en cartera.
+  const [origen, destino, glosaDestino] = porPagar
+    ? ["4212", "4231", "Letras por pagar no vencidas"]
+    : ["1232", "1212", "Letras por cobrar en cartera"];
+
   const asientoId = await asentar(db, empresaId, usuarioId, {
     periodo,
     fecha: datos.fechaGiro,
@@ -421,14 +446,14 @@ export async function canjearPorLetra(
     origenId: letra!.id,
     lineas: [
       {
-        cuenta: "4212",
-        glosa: "Documentos canjeados",
+        cuenta: origen,
+        glosa: porPagar ? "Documentos canjeados" : glosaDestino,
         debe: txt2(importe),
         anexoId: datos.terceroId,
       },
       {
-        cuenta: "4231",
-        glosa: "Letras por pagar no vencidas",
+        cuenta: destino,
+        glosa: porPagar ? glosaDestino : "Documentos canjeados",
         haber: txt2(importe),
         anexoId: datos.terceroId,
       },
@@ -436,6 +461,56 @@ export async function canjearPorLetra(
   });
 
   return { letraId: letra!.id, asientoId, importe: txt2(importe) };
+}
+
+/**
+ * Saldo pendiente de comprobantes emitidos, para el canje de la cartera por
+ * cobrar. Réplica intencionada de la definición de `cobranzas.ts`: importarla
+ * desde allí crearía una dependencia circular entre los dos módulos.
+ */
+async function saldosDeComprobantes(
+  db: Db,
+  ids: string[],
+): Promise<{ id: string; etiqueta: string; saldo: Dec }[]> {
+  const totales = await db
+    .select({
+      id: s.comprobantes.id,
+      serie: s.comprobantes.serie,
+      numero: s.comprobantes.numero,
+      total: s.comprobantes.total,
+    })
+    .from(s.comprobantes)
+    .where(inArray(s.comprobantes.id, ids));
+
+  const cobrado = await db
+    .select({
+      comprobanteId: s.cobranzaAplicaciones.comprobanteId,
+      importe: sql<string>`sum(${s.cobranzaAplicaciones.importe})::text`,
+    })
+    .from(s.cobranzaAplicaciones)
+    .where(inArray(s.cobranzaAplicaciones.comprobanteId, ids))
+    .groupBy(s.cobranzaAplicaciones.comprobanteId);
+
+  const canjeado = await db
+    .select({
+      documentoId: letraDocumentos.documentoId,
+      importe: sql<string>`sum(${letraDocumentos.importe})::text`,
+    })
+    .from(letraDocumentos)
+    .where(inArray(letraDocumentos.documentoId, ids))
+    .groupBy(letraDocumentos.documentoId);
+
+  const porCobrado = new Map(cobrado.map((c) => [c.comprobanteId, dec(c.importe)]));
+  const porCanjeado = new Map(canjeado.map((c) => [c.documentoId, dec(c.importe)]));
+
+  return totales.map((t) => ({
+    id: t.id,
+    etiqueta: `${t.serie}-${t.numero}`,
+    saldo: money.sub(
+      dec(t.total),
+      money.add(porCobrado.get(t.id) ?? money.ZERO, porCanjeado.get(t.id) ?? money.ZERO),
+    ),
+  }));
 }
 
 /**

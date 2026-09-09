@@ -10,3 +10,4 @@ export * from "./ple.ts";
 export * from "./ventas.ts";
 export * from "./certificados.ts";
 export * from "./pagos.ts";
+export * from "./cobranzas.ts";

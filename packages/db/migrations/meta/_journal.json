@@ -15,6 +15,13 @@
       "when": 1788943525229,
       "tag": "0001_ventas_y_cpe",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788959443390,
+      "tag": "0002_cobranzas",
+      "breakpoints": true
     }
   ]
 }

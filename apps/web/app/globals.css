@@ -1,0 +1,196 @@
+@import "tailwindcss";
+
+/*
+ * Sistema visual sobrio, pensado para densidad.
+ *
+ * Un ERP se usa ocho horas al día y las pantallas que más importan son tablas
+ * de cien filas. Todo aquí está orientado a eso: interlineado corto, tipografía
+ * pequeña pero legible, un solo color de acento y contraste alto. Nada de
+ * degradados ni sombras grandes; el ruido visual cansa a la cuarta hora.
+ *
+ * Las cifras van en tabulares (`font-variant-numeric`) para que las columnas de
+ * importes se alineen dígito a dígito. En un sistema contable no es un detalle
+ * estético: es lo que permite detectar un orden de magnitud equivocado de un
+ * vistazo.
+ */
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+  --color-marca-50: #eef4f8;
+  --color-marca-100: #d6e4ee;
+  --color-marca-500: #2b6a8f;
+  --color-marca-600: #235a79;
+  --color-marca-700: #1c4860;
+  --color-marca-900: #12303f;
+}
+
+:root {
+  --fondo: #f6f7f8;
+  --superficie: #ffffff;
+  --superficie-2: #f0f2f4;
+  --borde: #d9dde2;
+  --borde-fuerte: #b9c0c8;
+  --texto: #16202a;
+  --texto-suave: #5b6672;
+  --acento: #235a79;
+  --acento-suave: #eef4f8;
+  --exito: #1c6b4a;
+  --alerta: #8a5a00;
+  --peligro: #9c2c2c;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) {
+    --fondo: #10151a;
+    --superficie: #171d24;
+    --superficie-2: #1e262e;
+    --borde: #2c3641;
+    --borde-fuerte: #3d4954;
+    --texto: #e6eaee;
+    --texto-suave: #9aa5b1;
+    --acento: #5b9fc4;
+    --acento-suave: #17303d;
+    --exito: #4caf87;
+    --alerta: #d4a145;
+    --peligro: #e07070;
+    color-scheme: dark;
+  }
+}
+
+body {
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Los importes y cantidades, siempre en cifras tabulares y alineados a la derecha. */
+.cifra {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.negativo {
+  color: var(--peligro);
+}
+
+@layer components {
+  .campo {
+    @apply w-full rounded border px-2.5 py-1.5 text-sm outline-none;
+    background: var(--superficie);
+    border-color: var(--borde);
+    color: var(--texto);
+  }
+  .campo:focus {
+    border-color: var(--acento);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--acento) 18%, transparent);
+  }
+  .campo:disabled {
+    background: var(--superficie-2);
+    color: var(--texto-suave);
+  }
+  .campo[aria-invalid="true"] {
+    border-color: var(--peligro);
+  }
+
+  .etiqueta {
+    @apply mb-1 block text-xs font-medium;
+    color: var(--texto-suave);
+  }
+
+  .boton {
+    @apply inline-flex items-center justify-center gap-1.5 rounded px-3 py-1.5
+           text-sm font-medium transition-colors;
+    border: 1px solid transparent;
+  }
+  .boton:disabled {
+    @apply cursor-not-allowed opacity-55;
+  }
+  .boton-primario {
+    background: var(--acento);
+    color: #fff;
+  }
+  .boton-primario:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--acento) 85%, black);
+  }
+  .boton-secundario {
+    background: var(--superficie);
+    border-color: var(--borde-fuerte);
+    color: var(--texto);
+  }
+  .boton-secundario:hover:not(:disabled) {
+    background: var(--superficie-2);
+  }
+  .boton-peligro {
+    background: transparent;
+    border-color: var(--peligro);
+    color: var(--peligro);
+  }
+
+  .tarjeta {
+    @apply rounded-md border;
+    background: var(--superficie);
+    border-color: var(--borde);
+  }
+
+  .tabla {
+    @apply w-full border-collapse text-sm;
+  }
+  .tabla thead th {
+    @apply px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide;
+    color: var(--texto-suave);
+    background: var(--superficie-2);
+    border-bottom: 1px solid var(--borde);
+    position: sticky;
+    top: 0;
+  }
+  .tabla tbody td {
+    @apply px-3 py-1.5;
+    border-bottom: 1px solid var(--borde);
+  }
+  .tabla tbody tr:hover td {
+    background: var(--acento-suave);
+  }
+
+  .insignia {
+    @apply inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium;
+    background: var(--superficie-2);
+    color: var(--texto-suave);
+    border: 1px solid var(--borde);
+  }
+
+  .aviso {
+    @apply rounded border px-3 py-2 text-sm;
+    border-color: color-mix(in srgb, var(--peligro) 40%, transparent);
+    background: color-mix(in srgb, var(--peligro) 8%, transparent);
+    color: var(--peligro);
+  }
+
+  .enlace-nav {
+    @apply block rounded px-2.5 py-1.5 text-sm transition-colors;
+    color: var(--texto-suave);
+  }
+  .enlace-nav:hover {
+    background: var(--superficie-2);
+    color: var(--texto);
+  }
+  .enlace-nav[aria-current="page"] {
+    background: var(--acento-suave);
+    color: var(--acento);
+    font-weight: 500;
+  }
+}
+
+/* Un foco visible es accesibilidad, no decoración: quien navega con teclado
+   necesita saber dónde está. */
+:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 2px;
+}

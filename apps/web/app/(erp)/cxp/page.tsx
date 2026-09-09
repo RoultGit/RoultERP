@@ -72,6 +72,13 @@ export default async function Cxp({
       <Encabezado
         titulo="Cuentas por pagar"
         descripcion="Documentos con saldo pendiente, ordenados por vencimiento."
+        acciones={
+          <>
+            <Link href="/cxp/pagos" className="boton boton-secundario">Pagos</Link>
+            <Link href="/cxp/letras" className="boton boton-secundario">Letras</Link>
+            <Link href="/cxp/pagar" className="boton boton-primario">Registrar pago</Link>
+          </>
+        }
       />
       <Contenido>
         <div className="mb-5 grid gap-4 sm:grid-cols-3">
@@ -166,8 +173,7 @@ export default async function Cxp({
         )}
 
         <p className="mt-4 text-xs" style={{ color: "var(--texto-suave)" }}>
-          El registro de pagos, la programación de egresos y las letras por pagar están en el
-          alcance y todavía no se han implementado.
+          Falta implementar la programación de egresos y el comprobante de retención.
         </p>
       </Contenido>
     </>

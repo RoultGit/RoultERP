@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Actualizado: 2026-09-09 · 421 pruebas en verde
+Actualizado: 2026-09-09 · 471 pruebas en verde
 
 ## Cómo levantarlo
 
@@ -45,10 +45,10 @@ DATABASE_URL=postgres://localhost/roulterp_test npm test
 | **Importaciones** | ✅ | ✅ | ✅ lista, detalle, liquidación, alta, ítems, gastos |
 | **Inventario** | ✅ | ✅ | ✅ existencias, kardex |
 | **Compras** | ✅ | ✅ | ✅ lista, registro; falta detalle de OC |
-| **Cuentas por pagar** | — | parcial | ✅ antigüedad de saldos; **faltan pagos y letras** |
+| **Cuentas por pagar** | ✅ | ✅ | ✅ antigüedad, pagos, retención, letras |
 | **Contabilidad** | ✅ | ✅ | ✅ balance, mayor, PLE; **faltan captura manual y EEFF** |
-| **Ventas** | ✅ | ✅ | ❌ sin pantallas |
-| **Factron (CPE)** | ✅ | ✅ | ❌ sin pantallas |
+| **Ventas** | ✅ | ✅ | ✅ lista, emisión, detalle |
+| **Factron (CPE)** | ✅ | ✅ | ✅ certificado, credenciales, series, envío |
 | **Cuentas por cobrar** | — | — | ❌ |
 | **Caja y bancos** | — | — | ❌ |
 | **SIG** | — | ✅ | ✅ tablero |
@@ -73,25 +73,28 @@ separados: una caída de SUNAT no impide facturar.
 electrónicos 8.1 (registro de compras) y 13.1 (inventario valorizado) con el
 nombre de archivo de 33 caracteres y la codificación Latin-1 que exige el PLE.
 
+**Pagos y letras.** Aplicación de pagos a varios documentos con validación
+contra el saldo real, retención de IGV del 3 % —la deuda se cancela por el bruto
+y sale el neto—, reconocimiento de la diferencia de cambio al pagar una factura
+en dólares a otro tipo, y canje y renovación de letras.
+
 ## Qué falta
 
 Por orden de lo que más cerca está de poder usarse:
 
-1. **Pantallas de ventas y de facturación electrónica.** El servicio está hecho
-   y probado; falta la interfaz: emitir, ver el estado ante SUNAT, reenviar,
-   subir el certificado digital y las credenciales SOL.
-2. **Registro de pagos en cuentas por pagar.** Aplicar pagos a documentos,
-   retención de IGV al pagar, programación de egresos.
-3. **Letras** por pagar y por cobrar: canje, renovación, protesto.
-4. **Cuentas por cobrar**: estado de cuenta, antigüedad, límite de crédito.
-5. **Caja y bancos**: caja chica, cuentas bancarias, conciliación.
-6. **Contabilidad**: captura manual de asientos, estados financieros, cierre de
-   periodo y de ejercicio, diferencia de cambio automática.
-7. **Más formatos de PLE**: 5.1 diario, 6.1 mayor, 8.2 no domiciliados, 12.1
+1. **Cuentas por cobrar**: estado de cuenta, antigüedad, cobranzas, límite de
+   crédito, letras por cobrar. La tabla de letras ya sirve a ambas carteras.
+2. **Caja y bancos**: caja chica, cuentas bancarias, conciliación, arqueos.
+3. **Contabilidad**: captura manual de asientos, estados financieros, cierre de
+   periodo y de ejercicio, ajuste automático por diferencia de cambio al cierre.
+4. **Más formatos de PLE**: 5.1 diario, 6.1 mayor, 8.2 no domiciliados, 12.1
    inventario en unidades, 14.1 ventas.
-8. **Guía de remisión electrónica (GRE)** por su API REST propia.
-9. **Resumen diario de boletas** y comunicación de baja.
-10. **Pantallas de usuarios, roles y MFA.**
+5. **Resumen diario de boletas** y comunicación de baja ante SUNAT.
+6. **Guía de remisión electrónica (GRE)** por su API REST propia.
+7. **Comprobante de retención** y de percepción.
+8. **Notas de crédito y débito** desde la interfaz (el XML ya se genera).
+9. **Pantallas de usuarios, roles y MFA.**
+10. **Pago y protesto de letras** al vencimiento; programación de egresos.
 
 ## Decisiones que conviene no revertir sin pensarlo
 
@@ -114,6 +117,13 @@ Por orden de lo que más cerca está de poder usarse:
   transacción.** Apareció dos veces: en el contador de intentos de login y en el
   registro del rechazo de SUNAT. En ambos casos el `ROLLBACK` se llevaba lo
   escrito.
+
+- **Una línea de asiento puede existir sólo en moneda funcional.** Es la
+  diferencia de cambio: una deuda de 1180 dólares registrada a 3.75 y pagada a
+  3.80 se cancela por los mismos dólares pero cuesta 59 soles más. Al cancelar
+  se carga la cuenta del proveedor por su importe **histórico**, no por el de
+  hoy; si se convirtiera todo al tipo del pago, la diferencia desaparecería y la
+  cuenta 42 quedaría con un saldo residual inexplicable.
 
 ## Camino a AWS
 

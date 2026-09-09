@@ -63,11 +63,11 @@ test("una línea con importe al debe y al haber a la vez se rechaza", () => {
   assert.match(validar(asiento([mala, haber("421201", "0")])).join(), /debe y al haber a la vez/);
 });
 
-test("una línea en cero por ambos lados se rechaza", () => {
+test("una línea en cero en todas las monedas se rechaza", () => {
   const vacia: LineaAsiento = {
     cuenta: "101", debe: ZERO, haber: ZERO, debeFuncional: ZERO, haberFuncional: ZERO,
   };
-  assert.match(validar(asiento([vacia, debe("101", "1")])).join(), /cero en ambos lados/);
+  assert.match(validar(asiento([vacia, debe("101", "1")])).join(), /cero en ninguna moneda/);
 });
 
 test("importes negativos se rechazan: se usa el lado contrario", () => {
@@ -249,4 +249,64 @@ test("mismoEfecto distingue asientos con distinto importe", () => {
   const a = contabilizar(asiento([debe("601111", "1000"), haber("421201", "1000")]));
   const b = contabilizar(asiento([debe("601111", "1001"), haber("421201", "1001")], { id: "b" }));
   assert.equal(mismoEfecto(a, b), false);
+});
+
+// ─── Diferencia de cambio dentro del asiento ──────────────────────────────
+
+test("una línea que sólo existe en moneda funcional es válida", () => {
+  // Es la diferencia de cambio: 1180 dólares registrados a 3.75 y pagados a
+  // 3.80 se cancelan por los mismos dólares, pero cuestan 59 soles más. Esos
+  // 59 soles no tienen contrapartida en dólares.
+  const proveedor: LineaAsiento = {
+    cuenta: "4212",
+    debe: dec("1180"),
+    haber: ZERO,
+    debeFuncional: dec("4425"), // al tipo histórico
+    haberFuncional: ZERO,
+  };
+  const banco: LineaAsiento = {
+    cuenta: "1041",
+    debe: ZERO,
+    haber: dec("1180"),
+    debeFuncional: ZERO,
+    haberFuncional: dec("4484"), // al tipo de hoy
+  };
+  const diferencia: LineaAsiento = {
+    cuenta: "676",
+    debe: ZERO,
+    haber: ZERO,
+    debeFuncional: dec("59"),
+    haberFuncional: ZERO,
+  };
+
+  const a = asiento([proveedor, banco, diferencia], {
+    moneda: "USD",
+    tipoCambio: dec("3.80"),
+  });
+  assert.deepEqual(validar(a), [], "debe cuadrar en ambas monedas");
+
+  const t = totales(a.lineas);
+  assert.equal(s2(t.diferencia), "0.00", "cuadra en dólares");
+  assert.equal(s2(t.diferenciaFuncional), "0.00", "y en soles");
+});
+
+test("una línea sin importe en ninguna moneda sigue siendo un error", () => {
+  const vacia: LineaAsiento = {
+    cuenta: "676", debe: ZERO, haber: ZERO, debeFuncional: ZERO, haberFuncional: ZERO,
+  };
+  assert.match(
+    validar(asiento([vacia, debe("101", "1")])).join(),
+    /cero en ninguna moneda/,
+  );
+});
+
+test("una línea con importe funcional a ambos lados se rechaza", () => {
+  const mala: LineaAsiento = {
+    cuenta: "676", debe: ZERO, haber: ZERO,
+    debeFuncional: dec("10"), haberFuncional: dec("10"),
+  };
+  assert.match(
+    validar(asiento([mala, debe("101", "1")])).join(),
+    /funcional al debe y al haber a la vez/,
+  );
 });

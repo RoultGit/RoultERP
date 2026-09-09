@@ -110,11 +110,23 @@ export function validar(a: Asiento): string[] {
     if (!isZero(l.debe) && !isZero(l.haber)) {
       motivos.push(`línea ${n}: no puede tener importe al debe y al haber a la vez`);
     }
-    if (isZero(l.debe) && isZero(l.haber)) {
-      motivos.push(`línea ${n}: no puede tener importe cero en ambos lados`);
+    if (!isZero(l.debeFuncional) && !isZero(l.haberFuncional)) {
+      motivos.push(`línea ${n}: no puede tener importe funcional al debe y al haber a la vez`);
     }
-    // Un importe en la moneda de operación tiene que tener su equivalente
-    // funcional del mismo lado, o el balance en soles no cuadra.
+    /*
+     * Una línea sin importe en ninguna moneda no dice nada y sobra.
+     *
+     * Se admite, en cambio, la que sólo tiene importe funcional: es la
+     * diferencia de cambio. Una deuda de 1180 dólares registrada a 3.75 y
+     * pagada a 3.80 se cancela por los mismos 1180 dólares, pero cuesta 59
+     * soles más. Esos 59 soles existen únicamente en la moneda funcional, y
+     * exigirles una contrapartida en dólares sería pedir que el asiento mienta.
+     */
+    if (isZero(l.debe) && isZero(l.haber) && isZero(l.debeFuncional) && isZero(l.haberFuncional)) {
+      motivos.push(`línea ${n}: no puede tener importe cero en ninguna moneda`);
+    }
+    // Al revés sí es un error: un importe en la moneda de la operación sin su
+    // equivalente funcional descuadra el balance en soles.
     if (!isZero(l.debe) && isZero(l.debeFuncional)) {
       motivos.push(`línea ${n}: falta el importe funcional al debe`);
     }

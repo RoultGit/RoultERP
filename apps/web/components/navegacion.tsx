@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { Route } from "next";
 import { usePathname } from "next/navigation";
 
 /**
@@ -72,7 +73,7 @@ export function Navegacion({ permisos }: { permisos: string[] }) {
             {visibles.map((item) => (
               <Link
                 key={item.href}
-                href={item.href}
+                href={item.href as Route}
                 className="enlace-nav"
                 // Coincidencia por prefijo para que una subruta —el detalle de
                 // una importación, por ejemplo— siga marcando su módulo.

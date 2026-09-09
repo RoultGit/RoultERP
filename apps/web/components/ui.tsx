@@ -6,6 +6,7 @@
  * falta son cuatro piezas consistentes, no una librería de componentes.
  */
 import Link from "next/link";
+import type { Route } from "next";
 
 export function Encabezado({
   titulo,
@@ -144,7 +145,7 @@ export function BotonEnlace({
   variante?: "primario" | "secundario";
 }) {
   return (
-    <Link href={href} className={`boton boton-${variante}`}>
+    <Link href={href as Route} className={`boton boton-${variante}`}>
       {children}
     </Link>
   );

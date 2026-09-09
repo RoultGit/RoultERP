@@ -4,3 +4,4 @@ export * from "./pcge.ts";
 export * from "./inventario.ts";
 export * from "./contabilidad.ts";
 export * from "./importaciones.ts";
+export * from "./maestros.ts";

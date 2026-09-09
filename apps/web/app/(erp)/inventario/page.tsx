@@ -49,7 +49,7 @@ export default async function Inventario({
             Todos los almacenes
           </Filtro>
           {almacenes.map((a) => (
-            <Filtro key={a.id} href={`/inventario?almacen=${a.id}`} activo={almacen === a.id}>
+            <Filtro key={a.id} href={{ pathname: "/inventario", query: { almacen: a.id } }} activo={almacen === a.id}>
               {a.nombre}
               {a.es_transito && " (tránsito)"}
             </Filtro>
@@ -104,7 +104,10 @@ export default async function Inventario({
                     </td>
                     <td>
                       <Link
-                        href={`/inventario/kardex?producto=${s.productoId}&almacen=${s.almacenId}`}
+                        href={{
+                          pathname: "/inventario/kardex",
+                          query: { producto: s.productoId, almacen: s.almacenId },
+                        }}
                         className="text-xs underline"
                       >
                         Kardex
@@ -137,7 +140,7 @@ function Filtro({
   activo,
   children,
 }: {
-  href: string;
+  href: React.ComponentProps<typeof Link>["href"];
   activo: boolean;
   children: React.ReactNode;
 }) {

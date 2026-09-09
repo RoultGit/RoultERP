@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Route } from "next";
 import { listar } from "@roulterp/servicios";
 import { conEmpresa, tienePermiso } from "@/lib/sesion";
 import { Contenido, Encabezado, EstadoDoc, Importe, Vacio, BotonEnlace } from "@/components/ui";
@@ -45,7 +46,7 @@ export default async function Importaciones() {
                 {filas.map((f) => (
                   <tr key={f.id}>
                     <td>
-                      <Link href={`/importaciones/${f.id}`} className="font-medium underline">
+                      <Link href={`/importaciones/${f.id}` as Route} className="font-medium underline">
                         {f.numero}
                       </Link>
                     </td>

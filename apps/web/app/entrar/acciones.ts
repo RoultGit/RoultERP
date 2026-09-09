@@ -14,6 +14,7 @@
  */
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import type { Route } from "next";
 import { ZodError } from "zod";
 import {
   login, verificarMfa, cerrarSesion, seleccionarEmpresa,
@@ -37,11 +38,17 @@ async function datosPeticion() {
   };
 }
 
-/** Ruta de destino, validada para que no sirva de redirección abierta. */
-function destinoSeguro(valor: FormDataEntryValue | null): string {
+/**
+ * Ruta de destino, validada para que no sirva de redirección abierta.
+ *
+ * El tipado de rutas de Next no alcanza aquí porque el valor viene del
+ * navegador; la garantía la da esta expresión regular: sólo rutas internas, una
+ * barra sola al inicio, nunca `//` ni un esquema. Sin esto, un enlace con
+ * `?siguiente=https://sitio-falso` convertiría el login en un trampolín.
+ */
+function destinoSeguro(valor: FormDataEntryValue | null): Route {
   const s = typeof valor === "string" ? valor : "";
-  // Sólo rutas internas: una barra sola al inicio, nunca `//` ni un esquema.
-  return /^\/(?!\/)[\w\-/?=&.%]*$/.test(s) ? s : "/";
+  return (/^\/(?!\/)[\w\-/?=&.%]*$/.test(s) ? s : "/") as Route;
 }
 
 export async function entrar(

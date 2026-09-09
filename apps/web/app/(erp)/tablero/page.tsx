@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Route } from "next";
 import { sql } from "drizzle-orm";
 import { money } from "@roulterp/core";
 import { conEmpresa } from "@/lib/sesion";
@@ -84,25 +85,25 @@ export default async function Tablero() {
             titulo="Inventario valorizado"
             valor={datos.inventario.valor}
             detalle={`${datos.inventario.con_stock} productos con stock`}
-            href="/inventario"
+            href={"/inventario" as Route}
           />
           <Indicador
             titulo="Embarques en curso"
             valor={money.toString(fobEnTransito, 2)}
             detalle={`${datos.embarques.length} importaciones sin liquidar · FOB`}
-            href="/importaciones"
+            href={"/importaciones" as Route}
           />
           <Indicador
             titulo="Por pagar"
             valor={datos.cxp.total}
             detalle="Saldo pendiente a proveedores"
-            href="/cxp"
+            href={"/cxp" as Route}
           />
           <Indicador
             titulo="Vencido"
             valor={datos.cxp.vencido}
             detalle={`${datos.cxp.docs_vencidos} documentos pasados de fecha`}
-            href="/cxp"
+            href={"/cxp" as Route}
             alerta={Number(datos.cxp.vencido) > 0}
           />
         </div>
@@ -137,7 +138,7 @@ export default async function Tablero() {
                   {datos.embarques.map((e) => (
                     <tr key={e.id}>
                       <td>
-                        <Link href={`/importaciones/${e.id}`} className="font-medium underline">
+                        <Link href={`/importaciones/${e.id}` as Route} className="font-medium underline">
                           {e.numero}
                         </Link>
                       </td>
@@ -220,7 +221,7 @@ function Indicador({
   titulo: string;
   valor: string;
   detalle: string;
-  href: string;
+  href: Route;
   alerta?: boolean;
 }) {
   return (

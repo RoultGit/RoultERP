@@ -29,7 +29,8 @@ import {
   verifyTotp, generateSecret, otpauthUri, generateRecoveryCodes,
   sellar, abrir, type SobreCifrado,
   evaluarAmbos, registrarFallo, limpiar, type Intentos,
-  construirActor, ROLES_BASE, type Actor, type Permiso,
+  construirActor, puede, exigir as exigirPermiso, SinPermiso,
+  ROLES_BASE, type Actor, type Permiso,
 } from "@roulterp/core/auth";
 import { enAuth, schema as s, type Conexion, type Db } from "@roulterp/db";
 
@@ -741,4 +742,4 @@ async function limpiarIntentos(db: Db, claves: string[]): Promise<void> {
   await db.delete(intentosLogin).where(inArray(intentosLogin.clave, claves));
 }
 
-export { ROLES_BASE, type Actor, type Permiso };
+export { ROLES_BASE, puede, exigirPermiso, SinPermiso, type Actor, type Permiso };

@@ -19,9 +19,9 @@ import { cache } from "react";
 import { enEmpresa, type Db } from "@roulterp/db";
 import { SESSION_COOKIE, cookieOptions, SESSION_TTL_MS } from "@roulterp/core/auth";
 import {
-  cargarSesion, puede, exigir as exigirPermiso, type Permiso, type SesionActiva,
+  cargarSesion, puede, exigirPermiso, type Permiso, type SesionActiva,
 } from "@roulterp/servicios";
-import { conexionApp, entornoAuth, esProduccion } from "./entorno.ts";
+import { conexionApp, entornoAuth, esProduccion } from "./entorno";
 
 /**
  * `cache` de React deduplica la carga dentro de una misma petición: el layout,

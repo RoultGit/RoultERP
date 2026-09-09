@@ -5,15 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1788938432510,
+      "when": 1788940235996,
       "tag": "0000_inicial",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1788938723730,
-      "tag": "0001_mfa_ultimo_paso",
       "breakpoints": true
     }
   ]

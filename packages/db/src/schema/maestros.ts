@@ -9,7 +9,7 @@
 import {
   boolean, index, integer, pgTable, text, uniqueIndex, uuid,
 } from "drizzle-orm/pg-core";
-import { auditoria, empresaId, id, importe, importeCero } from "./comun.ts";
+import { auditoria, empresaId, fecha, id, importe, importeCero } from "./comun.ts";
 import { empresas } from "./identidad.ts";
 
 export const sucursales = pgTable(
@@ -215,8 +215,8 @@ export const reglasDetraccion = pgTable(
     descripcion: text("descripcion").notNull(),
     tasa: importe("tasa").notNull(),
     aplicaMinimo: boolean("aplica_minimo").notNull().default(true),
-    vigenteDesde: text("vigente_desde").notNull(),
-    vigenteHasta: text("vigente_hasta"),
+    vigenteDesde: fecha("vigente_desde").notNull(),
+    vigenteHasta: fecha("vigente_hasta"),
     ...auditoria(),
   },
   (t) => [uniqueIndex("reglas_detraccion_uk").on(t.empresaId, t.codigo, t.vigenteDesde)],

@@ -1,5 +1,5 @@
 {
-  "id": "c18d99c9-bf34-4336-9f9f-eef21f53d1e6",
+  "id": "92bd3bd0-d1d9-472d-a882-7f2af767bdfa",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -529,7 +529,7 @@
       "columns": {
         "fecha": {
           "name": "fecha",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": true
         },
@@ -973,6 +973,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "mfa_ultimo_paso": {
+          "name": "mfa_ultimo_paso",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         },
         "mfa_respaldos": {
           "name": "mfa_respaldos",
@@ -1842,13 +1848,13 @@
         },
         "vigente_desde": {
           "name": "vigente_desde",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": true
         },
         "vigente_hasta": {
           "name": "vigente_hasta",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": false
         },
@@ -2616,7 +2622,7 @@
         },
         "documento_fecha": {
           "name": "documento_fecha",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": false
         },
@@ -2797,7 +2803,7 @@
         },
         "fecha": {
           "name": "fecha",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": true
         },
@@ -3209,13 +3215,13 @@
         },
         "fecha_emision": {
           "name": "fecha_emision",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": true
         },
         "fecha_vencimiento": {
           "name": "fecha_vencimiento",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": false
         },
@@ -3321,7 +3327,7 @@
         },
         "detraccion_fecha": {
           "name": "detraccion_fecha",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": false
         },
@@ -3536,13 +3542,13 @@
         },
         "fecha_emision": {
           "name": "fecha_emision",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": true
         },
         "fecha_vencimiento": {
           "name": "fecha_vencimiento",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": true
         },
@@ -3796,7 +3802,7 @@
         },
         "fecha": {
           "name": "fecha",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": false
         },
@@ -4123,25 +4129,25 @@
         },
         "fecha_orden": {
           "name": "fecha_orden",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": true
         },
         "fecha_embarque": {
           "name": "fecha_embarque",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": false
         },
         "fecha_llegada": {
           "name": "fecha_llegada",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": false
         },
         "fecha_nacionalizacion": {
           "name": "fecha_nacionalizacion",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": false
         },
@@ -4153,7 +4159,7 @@
         },
         "dua_fecha": {
           "name": "dua_fecha",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": false
         },
@@ -4443,13 +4449,13 @@
         },
         "fecha_giro": {
           "name": "fecha_giro",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": true
         },
         "fecha_vencimiento": {
           "name": "fecha_vencimiento",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": true
         },
@@ -4809,7 +4815,7 @@
         },
         "fecha": {
           "name": "fecha",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": true
         },
@@ -4969,7 +4975,7 @@
         },
         "fecha": {
           "name": "fecha",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": true
         },
@@ -5389,13 +5395,13 @@
         },
         "fecha": {
           "name": "fecha",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": true
         },
         "fecha_entrega": {
           "name": "fecha_entrega",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": false
         },
@@ -5762,7 +5768,7 @@
         },
         "fecha": {
           "name": "fecha",
-          "type": "text",
+          "type": "date",
           "primaryKey": false,
           "notNull": true
         },

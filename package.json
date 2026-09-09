@@ -1,16 +1,27 @@
 {
   "name": "roulterp",
   "private": true,
-  "workspaces": ["packages/*", "apps/*"],
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
   "scripts": {
-    "test": "npm run test --workspaces --if-present",
-    "typecheck": "tsc -b",
-    "dev": "npm run dev -w @roulterp/web"
+    "dev": "npm run dev -w @roulterp/web",
+    "build": "tsc -b && npm run build -w @roulterp/web",
+    "typecheck": "tsc -b && npm run typecheck -w @roulterp/web",
+    "migrate": "npm run migrate -w @roulterp/db",
+    "sembrar": "tsx scripts/sembrar.ts",
+    "test": "npm run test:dominio && npm run test:integracion",
+    "test:dominio": "tsx --test packages/core/test/*.test.ts",
+    "test:integracion": "tsx --test --test-concurrency=1 packages/db/test/*.test.ts packages/servicios/test/*.test.ts"
   },
   "devDependencies": {
     "typescript": "^5.7.2",
     "@types/node": "^22.10.2",
     "tsx": "^4.19.2"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  }
 }

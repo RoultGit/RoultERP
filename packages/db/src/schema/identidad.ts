@@ -14,7 +14,7 @@ import { relations } from "drizzle-orm";
 import {
   boolean, index, inet, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid,
 } from "drizzle-orm/pg-core";
-import { auditoria, creadoEn, id, importe } from "./comun.ts";
+import { auditoria, creadoEn, fecha, id, importe } from "./comun.ts";
 
 export const empresas = pgTable(
   "empresas",
@@ -209,7 +209,7 @@ export const trabajos = pgTable(
 export const tipoCambio = pgTable(
   "tipo_cambio",
   {
-    fecha: text("fecha").notNull(),
+    fecha: fecha("fecha").notNull(),
     moneda: text("moneda").notNull(),
     compra: importe("compra").notNull(),
     venta: importe("venta").notNull(),

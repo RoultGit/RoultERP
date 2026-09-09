@@ -10,7 +10,7 @@
 import {
   boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid,
 } from "drizzle-orm/pg-core";
-import { auditoria, empresaId, id, importe, importeCero } from "./comun.ts";
+import { auditoria, empresaId, fecha, id, importe, importeCero } from "./comun.ts";
 import { empresas } from "./identidad.ts";
 import { almacenes, centrosCosto, planCuentas, productos, sucursales, terceros } from "./maestros.ts";
 
@@ -25,8 +25,8 @@ export const ordenesCompra = pgTable(
     proveedorId: uuid("proveedor_id").notNull().references(() => terceros.id),
     sucursalId: uuid("sucursal_id").references(() => sucursales.id),
     almacenId: uuid("almacen_id").references(() => almacenes.id),
-    fecha: text("fecha").notNull(),
-    fechaEntrega: text("fecha_entrega"),
+    fecha: fecha("fecha").notNull(),
+    fechaEntrega: fecha("fecha_entrega"),
     moneda: text("moneda").notNull(),
     tipoCambio: importe("tipo_cambio").notNull().default("1"),
     /** borrador, aprobada, parcial, recibida, anulada */
@@ -83,8 +83,8 @@ export const compras = pgTable(
     tipoDocumento: text("tipo_documento").notNull(),
     serie: text("serie").notNull(),
     numero: text("numero").notNull(),
-    fechaEmision: text("fecha_emision").notNull(),
-    fechaVencimiento: text("fecha_vencimiento"),
+    fechaEmision: fecha("fecha_emision").notNull(),
+    fechaVencimiento: fecha("fecha_vencimiento"),
     /** Periodo en que se toma el crédito fiscal; puede diferir de la emisión. */
     periodo: text("periodo").notNull(),
     moneda: text("moneda").notNull(),
@@ -102,7 +102,7 @@ export const compras = pgTable(
     detraccionTasa: importe("detraccion_tasa"),
     detraccionMonto: importeCero("detraccion_monto"),
     detraccionConstancia: text("detraccion_constancia"),
-    detraccionFecha: text("detraccion_fecha"),
+    detraccionFecha: fecha("detraccion_fecha"),
     percepcionMonto: importeCero("percepcion_monto"),
     ordenCompraId: uuid("orden_compra_id").references(() => ordenesCompra.id),
     /** Si nace de una importación, el embarque que la originó. */
@@ -158,13 +158,13 @@ export const importaciones = pgTable(
     incoterm: text("incoterm"),
     /** borrador, aprobada, en_transito, en_aduana, nacionalizada, liquidada, anulada */
     estado: text("estado").notNull().default("borrador"),
-    fechaOrden: text("fecha_orden").notNull(),
-    fechaEmbarque: text("fecha_embarque"),
-    fechaLlegada: text("fecha_llegada"),
-    fechaNacionalizacion: text("fecha_nacionalizacion"),
+    fechaOrden: fecha("fecha_orden").notNull(),
+    fechaEmbarque: fecha("fecha_embarque"),
+    fechaLlegada: fecha("fecha_llegada"),
+    fechaNacionalizacion: fecha("fecha_nacionalizacion"),
     /** Declaración aduanera de mercancías. */
     duaNumero: text("dua_numero"),
-    duaFecha: text("dua_fecha"),
+    duaFecha: fecha("dua_fecha"),
     facturaExterior: text("factura_exterior"),
     conocimientoEmbarque: text("conocimiento_embarque"),
     puertoOrigen: text("puerto_origen"),
@@ -225,7 +225,7 @@ export const importacionGastos = pgTable(
     itemId: uuid("item_id").references(() => importacionItems.id),
     proveedorId: uuid("proveedor_id").references(() => terceros.id),
     documento: text("documento"),
-    fecha: text("fecha"),
+    fecha: fecha("fecha"),
     ...auditoria(),
   },
   (t) => [index("importacion_gastos_ix").on(t.importacionId)],
@@ -248,7 +248,7 @@ export const liquidaciones = pgTable(
       .notNull()
       .references(() => importaciones.id, { onDelete: "cascade" }),
     numero: text("numero").notNull(),
-    fecha: text("fecha").notNull(),
+    fecha: fecha("fecha").notNull(),
     fobTotal: importeCero("fob_total"),
     gastosCostoTotal: importeCero("gastos_costo_total"),
     gastosNoCostoTotal: importeCero("gastos_no_costo_total"),
@@ -302,7 +302,7 @@ export const movimientosInventario = pgTable(
     empresaId: empresaId().references(() => empresas.id, { onDelete: "cascade" }),
     almacenId: uuid("almacen_id").notNull().references(() => almacenes.id),
     productoId: uuid("producto_id").notNull().references(() => productos.id),
-    fecha: text("fecha").notNull(),
+    fecha: fecha("fecha").notNull(),
     /** Desempata movimientos de la misma fecha. Lo asigna una secuencia. */
     orden: integer("orden").notNull(),
     /** "ingreso" o "salida". */
@@ -370,8 +370,8 @@ export const documentosCxp = pgTable(
     tipoDocumento: text("tipo_documento").notNull(),
     serie: text("serie").notNull(),
     numero: text("numero").notNull(),
-    fechaEmision: text("fecha_emision").notNull(),
-    fechaVencimiento: text("fecha_vencimiento").notNull(),
+    fechaEmision: fecha("fecha_emision").notNull(),
+    fechaVencimiento: fecha("fecha_vencimiento").notNull(),
     moneda: text("moneda").notNull(),
     tipoCambio: importe("tipo_cambio").notNull().default("1"),
     total: importe("total").notNull(),
@@ -394,7 +394,7 @@ export const pagos = pgTable(
     empresaId: empresaId().references(() => empresas.id, { onDelete: "cascade" }),
     numero: text("numero").notNull(),
     proveedorId: uuid("proveedor_id").notNull().references(() => terceros.id),
-    fecha: text("fecha").notNull(),
+    fecha: fecha("fecha").notNull(),
     moneda: text("moneda").notNull(),
     tipoCambio: importe("tipo_cambio").notNull().default("1"),
     /** efectivo, transferencia, cheque, letra */
@@ -448,8 +448,8 @@ export const letras = pgTable(
     /** "cobrar" o "pagar". La misma tabla sirve a CxC y a CxP. */
     cartera: text("cartera").notNull(),
     terceroId: uuid("tercero_id").notNull().references(() => terceros.id),
-    fechaGiro: text("fecha_giro").notNull(),
-    fechaVencimiento: text("fecha_vencimiento").notNull(),
+    fechaGiro: fecha("fecha_giro").notNull(),
+    fechaVencimiento: fecha("fecha_vencimiento").notNull(),
     moneda: text("moneda").notNull(),
     importe: importe("importe").notNull(),
     saldo: importe("saldo").notNull(),
@@ -489,7 +489,7 @@ export const asientos = pgTable(
     empresaId: empresaId().references(() => empresas.id, { onDelete: "cascade" }),
     periodo: text("periodo").notNull(),
     numero: text("numero").notNull(),
-    fecha: text("fecha").notNull(),
+    fecha: fecha("fecha").notNull(),
     /** Catálogo 8 de SUNAT: 01 caja, 08 compras, 14 ventas… */
     subdiario: text("subdiario").notNull(),
     glosa: text("glosa").notNull(),
@@ -526,7 +526,7 @@ export const asientoLineas = pgTable(
     documentoTipo: text("documento_tipo"),
     documentoSerie: text("documento_serie"),
     documentoNumero: text("documento_numero"),
-    documentoFecha: text("documento_fecha"),
+    documentoFecha: fecha("documento_fecha"),
     ...auditoria(),
   },
   (t) => [

@@ -13,7 +13,7 @@
  *   hay una prueba que lo detecta.
  */
 import { sql } from "drizzle-orm";
-import { numeric, timestamp, uuid, text } from "drizzle-orm/pg-core";
+import { date, numeric, timestamp, uuid, text } from "drizzle-orm/pg-core";
 
 /** Escala de `packages/core/money.ts`. Cambiar una obliga a cambiar la otra. */
 export const ESCALA = 6;
@@ -29,6 +29,19 @@ export const ESCALA = 6;
  */
 export const importe = (nombre: string) =>
   numeric(nombre, { precision: 18, scale: ESCALA });
+
+/**
+ * Fecha de calendario, sin hora.
+ *
+ * `date` de Postgres y no `text`: así el motor valida el formato, la columna se
+ * indexa por rango y `fecha < current_date` funciona sin conversiones. Se lee y
+ * escribe como texto ISO —el driver devuelve "2026-09-09", no un `Date`—, con
+ * lo que no hay desfase de zona horaria: una factura emitida el 1 de setiembre
+ * en Lima no puede aparecer como del 31 de agosto por vivir el servidor en UTC.
+ *
+ * Los `timestamp` sí llevan zona, porque un instante sí la necesita.
+ */
+export const fecha = (nombre: string) => date(nombre, { mode: "string" });
 
 /** Importe que no puede faltar; por defecto cero, nunca nulo. */
 export const importeCero = (nombre: string) => importe(nombre).notNull().default("0");

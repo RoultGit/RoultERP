@@ -8,6 +8,13 @@
       "when": 1788940235996,
       "tag": "0000_inicial",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788943525229,
+      "tag": "0001_ventas_y_cpe",
+      "breakpoints": true
     }
   ]
 }

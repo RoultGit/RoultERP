@@ -7,3 +7,4 @@ export * from "./importaciones.ts";
 export * from "./maestros.ts";
 export * from "./compras.ts";
 export * from "./ple.ts";
+export * from "./ventas.ts";

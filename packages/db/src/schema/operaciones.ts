@@ -535,3 +535,160 @@ export const asientoLineas = pgTable(
     index("asiento_lineas_anexo_ix").on(t.empresaId, t.anexoId),
   ],
 );
+
+// ─── Ventas y comprobantes electrónicos ───────────────────────────────────
+
+/**
+ * Comprobantes emitidos.
+ *
+ * Una sola tabla para facturas, boletas y notas: comparten el 90 % de los
+ * campos y separarlas obligaría a unir tres tablas cada vez que alguien
+ * pregunta «cuánto vendimos». El `tipo_documento` del catálogo 01 las
+ * distingue.
+ *
+ * El XML firmado y el CDR se guardan aquí, no en disco: son los documentos que
+ * sustentan la operación ante SUNAT y tienen que sobrevivir a cualquier cambio
+ * de proveedor de almacenamiento.
+ */
+export const comprobantes = pgTable(
+  "comprobantes",
+  {
+    id: id(),
+    empresaId: empresaId().references(() => empresas.id, { onDelete: "cascade" }),
+    clienteId: uuid("cliente_id").notNull().references(() => terceros.id),
+    /** Catálogo 01 de SUNAT. */
+    tipoDocumento: text("tipo_documento").notNull(),
+    serie: text("serie").notNull(),
+    numero: text("numero").notNull(),
+    fechaEmision: fecha("fecha_emision").notNull(),
+    horaEmision: text("hora_emision"),
+    fechaVencimiento: fecha("fecha_vencimiento"),
+    periodo: text("periodo").notNull(),
+    moneda: text("moneda").notNull(),
+    tipoCambio: importe("tipo_cambio").notNull().default("1"),
+    /** Catálogo 51: tipo de operación de venta. */
+    tipoOperacion: text("tipo_operacion").notNull().default("0101"),
+
+    gravadas: importeCero("gravadas"),
+    exoneradas: importeCero("exoneradas"),
+    inafectas: importeCero("inafectas"),
+    exportacion: importeCero("exportacion"),
+    gratuitas: importeCero("gratuitas"),
+    isc: importeCero("isc"),
+    igv: importeCero("igv"),
+    igvGratuitas: importeCero("igv_gratuitas"),
+    otrosCargos: importeCero("otros_cargos"),
+    descuentoGlobal: importeCero("descuento_global"),
+    total: importe("total").notNull(),
+    totalEnLetras: text("total_en_letras"),
+
+    detraccionCodigo: text("detraccion_codigo"),
+    detraccionTasa: importe("detraccion_tasa"),
+    detraccionMonto: importeCero("detraccion_monto"),
+    percepcionMonto: importeCero("percepcion_monto"),
+
+    /** Si es una nota, el comprobante que modifica. */
+    modificaA: uuid("modifica_a"),
+    /** Catálogo 09 o 10 según el tipo de nota. */
+    motivoNota: text("motivo_nota"),
+    descripcionMotivo: text("descripcion_motivo"),
+
+    almacenId: uuid("almacen_id").references(() => almacenes.id),
+    asientoId: uuid("asiento_id"),
+
+    /** borrador, firmado, enviado, aceptado, aceptado_con_observaciones, rechazado, anulado */
+    estado: text("estado").notNull().default("borrador"),
+    /** XML ya firmado, tal como se envió. */
+    xmlFirmado: text("xml_firmado"),
+    /** Resumen SHA-256 del XML, que va impreso en la representación. */
+    hashXml: text("hash_xml"),
+    /** CDR devuelto por SUNAT, en base64. Es la constancia que hay que conservar. */
+    cdrBase64: text("cdr_base64"),
+    codigoSunat: integer("codigo_sunat"),
+    mensajeSunat: text("mensaje_sunat"),
+    observacionesSunat: text("observaciones_sunat").array(),
+    ticketSunat: text("ticket_sunat"),
+    enviadoEn: timestamp("enviado_en", { withTimezone: true }),
+    ...auditoria(),
+  },
+  (t) => [
+    uniqueIndex("comprobantes_uk").on(t.empresaId, t.tipoDocumento, t.serie, t.numero),
+    index("comprobantes_periodo_ix").on(t.empresaId, t.periodo),
+    index("comprobantes_cliente_ix").on(t.empresaId, t.clienteId),
+    index("comprobantes_estado_ix").on(t.empresaId, t.estado),
+  ],
+);
+
+export const comprobanteItems = pgTable(
+  "comprobante_items",
+  {
+    id: id(),
+    empresaId: empresaId().references(() => empresas.id, { onDelete: "cascade" }),
+    comprobanteId: uuid("comprobante_id")
+      .notNull()
+      .references(() => comprobantes.id, { onDelete: "cascade" }),
+    linea: integer("linea").notNull(),
+    productoId: uuid("producto_id").references(() => productos.id),
+    codigo: text("codigo").notNull(),
+    descripcion: text("descripcion").notNull(),
+    unidad: text("unidad").notNull(),
+    cantidad: importe("cantidad").notNull(),
+    valorUnitario: importe("valor_unitario").notNull(),
+    precioUnitario: importe("precio_unitario").notNull(),
+    descuento: importeCero("descuento"),
+    /** Catálogo 07. */
+    afectacionIgv: text("afectacion_igv").notNull().default("10"),
+    valorVenta: importeCero("valor_venta"),
+    igv: importeCero("igv"),
+    importeLinea: importeCero("importe_linea"),
+    /** Costo de venta tomado del kardex al despachar. */
+    costoUnitario: importe("costo_unitario"),
+    ...auditoria(),
+  },
+  (t) => [uniqueIndex("comprobante_items_uk").on(t.comprobanteId, t.linea)],
+);
+
+/**
+ * Certificado digital de la empresa para firmar comprobantes.
+ *
+ * El `.pfx` va cifrado con sobre; la contraseña, también. Ninguno de los dos se
+ * guarda en claro: con ellos se puede emitir cualquier comprobante a nombre de
+ * ese RUC, así que son lo más valioso que custodia el sistema.
+ */
+export const certificadosDigitales = pgTable(
+  "certificados_digitales",
+  {
+    id: id(),
+    empresaId: empresaId().references(() => empresas.id, { onDelete: "cascade" }),
+    /** Sobre cifrado con el contenido del .pfx. */
+    pfxCifrado: jsonb("pfx_cifrado").notNull(),
+    /** Sobre cifrado con la contraseña del .pfx. */
+    passwordCifrado: jsonb("password_cifrado").notNull(),
+    /** RUC que declara el certificado; se compara con el de la empresa. */
+    ruc: text("ruc"),
+    vigenteHasta: fecha("vigente_hasta"),
+    activo: boolean("activo").notNull().default(true),
+    ...auditoria(),
+  },
+  (t) => [index("certificados_empresa_ix").on(t.empresaId, t.activo)],
+);
+
+/**
+ * Credenciales SOL para el servicio de SUNAT.
+ *
+ * Separadas del certificado porque son cosas distintas: el certificado firma,
+ * las credenciales autentican el envío. La clave va cifrada con sobre.
+ */
+export const credencialesSunat = pgTable(
+  "credenciales_sunat",
+  {
+    id: id(),
+    empresaId: empresaId().references(() => empresas.id, { onDelete: "cascade" }),
+    usuarioSol: text("usuario_sol").notNull(),
+    claveCifrada: jsonb("clave_cifrada").notNull(),
+    /** "beta" mientras se homologa, "produccion" cuando emite de verdad. */
+    entorno: text("entorno").notNull().default("beta"),
+    ...auditoria(),
+  },
+  (t) => [uniqueIndex("credenciales_sunat_uk").on(t.empresaId)],
+);

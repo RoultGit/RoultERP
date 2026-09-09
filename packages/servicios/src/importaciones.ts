@@ -391,6 +391,10 @@ export async function confirmarLiquidacion(
       tipoOperacion: kardex.TIPO_OPERACION.COMPRA,
       cantidad: item.item.cantidad,
       costoUnitario: item.costoUnitario,
+      // El costo total es el dato exacto; el unitario es el derivado. Pasarlo
+      // evita que el kardex y la cuenta 20 se separen unos céntimos por
+      // liquidación, deriva que en un año de embarques ya no es despreciable.
+      importeTotal: item.costoTotal,
       origenModulo: "importaciones",
       origenId: liquidacionId,
     });

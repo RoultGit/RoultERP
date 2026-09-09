@@ -36,6 +36,12 @@ export type EntradaMovimiento = {
   cantidad: Dec;
   /** Obligatorio al ingresar; se ignora al salir. */
   costoUnitario?: Dec;
+  /**
+   * Importe exacto del ingreso, cuando quien llama lo conoce con más precisión
+   * que `cantidad × costoUnitario`. Lo usa la liquidación de importación, donde
+   * el costo unitario suele no ser representable en seis decimales.
+   */
+  importeTotal?: Dec;
   lote?: string;
   serie?: string;
   origenModulo?: string;
@@ -137,7 +143,20 @@ export async function registrarMovimiento(
     };
   }
 
-  // Camino lento: se inserta con costo provisional y se reproduce la historia.
+  // Camino lento: se inserta y se reproduce la historia entera.
+  //
+  // El importe del ingreso se calcula ya aquí, no se deja en cero a la espera
+  // del recálculo: para un ingreso, lo que costó la compra es un hecho, y el
+  // recálculo lo respeta en vez de recomputarlo. Sólo las salidas cambian de
+  // costo, porque el suyo sí depende del método y de lo que haya antes.
+  const importeIngreso =
+    entrada.sentido === "ingreso"
+      ? txt(
+          entrada.importeTotal ??
+            money.round(money.mul(entrada.cantidad, entrada.costoUnitario ?? money.ZERO), 6),
+        )
+      : "0";
+
   const [fila] = await db
     .insert(movimientosInventario)
     .values({
@@ -150,7 +169,7 @@ export async function registrarMovimiento(
       tipoOperacion: entrada.tipoOperacion,
       cantidad: txt(entrada.cantidad),
       costoUnitario: txt(entrada.costoUnitario ?? money.ZERO),
-      importeTotal: "0",
+      importeTotal: importeIngreso,
       lote: entrada.lote ?? null,
       serie: entrada.serie ?? null,
       origenModulo: entrada.origenModulo ?? null,
@@ -212,7 +231,9 @@ export async function recalcular(
     sentido: f.sentido as "ingreso" | "salida",
     tipoOperacion: f.tipoOperacion as kardex.TipoOperacion,
     cantidad: dec(f.cantidad),
-    ...(f.sentido === "ingreso" ? { costoUnitario: dec(f.costoUnitario) } : {}),
+    ...(f.sentido === "ingreso"
+      ? { costoUnitario: dec(f.costoUnitario), importeTotal: dec(f.importeTotal) }
+      : {}),
   }));
 
   // Al reproducir se permite el negativo transitorio: una salida que quedó
@@ -369,6 +390,7 @@ const aMovimientoDominio = (e: EntradaMovimiento, id: string): kardex.Movimiento
   tipoOperacion: e.tipoOperacion as kardex.TipoOperacion,
   cantidad: e.cantidad,
   ...(e.costoUnitario !== undefined ? { costoUnitario: e.costoUnitario } : {}),
+  ...(e.importeTotal !== undefined ? { importeTotal: e.importeTotal } : {}),
 });
 
 const costoDe = (l: kardex.LineaKardex): Dec =>

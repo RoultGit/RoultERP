@@ -13,7 +13,9 @@ import postgres from "postgres";
 import { conectar, enEmpresa } from "@roulterp/db";
 import {
   crearEmpresa, crearImportacion, agregarItem, agregarGasto, cambiarEstado,
+  confirmarLiquidacion, registrarMovimiento,
 } from "@roulterp/servicios";
+import { money } from "@roulterp/core";
 
 const URL = process.env["DATABASE_URL"] ?? "postgres://localhost/roulterp_dev";
 const CLAVE = "roulterp-desarrollo-1";
@@ -144,6 +146,65 @@ async function main() {
       duaNumero: "235-2026-10-448271",
       duaFecha: "2026-09-02",
       fechaLlegada: "2026-08-29",
+    });
+
+    // Un embarque anterior ya liquidado: deja el inventario con existencias y
+    // la contabilidad con su asiento, que es lo que se quiere ver al abrir las
+    // pantallas de inventario y de kardex.
+    const previo = await crearImportacion(db, ctx.empresaId, ctx.usuarioId, {
+      numero: "IMP-2026-0011",
+      proveedorId: proveedor!.id,
+      almacenId: almacen!.id,
+      moneda: "USD",
+      tipoCambio: "3.744",
+      incoterm: "FOB",
+      fechaOrden: "2026-05-12",
+    });
+    await agregarItem(db, ctx.empresaId, previo, {
+      productoId: productos[0]!, descripcion: "Bomba centrífuga 2HP monofásica",
+      cantidad: "80", fobUnitario: "47.20",
+    });
+    await agregarItem(db, ctx.empresaId, previo, {
+      productoId: productos[2]!, descripcion: "Manguera reforzada PVC 50 m",
+      cantidad: "150", fobUnitario: "22.40",
+    });
+    await agregarGasto(db, ctx.empresaId, previo, {
+      concepto: "Flete internacional", importe: "1850.00", moneda: "USD",
+      tipoCambio: "3.769", baseProrrateo: "peso", afectaCosto: true,
+    });
+    await agregarGasto(db, ctx.empresaId, previo, {
+      concepto: "Ad valorem", importe: "1420.60", moneda: "PEN",
+      tipoCambio: "1", baseProrrateo: "fob", afectaCosto: true,
+    });
+    await agregarGasto(db, ctx.empresaId, previo, {
+      concepto: "Agente de aduanas", importe: "944.00", moneda: "PEN",
+      tipoCambio: "1", baseProrrateo: "fob", afectaCosto: true,
+    });
+    await agregarGasto(db, ctx.empresaId, previo, {
+      concepto: "IGV de importación", importe: "4521.88", moneda: "PEN",
+      tipoCambio: "1", baseProrrateo: "fob", afectaCosto: false,
+    });
+    for (const estado of ["aprobada", "en_transito"] as const) {
+      await cambiarEstado(db, previo, estado);
+    }
+    await cambiarEstado(db, previo, "en_aduana", {
+      duaNumero: "235-2026-10-311204", duaFecha: "2026-06-18",
+    });
+    await cambiarEstado(db, previo, "nacionalizada");
+    await confirmarLiquidacion(db, ctx.empresaId, ctx.usuarioId, previo, {
+      numero: "LIQ-2026-0007", fecha: "2026-06-20", periodo: "202606",
+    });
+
+    // Una venta posterior, para que el kardex tenga entradas y salidas y se vea
+    // el costo de salida calculado por el método de la empresa.
+    await registrarMovimiento(db, ctx.empresaId, {
+      almacenId: almacen!.id,
+      productoId: productos[0]!,
+      fecha: "2026-07-15",
+      sentido: "salida",
+      tipoOperacion: "01",
+      cantidad: money.dec("25"),
+      origenModulo: "ventas",
     });
 
     // Un segundo embarque más pequeño, todavía en borrador.

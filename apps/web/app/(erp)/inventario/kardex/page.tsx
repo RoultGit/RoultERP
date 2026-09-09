@@ -1,0 +1,216 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { sql } from "drizzle-orm";
+import { kardexDe } from "@roulterp/servicios";
+import { money } from "@roulterp/core";
+import { conEmpresa } from "@/lib/sesion";
+import { Contenido, Encabezado, Importe, Insignia, Vacio } from "@/components/ui";
+
+export const metadata = { title: "Kardex · RoultERP" };
+export const dynamic = "force-dynamic";
+
+/** Catálogo 12 de SUNAT, con el nombre que entiende el usuario. */
+const OPERACION: Record<string, string> = {
+  "00": "Saldo inicial",
+  "01": "Venta",
+  "02": "Compra",
+  "03": "Devolución recibida",
+  "04": "Devolución entregada",
+  "05": "Transferencia entrada",
+  "06": "Transferencia salida",
+  "10": "Consumo",
+  "16": "Ajuste entrada",
+  "17": "Ajuste salida",
+};
+
+export default async function Kardex({
+  searchParams,
+}: {
+  searchParams: Promise<{ producto?: string; almacen?: string; desde?: string; hasta?: string }>;
+}) {
+  const { producto, almacen, desde, hasta } = await searchParams;
+  if (!producto || !almacen) notFound();
+
+  const datos = await conEmpresa(async (db) => {
+    const cabecera = (await db.execute(sql`
+      SELECT p.codigo, p.descripcion, u.codigo AS unidad, a.nombre AS almacen,
+             coalesce(s.cantidad, 0)::text AS saldo_cantidad,
+             coalesce(s.valor, 0)::text AS saldo_valor
+      FROM productos p
+      JOIN unidades_medida u ON u.id = p.unidad_id
+      CROSS JOIN almacenes a
+      LEFT JOIN saldos_inventario s ON s.producto_id = p.id AND s.almacen_id = a.id
+      WHERE p.id = ${producto} AND a.id = ${almacen}`)) as unknown as {
+      codigo: string;
+      descripcion: string;
+      unidad: string;
+      almacen: string;
+      saldo_cantidad: string;
+      saldo_valor: string;
+    }[];
+
+    if (cabecera.length === 0) return null;
+    const lineas = await kardexDe(db, almacen, producto, {
+      ...(desde ? { desde } : {}),
+      ...(hasta ? { hasta } : {}),
+    });
+    return { cabecera: cabecera[0]!, lineas };
+  }, "inventario:ver");
+
+  if (!datos) notFound();
+  const { cabecera, lineas } = datos;
+
+  // El saldo corrido se reconstruye recorriendo las líneas, que es exactamente
+  // lo que el formato 13.1 del PLE espera ver impreso.
+  let cantidad = money.ZERO;
+  let valor = money.ZERO;
+  const filas = lineas.map((l) => {
+    const cant = money.dec(l.cantidad);
+    const importe = money.dec(l.importeTotal);
+    if (l.sentido === "ingreso") {
+      cantidad = money.add(cantidad, cant);
+      valor = money.add(valor, importe);
+    } else {
+      cantidad = money.sub(cantidad, cant);
+      valor = money.sub(valor, importe);
+    }
+    if (money.isZero(cantidad)) valor = money.ZERO;
+    return { l, saldoCantidad: cantidad, saldoValor: valor };
+  });
+
+  return (
+    <>
+      <Encabezado
+        titulo={`Kardex · ${cabecera.codigo}`}
+        descripcion={`${cabecera.descripcion} · ${cabecera.almacen} · unidad ${cabecera.unidad}`}
+        acciones={
+          <Link href="/inventario" className="boton boton-secundario">
+            Volver
+          </Link>
+        }
+      />
+      <Contenido>
+        {filas.length === 0 ? (
+          <Vacio
+            titulo="Sin movimientos"
+            descripcion="Este producto todavía no ha entrado ni salido de este almacén."
+          />
+        ) : (
+          <div className="tarjeta overflow-x-auto">
+            <table className="tabla">
+              <thead>
+                <tr>
+                  <th rowSpan={2}>Fecha</th>
+                  <th rowSpan={2}>Operación</th>
+                  <th rowSpan={2}>Origen</th>
+                  <th colSpan={3} className="!text-center">
+                    Entradas
+                  </th>
+                  <th colSpan={3} className="!text-center">
+                    Salidas
+                  </th>
+                  <th colSpan={3} className="!text-center">
+                    Saldo
+                  </th>
+                </tr>
+                <tr>
+                  <th className="text-right">Cant.</th>
+                  <th className="text-right">C. unit.</th>
+                  <th className="text-right">Total</th>
+                  <th className="text-right">Cant.</th>
+                  <th className="text-right">C. unit.</th>
+                  <th className="text-right">Total</th>
+                  <th className="text-right">Cant.</th>
+                  <th className="text-right">C. unit.</th>
+                  <th className="text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filas.map(({ l, saldoCantidad, saldoValor }) => {
+                  const entrada = l.sentido === "ingreso";
+                  const capas = Array.isArray(l.consumos) ? l.consumos.length : 0;
+                  return (
+                    <tr key={l.id}>
+                      <td className="cifra" style={{ textAlign: "left" }}>
+                        {l.fecha}
+                      </td>
+                      <td>
+                        {OPERACION[l.tipoOperacion] ?? l.tipoOperacion}
+                        {capas > 1 && (
+                          <span className="ml-1.5">
+                            <Insignia>{capas} capas</Insignia>
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ color: "var(--texto-suave)" }}>{l.origenModulo ?? "—"}</td>
+
+                      <td>{entrada ? <Importe valor={l.cantidad} /> : null}</td>
+                      <td>{entrada ? <Importe valor={l.costoUnitario} decimales={4} /> : null}</td>
+                      <td>{entrada ? <Importe valor={l.importeTotal} /> : null}</td>
+
+                      <td>{!entrada ? <Importe valor={l.cantidad} /> : null}</td>
+                      <td>{!entrada ? <Importe valor={l.costoUnitario} decimales={4} /> : null}</td>
+                      <td>{!entrada ? <Importe valor={l.importeTotal} /> : null}</td>
+
+                      <td>
+                        <Importe valor={money.toString(saldoCantidad, 2)} />
+                      </td>
+                      <td>
+                        <Importe
+                          valor={
+                            money.isZero(saldoCantidad)
+                              ? "0"
+                              : money.toString(money.div(saldoValor, saldoCantidad), 4)
+                          }
+                          decimales={4}
+                        />
+                      </td>
+                      <td>
+                        <Importe valor={money.toString(saldoValor, 2)} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr style={{ background: "var(--superficie-2)" }}>
+                  <td colSpan={9} className="px-3 py-2 text-right text-xs font-semibold uppercase">
+                    Saldo según movimientos
+                  </td>
+                  <td className="px-3 py-2 font-semibold">
+                    <Importe valor={money.toString(cantidad, 2)} />
+                  </td>
+                  <td />
+                  <td className="px-3 py-2 font-semibold">
+                    <Importe valor={money.toString(valor, 2)} />
+                  </td>
+                </tr>
+                {/* Si esta fila no coincide con la de arriba, el saldo almacenado
+                    se separó de sus movimientos y hay que recalcular el kardex. */}
+                <tr
+                  style={{
+                    background: "var(--superficie-2)",
+                    color: money.eq(money.dec(cabecera.saldo_valor), money.round(valor, 6))
+                      ? "var(--texto-suave)"
+                      : "var(--peligro)",
+                  }}
+                >
+                  <td colSpan={9} className="px-3 py-2 text-right text-xs uppercase">
+                    Saldo almacenado
+                  </td>
+                  <td className="px-3 py-2">
+                    <Importe valor={cabecera.saldo_cantidad} />
+                  </td>
+                  <td />
+                  <td className="px-3 py-2">
+                    <Importe valor={cabecera.saldo_valor} />
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </Contenido>
+    </>
+  );
+}

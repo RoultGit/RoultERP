@@ -213,3 +213,42 @@ test("costos con seis decimales no se pierden al acumular", () => {
   // (3×10.333333 + 3×10.666667) / 6 = 10.5
   assert.equal(s6(costoPromedio(estado)), "10.500000");
 });
+
+test("un ingreso con importe exacto no pierde céntimos al reconstruirlo", () => {
+  // 17 496.47 entre 150: el costo unitario es 116.643133… y no cabe en seis
+  // decimales. Multiplicar de vuelta perdería 0.00005, que es la deriva que
+  // separa el kardex de la cuenta 20 con el paso de los meses.
+  const mov: Movimiento = {
+    id: "exacto",
+    fecha: dia(1),
+    sentido: "ingreso",
+    tipoOperacion: TIPO_OPERACION.COMPRA,
+    cantidad: dec("150"),
+    costoUnitario: dec("116.643133"),
+    importeTotal: dec("17496.47"),
+  };
+  const { estado, linea } = aplicar(estadoInicial(), mov, PROM);
+  assert.equal(s6(linea.entrada!.importe), "17496.470000");
+  assert.equal(s6(estado.valor), "17496.470000");
+});
+
+test("sin importe exacto se sigue reconstruyendo por multiplicación", () => {
+  const { estado } = construir([ent("150", "116.643133", 1)], PROM);
+  assert.equal(s6(estado.valor), "17496.469950");
+});
+
+test("PEPS con importe exacto devuelve al consumir lo mismo que ingresó", () => {
+  const mov: Movimiento = {
+    id: "exacto",
+    fecha: dia(1),
+    sentido: "ingreso",
+    tipoOperacion: TIPO_OPERACION.COMPRA,
+    cantidad: dec("150"),
+    costoUnitario: dec("116.643133"),
+    importeTotal: dec("17496.47"),
+  };
+  const a = aplicar(estadoInicial(), mov, PEPS);
+  const b = aplicar(a.estado, sal("150", 2), PEPS);
+  assert.equal(s2(b.estado.cantidad), "0.00");
+  assert.equal(s6(b.estado.valor), "0.000000");
+});

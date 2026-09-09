@@ -401,6 +401,25 @@ describe("confirmación de la liquidación", () => {
     assert.equal(s2(money.toString(inventario)), s2(money.toString(mercaderia)));
   });
 
+  test("el kardex y la cuenta 20 dicen exactamente lo mismo, sin deriva", async () => {
+    // Regresión: el kardex reconstruía el importe como cantidad × costo
+    // unitario. Con un costo que no cabe en seis decimales —17 496,47 entre
+    // 150 unidades es 116,643133…— eso perdía céntimos en cada liquidación, y
+    // el inventario se iba separando del balance embarque a embarque.
+    await liquidar();
+
+    const [cuadre] = (await raw`
+      SELECT (SELECT sum(debe_funcional) FROM asiento_lineas WHERE cuenta = '20111')::text AS asiento,
+             (SELECT sum(importe_total) FROM movimientos_inventario WHERE sentido = 'ingreso')::text AS kardex
+    `) as unknown as [{ asiento: string; kardex: string }];
+
+    assert.equal(
+      money.toString(money.dec(cuadre.kardex), 6),
+      money.toString(money.dec(cuadre.asiento), 6),
+      "ni un millonésimo de diferencia entre el inventario y la cuenta 20",
+    );
+  });
+
   test("una importación liquidada no se liquida dos veces", async () => {
     const { id } = await liquidar();
     await assert.rejects(

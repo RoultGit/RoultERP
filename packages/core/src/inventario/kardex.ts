@@ -46,6 +46,17 @@ export type Movimiento = {
    * el costo de salida lo determina el método, nunca el usuario.
    */
   costoUnitario?: Dec;
+  /**
+   * Importe exacto del ingreso, cuando quien llama lo conoce mejor que la
+   * multiplicación.
+   *
+   * Una liquidación de importación reparte 17 496,47 entre 150 unidades: el
+   * costo unitario es 116,643133… y no cabe en seis decimales, así que
+   * reconstruir el importe multiplicando pierde céntimos y va separando el
+   * kardex de la cuenta 20 movimiento a movimiento. El importe es el dato
+   * exacto; el costo unitario es el derivado.
+   */
+  importeTotal?: Dec;
   /** Documento que sustenta el movimiento, para el PLE. */
   documento?: { tipo: string; serie: string; numero: string };
 };
@@ -155,7 +166,7 @@ function ingresar(
     throw new MovimientoInvalido("el costo unitario no puede ser negativo");
   }
 
-  const importe = round(mul(mov.cantidad, costo), 6);
+  const importe = mov.importeTotal ?? round(mul(mov.cantidad, costo), 6);
   const cantidad = add(estado.cantidad, mov.cantidad);
   const valor = add(estado.valor, importe);
 
@@ -163,7 +174,14 @@ function ingresar(
     opts.metodo === "peps"
       ? [
           ...estado.capas,
-          { movimientoId: mov.id, fecha: mov.fecha, cantidad: mov.cantidad, costoUnitario: costo },
+          {
+            movimientoId: mov.id,
+            fecha: mov.fecha,
+            cantidad: mov.cantidad,
+            // La capa guarda el costo efectivo del importe, no el declarado,
+            // para que consumirla devuelva exactamente lo que se ingresó.
+            costoUnitario: isZero(mov.cantidad) ? costo : round(div(importe, mov.cantidad), 6),
+          },
         ]
       : [];
 

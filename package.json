@@ -1,0 +1,16 @@
+{
+  "name": "roulterp",
+  "private": true,
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "tsc -b",
+    "dev": "npm run dev -w @roulterp/web"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2"
+  },
+  "engines": { "node": ">=22" }
+}

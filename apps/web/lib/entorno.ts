@@ -54,4 +54,15 @@ export const conexionAuth = pools.auth;
 /** Entorno que espera el servicio de autenticación. */
 export const entornoAuth: Entorno = { auth: conexionAuth, kek, kekId };
 
+/**
+ * Clave maestra de cifrado.
+ *
+ * La necesitan los módulos que custodian secretos por empresa —el certificado
+ * digital y las credenciales SOL—. Se exporta desde aquí para que exista un
+ * solo punto donde se lee del entorno, y nunca se registra ni se envía a
+ * ninguna parte.
+ */
+export const kekMaestra = kek;
+export const kekMaestraId = kekId;
+
 export const esProduccion = process.env.NODE_ENV === "production";

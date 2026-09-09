@@ -13,9 +13,11 @@ import postgres from "postgres";
 import { conectar, enEmpresa } from "@roulterp/db";
 import {
   crearEmpresa, crearImportacion, agregarItem, agregarGasto, cambiarEstado,
-  confirmarLiquidacion, registrarMovimiento, registrarCompra, crearOrden,
+  confirmarLiquidacion, registrarCompra, crearOrden,
+  emitirVenta, cargarCertificado, guardarCredencialesSol,
 } from "@roulterp/servicios";
-import { money } from "@roulterp/core";
+import { certificadoDePrueba, pfxDePrueba } from "@roulterp/core/cpe";
+
 
 const URL = process.env["DATABASE_URL"] ?? "postgres://localhost/roulterp_dev";
 const CLAVE = "roulterp-desarrollo-1";
@@ -209,17 +211,6 @@ async function main() {
       numero: "LIQ-2026-0007", fecha: "2026-06-20", periodo: "202606",
     });
 
-    // Una venta posterior, para que el kardex tenga entradas y salidas y se vea
-    // el costo de salida calculado por el método de la empresa.
-    await registrarMovimiento(db, ctx.empresaId, {
-      almacenId: almacen!.id,
-      productoId: productos[0]!,
-      fecha: "2026-07-15",
-      sentido: "salida",
-      tipoOperacion: "01",
-      cantidad: money.dec("25"),
-      origenModulo: "ventas",
-    });
 
     // Un segundo embarque más pequeño, todavía en borrador.
     const imp2 = await crearImportacion(db, ctx.empresaId, ctx.usuarioId, {
@@ -304,6 +295,51 @@ async function main() {
       ],
     });
   });
+
+  // Facturación electrónica: series, certificado de pruebas y credenciales del
+  // entorno beta, para poder ver el módulo funcionando de punta a punta.
+  const KEK = new Uint8Array(Buffer.from(process.env["ROULTERP_KEK"]!, "base64"));
+  const certPrueba = certificadoDePrueba("20303051831");
+
+  await enEmpresa(app, ctx, async (db) => {
+    await cargarCertificado(
+      db, ctx.empresaId, ctx.usuarioId,
+      pfxDePrueba(certPrueba, "clave-de-prueba"), "clave-de-prueba",
+      KEK, process.env["ROULTERP_KEK_ID"] ?? "env-1",
+    );
+    await guardarCredencialesSol(
+      db, ctx.empresaId, ctx.usuarioId,
+      { usuarioSol: "MODDATOS", claveSol: "MODDATOS", entorno: "beta" },
+      KEK, process.env["ROULTERP_KEK_ID"] ?? "env-1",
+    );
+  });
+
+  const raw2 = postgres(URL, { max: 1, onnotice: () => {} });
+  await raw2`
+    INSERT INTO series_documento (empresa_id, tipo_documento, serie, correlativo)
+    VALUES (${empresa.empresaId}, '01', 'F001', 0),
+           (${empresa.empresaId}, '03', 'B001', 0)`;
+  const [clienteVentas] = await raw2<{ id: string }[]>`
+    SELECT id FROM terceros WHERE empresa_id = ${empresa.empresaId} AND numero_documento = '20522633721'`;
+  await raw2.end();
+
+  // Una venta ya emitida, todavía sin informar a SUNAT: es el estado en el que
+  // el usuario más veces encuentra un comprobante al abrir la pantalla.
+  await enEmpresa(app, ctx, (db) =>
+    emitirVenta(db, ctx.empresaId, ctx.usuarioId, {
+      clienteId: clienteVentas!.id,
+      tipoDocumento: "01",
+      serie: "F001",
+      fechaEmision: "2026-08-22",
+      moneda: "PEN",
+      tipoCambio: "1",
+      almacenId: almacen!.id,
+      lineas: [
+        { productoId: productos[0]!, cantidad: "12", valorUnitario: "395.00" },
+        { descripcion: "Instalación y puesta en marcha", cantidad: "1", valorUnitario: "850.00" },
+      ],
+    }),
+  );
 
   await app.cliente.end();
 

@@ -8,3 +8,4 @@ export * from "./maestros.ts";
 export * from "./compras.ts";
 export * from "./ple.ts";
 export * from "./ventas.ts";
+export * from "./certificados.ts";

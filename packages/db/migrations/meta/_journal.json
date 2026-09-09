@@ -22,6 +22,13 @@
       "when": 1788959443390,
       "tag": "0002_cobranzas",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788960108545,
+      "tag": "0003_caja_bancos",
+      "breakpoints": true
     }
   ]
 }

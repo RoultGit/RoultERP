@@ -15,6 +15,7 @@ import {
   crearEmpresa, crearImportacion, agregarItem, agregarGasto, cambiarEstado,
   confirmarLiquidacion, registrarCompra, crearOrden,
   emitirVenta, cargarCertificado, guardarCredencialesSol,
+  crearCuenta, registrarMovimientoEfectivo, importarExtracto,
 } from "@roulterp/servicios";
 import { certificadoDePrueba, pfxDePrueba } from "@roulterp/core/cpe";
 
@@ -340,6 +341,62 @@ async function main() {
       ],
     }),
   );
+
+  // Caja y bancos, con un extracto que deja parejas por conciliar y una línea
+  // que el banco cobró sin que nadie la registrara.
+  await enEmpresa(app, ctx, async (db) => {
+    const bcp = await crearCuenta(db, ctx.empresaId, ctx.usuarioId, {
+      codigo: "BCP-SOL",
+      nombre: "BCP cuenta corriente soles",
+      tipo: "banco",
+      moneda: "PEN",
+      cuentaContable: "1041",
+      banco: "BCP",
+      numeroCuenta: "193-1934567-0-88",
+      cci: "00219300193456708812",
+    });
+
+    await crearCuenta(db, ctx.empresaId, ctx.usuarioId, {
+      codigo: "CCH-ADM",
+      nombre: "Caja chica administración",
+      tipo: "caja_chica",
+      moneda: "PEN",
+      cuentaContable: "1012",
+      fondoFijo: "1500",
+    });
+
+    await registrarMovimientoEfectivo(db, ctx.empresaId, ctx.usuarioId, {
+      cuentaId: bcp,
+      fecha: "2026-09-02",
+      sentido: "ingreso",
+      concepto: "Aporte de capital de trabajo",
+      importe: "40000.00",
+      referencia: "OP-880114",
+      cuentaContrapartida: "5011",
+    });
+
+    await registrarMovimientoEfectivo(db, ctx.empresaId, ctx.usuarioId, {
+      cuentaId: bcp,
+      fecha: "2026-09-04",
+      sentido: "egreso",
+      concepto: "Transferencia al agente de aduanas",
+      importe: "944.00",
+      referencia: "OP-880233",
+      // La 4212 exige imputar el tercero, y con razón: sin él, el estado de
+      // cuenta por proveedor quedaría incompleto.
+      terceroId: agencia!.id,
+      cuentaContrapartida: "4212",
+    });
+
+    await importarExtracto(db, ctx.empresaId, ctx.usuarioId, bcp, [
+      // Casa por referencia.
+      { fecha: "2026-09-02", descripcion: "ABONO TRANSFERENCIA", importe: "40000.00", referencia: "OP-880114" },
+      // Casa por fecha e importe exactos.
+      { fecha: "2026-09-04", descripcion: "CARGO TRANSFERENCIA", importe: "-944.00" },
+      // El banco lo cobró y nadie lo registró: aparece en «sin registrar».
+      { fecha: "2026-09-30", descripcion: "COMISION MANTENIMIENTO CTA", importe: "-15.00", saldo: "39041.00" },
+    ]);
+  });
 
   await app.cliente.end();
 

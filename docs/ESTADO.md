@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Actualizado: 2026-09-09 · 496 pruebas en verde
+Actualizado: 2026-09-09 · 520 pruebas en verde
 
 ## Cómo levantarlo
 
@@ -50,7 +50,7 @@ DATABASE_URL=postgres://localhost/roulterp_test npm test
 | **Ventas** | ✅ | ✅ | ✅ lista, emisión, detalle |
 | **Factron (CPE)** | ✅ | ✅ | ✅ certificado, credenciales, series, envío |
 | **Cuentas por cobrar** | ✅ | ✅ | ✅ cartera, cobranzas, límite de crédito, letras |
-| **Caja y bancos** | — | — | ❌ |
+| **Caja y bancos** | ✅ | ✅ | ✅ cuentas, movimientos, conciliación, arqueos |
 | **SIG** | — | ✅ | ✅ tablero |
 
 ### Detalle de lo que sí funciona de punta a punta
@@ -84,21 +84,27 @@ ganancia. Límite de crédito por cliente, que el sistema informa sin bloquear
 —autorizar una venta por encima del tope es una decisión comercial—, y
 exposición por cliente separando lo vencido de lo por vencer.
 
+**Caja y bancos.** Cuentas de efectivo con saldo derivado de sus movimientos,
+importación del extracto pegando lo que exporta la banca por internet, y
+conciliación que propone parejas por tres criterios en orden de confianza
+—referencia, fecha e importe exactos, e importe igual con hasta tres días de
+diferencia— sin conciliar nada hasta que alguien lo confirma. Arqueo de caja que
+contabiliza el faltante o el sobrante y ajusta el libro auxiliar.
+
 ## Qué falta
 
 Por orden de lo que más cerca está de poder usarse:
 
-1. **Caja y bancos**: caja chica, cuentas bancarias, conciliación, arqueos.
-2. **Contabilidad**: captura manual de asientos, estados financieros, cierre de
+1. **Contabilidad**: captura manual de asientos, estados financieros, cierre de
    periodo y de ejercicio, ajuste automático por diferencia de cambio al cierre.
-3. **Más formatos de PLE**: 5.1 diario, 6.1 mayor, 8.2 no domiciliados, 12.1
+2. **Más formatos de PLE**: 5.1 diario, 6.1 mayor, 8.2 no domiciliados, 12.1
    inventario en unidades, 14.1 ventas.
-4. **Resumen diario de boletas** y comunicación de baja ante SUNAT.
-5. **Guía de remisión electrónica (GRE)** por su API REST propia.
-6. **Comprobante de retención** y de percepción.
-7. **Notas de crédito y débito** desde la interfaz (el XML ya se genera).
-8. **Pantallas de usuarios, roles y MFA.**
-9. **Pago y protesto de letras** al vencimiento; programación de egresos.
+3. **Resumen diario de boletas** y comunicación de baja ante SUNAT.
+4. **Guía de remisión electrónica (GRE)** por su API REST propia.
+5. **Comprobante de retención** y de percepción.
+6. **Notas de crédito y débito** desde la interfaz (el XML ya se genera).
+7. **Pantallas de usuarios, roles y MFA.**
+8. **Pago y protesto de letras** al vencimiento; programación de egresos.
 
 ## Decisiones que conviene no revertir sin pensarlo
 

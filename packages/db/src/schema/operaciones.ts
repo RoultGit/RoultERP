@@ -747,3 +747,132 @@ export const cobranzaAplicaciones = pgTable(
     index("cobranza_aplicaciones_comprobante_ix").on(t.comprobanteId),
   ],
 );
+
+// ─── Caja y bancos ────────────────────────────────────────────────────────
+
+/**
+ * Cuentas de efectivo: cajas y cuentas bancarias.
+ *
+ * Cada una apunta a su cuenta contable. Sin ese vínculo, conciliar el extracto
+ * del banco contra la contabilidad obliga a que alguien recuerde de memoria qué
+ * cuenta corresponde a qué banco, y esa memoria se pierde con la persona.
+ */
+export const cuentasEfectivo = pgTable(
+  "cuentas_efectivo",
+  {
+    id: id(),
+    empresaId: empresaId().references(() => empresas.id, { onDelete: "cascade" }),
+    codigo: text("codigo").notNull(),
+    nombre: text("nombre").notNull(),
+    /** "caja", "caja_chica" o "banco". */
+    tipo: text("tipo").notNull(),
+    moneda: text("moneda").notNull().default("PEN"),
+    /** Cuenta del PCGE donde se refleja: 1011, 1012, 1041… */
+    cuentaContable: text("cuenta_contable").notNull(),
+    banco: text("banco"),
+    numeroCuenta: text("numero_cuenta"),
+    /** Cuenta interbancaria, para transferencias. */
+    cci: text("cci"),
+    /** Sólo en caja chica: el fondo fijo asignado. */
+    fondoFijo: importeCero("fondo_fijo"),
+    responsableId: uuid("responsable_id"),
+    activa: boolean("activa").notNull().default(true),
+    ...auditoria(),
+  },
+  (t) => [uniqueIndex("cuentas_efectivo_uk").on(t.empresaId, t.codigo)],
+);
+
+/**
+ * Movimientos de caja y bancos.
+ *
+ * Es el libro auxiliar: lo que la empresa cree que pasó en cada cuenta. La
+ * conciliación lo compara con el extracto del banco, que es lo que el banco
+ * dice que pasó. Las diferencias entre ambos son el objeto del ejercicio.
+ */
+export const movimientosEfectivo = pgTable(
+  "movimientos_efectivo",
+  {
+    id: id(),
+    empresaId: empresaId().references(() => empresas.id, { onDelete: "cascade" }),
+    cuentaId: uuid("cuenta_id").notNull().references(() => cuentasEfectivo.id),
+    fecha: fecha("fecha").notNull(),
+    /** "ingreso" o "egreso". */
+    sentido: text("sentido").notNull(),
+    concepto: text("concepto").notNull(),
+    importe: importe("importe").notNull(),
+    moneda: text("moneda").notNull(),
+    tipoCambio: importe("tipo_cambio").notNull().default("1"),
+    /** Número de operación, cheque o voucher. */
+    referencia: text("referencia"),
+    terceroId: uuid("tercero_id").references(() => terceros.id),
+    /** De qué módulo vino: pagos, cobranzas, caja… */
+    origenModulo: text("origen_modulo"),
+    origenId: uuid("origen_id"),
+    asientoId: uuid("asiento_id"),
+    /** Fecha en la que el banco lo reconoció. Nulo mientras no se concilie. */
+    conciliadoEn: fecha("conciliado_en"),
+    /** Línea del extracto con la que casó. */
+    extractoId: uuid("extracto_id"),
+    ...auditoria(),
+  },
+  (t) => [
+    index("movimientos_efectivo_cuenta_ix").on(t.empresaId, t.cuentaId, t.fecha),
+    index("movimientos_efectivo_conciliacion_ix").on(t.cuentaId, t.conciliadoEn),
+  ],
+);
+
+/**
+ * Líneas del extracto bancario.
+ *
+ * Se importan del archivo que entrega el banco y se comparan con los
+ * movimientos propios. Una línea sin pareja es o un cargo que la empresa no
+ * registró —una comisión, un ITF— o un depósito que nadie contabilizó.
+ */
+export const extractoBancario = pgTable(
+  "extracto_bancario",
+  {
+    id: id(),
+    empresaId: empresaId().references(() => empresas.id, { onDelete: "cascade" }),
+    cuentaId: uuid("cuenta_id").notNull().references(() => cuentasEfectivo.id),
+    fecha: fecha("fecha").notNull(),
+    descripcion: text("descripcion").notNull(),
+    /** Positivo si entra, negativo si sale, tal como lo informa el banco. */
+    importe: importe("importe").notNull(),
+    referencia: text("referencia"),
+    /** Saldo que el banco declara después de este movimiento. */
+    saldo: importe("saldo"),
+    /** Movimiento propio con el que casó. Nulo mientras esté sin conciliar. */
+    movimientoId: uuid("movimiento_id"),
+    ...auditoria(),
+  },
+  (t) => [
+    index("extracto_cuenta_fecha_ix").on(t.empresaId, t.cuentaId, t.fecha),
+    index("extracto_sin_conciliar_ix").on(t.cuentaId, t.movimientoId),
+  ],
+);
+
+/**
+ * Arqueos de caja.
+ *
+ * Se cuenta el efectivo que hay y se compara con el que debería haber. La
+ * diferencia se guarda aunque sea cero: un arqueo que no deja rastro no sirve
+ * como control.
+ */
+export const arqueos = pgTable(
+  "arqueos",
+  {
+    id: id(),
+    empresaId: empresaId().references(() => empresas.id, { onDelete: "cascade" }),
+    cuentaId: uuid("cuenta_id").notNull().references(() => cuentasEfectivo.id),
+    fecha: fecha("fecha").notNull(),
+    /** Saldo que arroja el sistema al momento del arqueo. */
+    saldoLibro: importe("saldo_libro").notNull(),
+    /** Efectivo contado físicamente. */
+    saldoContado: importe("saldo_contado").notNull(),
+    diferencia: importe("diferencia").notNull(),
+    observaciones: text("observaciones"),
+    asientoId: uuid("asiento_id"),
+    ...auditoria(),
+  },
+  (t) => [index("arqueos_cuenta_ix").on(t.empresaId, t.cuentaId, t.fecha)],
+);

@@ -580,3 +580,5 @@ async function exigirEditable(db: Db, importacionId: string): Promise<void> {
 }
 
 export { dominio as liquidacionDominio };
+export type { BaseProrrateo, Liquidacion, ItemLiquidado } from "@roulterp/core/importaciones";
+export { CONCEPTOS_IMPORTACION } from "@roulterp/core/importaciones";

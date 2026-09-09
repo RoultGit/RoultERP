@@ -1,10 +1,14 @@
 import { notFound } from "next/navigation";
-import { cargar, previsualizarLiquidacion, ImportacionInvalida } from "@roulterp/servicios";
+import {
+  cargar, previsualizarLiquidacion, listarProductos, CONCEPTOS_IMPORTACION,
+  ImportacionInvalida,
+} from "@roulterp/servicios";
 import { money } from "@roulterp/core";
 import { conEmpresa, tienePermiso } from "@/lib/sesion";
 import { Contenido, Encabezado, EstadoDoc, Importe, Insignia } from "@/components/ui";
 import { PanelLiquidacion } from "./liquidacion";
 import { AvanzarEstado } from "./estado";
+import { AgregarItem, AgregarGasto } from "./agregar";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +27,7 @@ export default async function DetalleImportacion({
       const vista = base.items.length
         ? await previsualizarLiquidacion(db, id)
         : null;
-      return { ...base, vista };
+      return { ...base, vista, productos: await listarProductos(db) };
     } catch (e) {
       if (e instanceof ImportacionInvalida) return null;
       throw e;
@@ -32,7 +36,8 @@ export default async function DetalleImportacion({
 
   if (!datos) notFound();
 
-  const { cabecera, items, gastos, vista } = datos;
+  const { cabecera, items, gastos, vista, productos } = datos;
+  const editable = cabecera.estado !== "liquidada" && cabecera.estado !== "anulada";
   const puedeEditar = await tienePermiso("importaciones:editar");
   const puedeAprobar = await tienePermiso("importaciones:aprobar");
 
@@ -133,6 +138,24 @@ export default async function DetalleImportacion({
                   </tr>
                 </tfoot>
               </table>
+
+              {editable && puedeEditar && (
+                <details className="border-t" style={{ borderColor: "var(--borde)" }}>
+                  <summary className="cursor-pointer px-4 py-2.5 text-sm font-medium select-none">
+                    Agregar ítem
+                  </summary>
+                  <AgregarItem
+                    importacionId={id}
+                    productos={productos.map((p) => ({
+                      id: p.id,
+                      codigo: p.codigo,
+                      descripcion: p.descripcion,
+                      pesoUnitario: p.pesoUnitario,
+                      partidaArancelaria: null,
+                    }))}
+                  />
+                </details>
+              )}
             </section>
 
             <section className="tarjeta overflow-x-auto">
@@ -197,6 +220,28 @@ export default async function DetalleImportacion({
                     ))}
                   </tbody>
                 </table>
+              )}
+
+              {editable && puedeEditar && (
+                <details className="border-t" style={{ borderColor: "var(--borde)" }}>
+                  <summary className="cursor-pointer px-4 py-2.5 text-sm font-medium select-none">
+                    Agregar gasto
+                  </summary>
+                  <AgregarGasto
+                    importacionId={id}
+                    items={items.map((i) => ({
+                      id: i.id,
+                      linea: i.linea,
+                      descripcion: i.descripcion,
+                    }))}
+                    conceptos={CONCEPTOS_IMPORTACION.map((c) => ({
+                      concepto: c.concepto,
+                      base: c.base,
+                      afectaCosto: c.afectaCosto,
+                      ...(c.nota ? { nota: c.nota } : {}),
+                    }))}
+                  />
+                </details>
               )}
             </section>
           </div>

@@ -168,7 +168,8 @@ export const terceroSchema = z
     esCliente: z.boolean(),
     esProveedor: z.boolean(),
     esDomiciliado: z.boolean(),
-    diasCredito: z.coerce.number<string | number>().int().min(0).max(365),
+    // Llega como texto desde el formulario y como número desde el código.
+    diasCredito: z.union([z.number(), z.string()]).pipe(z.coerce.number().int().min(0).max(365)),
     limiteCredito: decimalOpcional,
     monedaLimite: z.string().trim().length(3).toUpperCase(),
   })

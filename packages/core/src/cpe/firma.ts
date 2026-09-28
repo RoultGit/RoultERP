@@ -25,8 +25,9 @@
  * dejarla en ninguna parte.
  */
 import { SignedXml } from "xml-crypto";
-import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
+import { DOMParser } from "@xmldom/xmldom";
 import forge from "node-forge";
+import { ErrorDeNegocio } from "../errores.ts";
 
 export type Certificado = {
   /** Clave privada en PEM. */
@@ -42,10 +43,9 @@ export type Certificado = {
 /** OID del atributo `serialNumber` en el sujeto del certificado (X.520). */
 const OID_SERIAL_NUMBER = "2.5.4.5";
 
-export class CertificadoInvalido extends Error {
+export class CertificadoInvalido extends ErrorDeNegocio {
   constructor(motivo: string) {
-    super(motivo);
-    this.name = "CertificadoInvalido";
+    super(motivo, "CertificadoInvalido");
   }
 }
 

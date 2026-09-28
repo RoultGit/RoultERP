@@ -2,3 +2,8 @@ export * from "./catalogos.ts";
 export * from "./ubl.ts";
 export * from "./firma.ts";
 export * from "./sunat.ts";
+export * from "./resumen.ts";
+export * from "./impresion.ts";
+export * from "./gre.ts";
+export * from "./guia.ts";
+export * from "./retencion.ts";

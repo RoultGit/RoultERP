@@ -7,10 +7,14 @@
  */
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import * as gre from "../src/cpe/guia.ts";
+import * as ret from "../src/cpe/retencion.ts";
+import * as cpe from "../src/cpe/impresion.ts";
+import { money } from "../src/index.ts";
 import { DOMParser } from "@xmldom/xmldom";
 import { dec, toString } from "../src/money.ts";
 import {
-  construirXml, construirFactura, construirNotaCredito, esc, nombreCpe,
+  construirXml, construirFactura, construirNotaCredito, construirNotaDebito, esc, nombreCpe,
   TIPO_DOCUMENTO, TRIBUTOS, tributoDeAfectacion, codigoPrecio,
   interpretarRespuesta, esReintentable, ESTADO_CPE,
   type ComprobanteCpe, type LineaCpe,
@@ -308,6 +312,37 @@ describe("nota de crédito", () => {
     assert.throws(() => construirNotaCredito(sinReferencia), /debe indicar el comprobante/);
   });
 
+  test("la nota de débito usa DebitNote, DebitedQuantity y el total solicitado", () => {
+    const xml = construirXml(
+      factura({
+        tipoDocumento: TIPO_DOCUMENTO.NOTA_DEBITO,
+        serie: "FD01",
+        numero: "00000003",
+        notaModificada: {
+          tipoDocumento: "01",
+          serie: "F001",
+          numero: "00000123",
+          motivo: "01",
+          descripcionMotivo: "Intereses por mora",
+        },
+      }),
+    );
+    assert.ok(xml.includes("<DebitNote"));
+    assert.ok(xml.includes("cac:DebitNoteLine"));
+    assert.ok(xml.includes("cbc:DebitedQuantity"));
+    // SUNAT distingue el total de una nota de débito del de una factura: aquí
+    // es RequestedMonetaryTotal, no LegalMonetaryTotal.
+    assert.ok(xml.includes("cac:RequestedMonetaryTotal"));
+    assert.ok(!xml.includes("cac:LegalMonetaryTotal"));
+    assert.equal(texto(xml, "ResponseCode"), "01");
+  });
+
+  test("una nota de débito sin referencia también se rechaza", () => {
+    const sinReferencia = factura({ tipoDocumento: TIPO_DOCUMENTO.NOTA_DEBITO });
+    delete sinReferencia.notaModificada;
+    assert.throws(() => construirNotaDebito(sinReferencia), /debe indicar el comprobante/);
+  });
+
   test("un tipo de comprobante no soportado falla con un mensaje claro", () => {
     assert.throws(
       () => construirXml(factura({ tipoDocumento: TIPO_DOCUMENTO.GUIA_REMISION_REMITENTE })),
@@ -582,4 +617,369 @@ describe("envío a SUNAT", () => {
 
     assert.ok(!error.message.includes("MODDATOS"), "la credencial no debe filtrarse al error");
   });
+});
+
+// ─── Guía de remisión electrónica ─────────────────────────────────────────
+
+describe("guía de remisión", () => {
+  const guiaBase = (cambios: Partial<gre.GuiaRemision> = {}): gre.GuiaRemision => ({
+    serie: "T001",
+    numero: "00000001",
+    fechaEmision: "2026-09-12",
+    horaEmision: "10:30:00",
+    tipoGuia: gre.TIPO_GUIA.REMITENTE,
+    emisor: { ruc: "20303051831", razonSocial: "SERVIDIMAR" },
+    destinatario: {
+      tipoDocumento: "6",
+      numeroDocumento: "20522633721",
+      razonSocial: "HIDRÁULICA DEL SUR S.A.C.",
+    },
+    motivo: gre.MOTIVO_TRASLADO.VENTA,
+    descripcionMotivo: "Venta de mercadería",
+    pesoBruto: money.dec("120.5"),
+    unidadPeso: "KGM",
+    modoTransporte: gre.MODO_TRANSPORTE.PRIVADO,
+    fechaTraslado: "2026-09-13",
+    partida: { ubigeo: "150103", direccion: "Av. Nicolás Ayllón 3820, Ate" },
+    llegada: { ubigeo: "150132", direccion: "Av. Argentina 2000, San Miguel" },
+    placa: "ABC-123",
+    conductor: {
+      tipoDocumento: "1",
+      numeroDocumento: "45678912",
+      nombres: "Juan",
+      apellidos: "Pérez",
+      licencia: "Q45678912",
+    },
+    documentoRelacionado: { tipoDocumento: "01", serie: "F001", numero: "00000123" },
+    lineas: [
+      {
+        numero: 1,
+        codigo: "P001",
+        descripcion: "Bomba centrífuga 2HP",
+        unidad: "NIU",
+        cantidad: money.dec("4"),
+      },
+    ],
+    ...cambios,
+  });
+
+  test("es un DespatchAdvice con el motivo y el peso del traslado", () => {
+    const xml = gre.construirGuia(guiaBase());
+    assert.ok(xml.includes("<DespatchAdvice"));
+    assert.equal(texto(xml, "DespatchAdviceTypeCode"), "09");
+    assert.equal(texto(xml, "HandlingCode"), "01");
+    assert.equal(texto(xml, "GrossWeightMeasure"), "120.500");
+    assert.equal(texto(xml, "StartDate"), "2026-09-13");
+  });
+
+  test("no lleva importes: una guía documenta un traslado, no una venta", () => {
+    const xml = gre.construirGuia(guiaBase());
+    assert.ok(!xml.includes("TaxTotal"));
+    assert.ok(!xml.includes("PayableAmount"));
+    assert.ok(!xml.includes("currencyID"));
+  });
+
+  test("en transporte privado van la placa y el conductor", () => {
+    const xml = gre.construirGuia(guiaBase());
+    assert.equal(texto(xml, "LicensePlateID"), "ABC-123");
+    assert.ok(xml.includes("<cac:DriverPerson>"));
+    assert.equal(texto(xml, "FamilyName"), "Pérez");
+  });
+
+  test("en transporte público va el transportista, no el conductor", () => {
+    const xml = gre.construirGuia(
+      guiaBase({
+        modoTransporte: gre.MODO_TRANSPORTE.PUBLICO,
+        transportista: {
+          tipoDocumento: "6",
+          numeroDocumento: "20100047218",
+          razonSocial: "TRANSPORTES DEL SUR S.A.",
+          registroMtc: "MTC-0001",
+        },
+      }),
+    );
+    assert.ok(xml.includes("<cac:CarrierParty>"));
+    assert.ok(!xml.includes("<cac:DriverPerson>"), "el conductor lo pone el transportista");
+    assert.ok(xml.includes("TRANSPORTES DEL SUR"));
+  });
+
+  test("el transporte privado sin placa se rechaza antes de firmar", () => {
+    const sinPlaca = guiaBase();
+    delete sinPlaca.placa;
+    assert.throws(() => gre.construirGuia(sinPlaca), /placa del vehículo/);
+  });
+
+  test("el transporte público sin transportista se rechaza", () => {
+    assert.throws(
+      () => gre.construirGuia(guiaBase({ modoTransporte: gre.MODO_TRANSPORTE.PUBLICO })),
+      /identificar al transportista/,
+    );
+  });
+
+  test("un traslado por venta necesita el comprobante que lo sustenta", () => {
+    const sinDoc = guiaBase();
+    delete sinDoc.documentoRelacionado;
+    assert.throws(() => gre.construirGuia(sinDoc), /comprobante que lo sustenta/);
+  });
+
+  test("un traslado entre almacenes propios no necesita comprobante", () => {
+    const interno = guiaBase({
+      motivo: gre.MOTIVO_TRASLADO.TRASLADO_ENTRE_ESTABLECIMIENTOS,
+      descripcionMotivo: "Traslado entre almacenes",
+    });
+    delete interno.documentoRelacionado;
+    const xml = gre.construirGuia(interno);
+    assert.equal(texto(xml, "HandlingCode"), "04");
+  });
+
+  test("el traslado no puede empezar antes de emitir la guía", () => {
+    assert.throws(
+      () => gre.construirGuia(guiaBase({ fechaTraslado: "2026-09-11" })),
+      /antes de emitir/,
+    );
+  });
+
+  test("un ubigeo que no tiene seis dígitos se rechaza", () => {
+    assert.throws(
+      () => gre.construirGuia(guiaBase({ llegada: { ubigeo: "1501", direccion: "x" } })),
+      /ubigeo del punto de llegada/,
+    );
+  });
+
+  test("cada bien es una DespatchLine con su cantidad y unidad", () => {
+    const xml = gre.construirGuia(
+      guiaBase({
+        lineas: [
+          { numero: 1, codigo: "P001", descripcion: "Bomba", unidad: "NIU", cantidad: money.dec("4") },
+          { numero: 2, codigo: "P002", descripcion: "Válvula", unidad: "NIU", cantidad: money.dec("10") },
+        ],
+      }),
+    );
+    assert.equal(xml.match(/<cac:DespatchLine>/g)?.length, 2);
+    assert.ok(xml.includes('<cbc:DeliveredQuantity unitCode="NIU">10.000000</cbc:DeliveredQuantity>'));
+  });
+
+  test("la guía firmada verifica", () => {
+    const xml = gre.construirGuia(guiaBase());
+    const firmado = firmarXml(xml, certificadoDePrueba("20303051831"), {
+      rucEsperado: "20303051831",
+    });
+    assert.ok(verificarFirma(firmado));
+  });
+
+  test("el nombre del archivo sigue el patrón RUC-TIPO-SERIE-NUMERO", () => {
+    assert.equal(
+      gre.nombreGuia("20303051831", { tipoGuia: "09", serie: "T001", numero: "00000001" }),
+      "20303051831-09-T001-00000001",
+    );
+  });
+});
+
+// ─── Retención y percepción ───────────────────────────────────────────────
+
+describe("comprobantes de retención y percepción", () => {
+  const base = (cambios: Partial<ret.ComprobanteRetencion> = {}): ret.ComprobanteRetencion => ({
+    serie: "R001",
+    numero: "00000001",
+    fechaEmision: "2026-09-15",
+    horaEmision: "09:00:00",
+    emisor: { ruc: "20303051831", razonSocial: "SERVIDIMAR", ubigeo: "150103" },
+    contraparte: {
+      tipoDocumento: "6",
+      numeroDocumento: "20100047218",
+      razonSocial: "FERRETERÍA SAN MARTÍN S.A.C.",
+    },
+    regimen: ret.REGIMEN_RETENCION.TASA_3,
+    tasa: money.dec("0.03"),
+    importeTotal: money.dec("30.00"),
+    importeOperacion: money.dec("1000.00"),
+    documentos: [
+      {
+        tipoDocumento: "01",
+        serie: "F001",
+        numero: "00000123",
+        fechaEmision: "2026-09-01",
+        moneda: "PEN",
+        total: money.dec("1000.00"),
+        importe: money.dec("30.00"),
+        fecha: "2026-09-15",
+        neto: money.dec("970.00"),
+        pagos: [{ importe: money.dec("1000.00"), moneda: "PEN", fecha: "2026-09-15" }],
+      },
+    ],
+    ...cambios,
+  });
+
+  test("la retención es un Retention con su régimen y su tasa en porcentaje", () => {
+    const xml = ret.construirRetencion(base());
+    assert.ok(xml.includes("<Retention"));
+    assert.equal(texto(xml, "SUNATRetentionSystemCode"), "01");
+    // La tasa se emite como 3.00, no como 0.03: es el error que más rechaza.
+    assert.equal(texto(xml, "SUNATRetentionPercent"), "3.00");
+    assert.equal(texto(xml, "SUNATRetentionAmount"), "30.00");
+    assert.equal(texto(xml, "SUNATNetTotalPaid"), "970.00");
+  });
+
+  test("la firma va antes del identificador, al revés que en la factura", () => {
+    const xml = ret.construirRetencion(base());
+    assert.ok(
+      xml.indexOf("<cac:Signature>") < xml.indexOf("<cbc:ID>R001-00000001</cbc:ID>"),
+      "el orden de los elementos es parte del esquema",
+    );
+  });
+
+  test("los importes retenidos van en soles aunque la factura esté en dólares", () => {
+    const xml = ret.construirRetencion(
+      base({
+        importeTotal: money.dec("112.56"),
+        importeOperacion: money.dec("3752.00"),
+        documentos: [
+          {
+            tipoDocumento: "01",
+            serie: "F001",
+            numero: "00000123",
+            fechaEmision: "2026-09-01",
+            moneda: "USD",
+            total: money.dec("1000.00"),
+            importe: money.dec("112.56"),
+            fecha: "2026-09-15",
+            neto: money.dec("3639.44"),
+            pagos: [{ importe: money.dec("1000.00"), moneda: "USD", fecha: "2026-09-15" }],
+            tipoCambio: {
+              monedaOrigen: "USD",
+              monedaDestino: "PEN",
+              factor: money.dec("3.752"),
+              fecha: "2026-09-15",
+            },
+          },
+        ],
+      }),
+    );
+    assert.ok(xml.includes('<sac:SUNATRetentionAmount currencyID="PEN">112.56'));
+    assert.ok(xml.includes('<cbc:TotalInvoiceAmount currencyID="USD">1000.00'));
+    assert.equal(texto(xml, "CalculationRate"), "3.752");
+  });
+
+  test("un documento en dólares sin tipo de cambio se rechaza", () => {
+    const malo = base();
+    malo.documentos[0]!.moneda = "USD";
+    assert.throws(() => ret.construirRetencion(malo), /necesita el tipo de cambio/);
+  });
+
+  test("el total tiene que ser la suma de sus documentos", () => {
+    assert.throws(
+      () => ret.construirRetencion(base({ importeTotal: money.dec("99.00") })),
+      /no coincide con la suma/,
+    );
+  });
+
+  test("la percepción es un Perception con sus propias etiquetas", () => {
+    const xml = ret.construirPercepcion(
+      base({
+        regimen: ret.REGIMEN_PERCEPCION.VENTA_INTERNA,
+        tasa: money.dec("0.02"),
+        importeTotal: money.dec("20.00"),
+        documentos: [
+          {
+            tipoDocumento: "01",
+            serie: "F001",
+            numero: "00000500",
+            fechaEmision: "2026-09-01",
+            moneda: "PEN",
+            total: money.dec("1000.00"),
+            importe: money.dec("20.00"),
+            fecha: "2026-09-15",
+            neto: money.dec("1020.00"),
+            pagos: [{ importe: money.dec("1020.00"), moneda: "PEN", fecha: "2026-09-15" }],
+          },
+        ],
+      }),
+    );
+    assert.ok(xml.includes("<Perception"));
+    assert.equal(texto(xml, "SUNATPerceptionPercent"), "2.00");
+    assert.equal(texto(xml, "SUNATPerceptionAmount"), "20.00");
+    // La percepción aumenta lo que cobra el agente: el neto es mayor que el
+    // total del documento, al revés que en la retención.
+    assert.equal(texto(xml, "SUNATNetTotalCashed"), "1020.00");
+    assert.ok(!xml.includes("Retention"));
+  });
+
+  test("varios documentos en un solo comprobante", () => {
+    const xml = ret.construirRetencion(
+      base({
+        importeTotal: money.dec("50.00"),
+        importeOperacion: money.dec("1666.67"),
+        documentos: [
+          {
+            tipoDocumento: "01", serie: "F001", numero: "00000123",
+            fechaEmision: "2026-09-01", moneda: "PEN", total: money.dec("1000.00"),
+            importe: money.dec("30.00"), fecha: "2026-09-15", neto: money.dec("970.00"),
+            pagos: [{ importe: money.dec("1000.00"), moneda: "PEN", fecha: "2026-09-15" }],
+          },
+          {
+            tipoDocumento: "01", serie: "F001", numero: "00000124",
+            fechaEmision: "2026-09-02", moneda: "PEN", total: money.dec("666.67"),
+            importe: money.dec("20.00"), fecha: "2026-09-15", neto: money.dec("646.67"),
+            pagos: [{ importe: money.dec("666.67"), moneda: "PEN", fecha: "2026-09-15" }],
+          },
+        ],
+      }),
+    );
+    assert.equal(xml.match(/<sac:SUNATRetentionDocumentReference>/g)?.length, 2);
+  });
+
+  test("el comprobante firmado verifica", () => {
+    const xml = ret.construirRetencion(base());
+    const firmado = firmarXml(xml, certificadoDePrueba("20303051831"), {
+      rucEsperado: "20303051831",
+    });
+    assert.ok(verificarFirma(firmado));
+  });
+});
+
+// ─── Representación impresa ───────────────────────────────────────────────
+
+describe("representación impresa", () => {
+  /**
+   * El orden de los campos del QR lo lee una aplicación, no una persona: uno
+   * cambiado de sitio da un comprobante que no valida y la hoja se ve igual.
+   */
+  test("el QR lleva los nueve campos y el resumen, en orden", () => {
+    const qr = cpe.contenidoQr({
+      rucEmisor: "20303051831",
+      tipoComprobante: "01",
+      serie: "F001",
+      numero: "00000123",
+      igv: "180.00",
+      total: "1180.00",
+      fechaEmision: "2026-09-20",
+      tipoDocAdquirente: "6",
+      numeroDocAdquirente: "20522633721",
+      hash: "abc123",
+    });
+    assert.equal(
+      qr,
+      "20303051831|01|F001|00000123|180.00|1180.00|2026-09-20|6|20522633721|abc123",
+    );
+  });
+
+  test("sin resumen no deja una barra suelta al final", () => {
+    const qr = cpe.contenidoQr({
+      rucEmisor: "20303051831", tipoComprobante: "03", serie: "B001", numero: "00000001",
+      igv: "18.00", total: "118.00", fechaEmision: "2026-09-20",
+      tipoDocAdquirente: "1", numeroDocAdquirente: "45678912", hash: null,
+    });
+    assert.ok(!qr.endsWith("|"), qr);
+    assert.equal(qr.split("|").length, 9);
+  });
+
+  /** El QR se dibuja en la hoja; no es una imagen que haya que ir a buscar. */
+  test("el QR sale como SVG dibujado, sin imágenes externas", async () => {
+    const svg = await cpe.qrSvg("20303051831|01|F001|00000123");
+    assert.match(svg, /^<svg/);
+    assert.match(svg, /<path/, "el código tiene que venir dibujado");
+    // El único http del archivo es el espacio de nombres de SVG.
+    assert.doesNotMatch(svg, /<image|src=|xlink:href/);
+  });
+
 });

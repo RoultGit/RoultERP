@@ -232,9 +232,36 @@ test("un ingreso con importe exacto no pierde céntimos al reconstruirlo", () =>
   assert.equal(s6(estado.valor), "17496.470000");
 });
 
-test("sin importe exacto se sigue reconstruyendo por multiplicación", () => {
+test("sin importe exacto se reconstruye por multiplicación, redondeado a dinero", () => {
+  // 150 × 116.643133 = 17 496.469950, y el kardex guarda 17 496.47: el importe
+  // es dinero y el dinero tiene dos decimales. Guardarlo con seis hacía que el
+  // almacén y la cuenta 20 derivaran unas milésimas por movimiento.
   const { estado } = construir([ent("150", "116.643133", 1)], PROM);
-  assert.equal(s6(estado.valor), "17496.469950");
+  assert.equal(s6(estado.valor), "17496.470000");
+});
+
+test("el importe de cada línea es dinero de dos decimales", () => {
+  // Es la invariante que mantiene el kardex y la contabilidad en el mismo
+  // número: lo que se asienta es exactamente lo que dice el almacén.
+  const { lineas } = construir(
+    [ent("3", "10.333333", 1), ent("7", "21.777777", 2), sal("4", 3), sal("6", 4)],
+    PROM,
+  );
+  for (const l of lineas) {
+    const importe = l.entrada?.importe ?? l.salida!.importe;
+    assert.equal(
+      s6(importe),
+      s6(dec(s2(importe))),
+      `la línea guarda ${s6(importe)}, que no es un importe de dos decimales`,
+    );
+  }
+});
+
+test("el costo unitario conserva su precisión aunque el importe se redondee", () => {
+  // SUNAT admite ocho decimales en el costo unitario del 13.1 y sólo dos en el
+  // total: el unitario es un cociente, no un importe.
+  const { lineas } = construir([ent("3", "100", 1), ent("3", "200", 2), sal("1", 3)], PROM);
+  assert.equal(s6(lineas[2]!.salida!.costoUnitario), "150.000000");
 });
 
 test("PEPS con importe exacto devuelve al consumir lo mismo que ingresó", () => {

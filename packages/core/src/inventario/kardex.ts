@@ -15,7 +15,9 @@
  */
 import {
   type Dec, add, sub, mul, div, round, ZERO, gt, gte, lt, isZero, eq, cmp,
+  toString as dtoa,
 } from "../money.ts";
+import { ErrorDeNegocio } from "../errores.ts";
 
 export type MetodoValorizacion = "promedio" | "peps";
 
@@ -103,20 +105,24 @@ export type LineaKardex = {
   saldo: { cantidad: Dec; costoUnitario: Dec; importe: Dec };
 };
 
-export class StockInsuficiente extends Error {
+export class StockInsuficiente extends ErrorDeNegocio {
   constructor(
     readonly disponible: Dec,
     readonly solicitado: Dec,
   ) {
-    super("stock insuficiente para la salida");
-    this.name = "StockInsuficiente";
+    // Las cifras van en el mensaje: quien lo lee necesita saber cuánto hay
+    // para decidir si corrige la cantidad o si le falta registrar un ingreso.
+    // Un «stock insuficiente» a secas obliga a ir a buscarlo a otra pantalla.
+    super(
+      `no hay stock suficiente: quedan ${dtoa(disponible, 2)} y se piden ${dtoa(solicitado, 2)}`,
+      "StockInsuficiente",
+    );
   }
 }
 
-export class MovimientoInvalido extends Error {
+export class MovimientoInvalido extends ErrorDeNegocio {
   constructor(motivo: string) {
-    super(motivo);
-    this.name = "MovimientoInvalido";
+    super(motivo, "MovimientoInvalido");
   }
 }
 
@@ -166,7 +172,15 @@ function ingresar(
     throw new MovimientoInvalido("el costo unitario no puede ser negativo");
   }
 
-  const importe = mov.importeTotal ?? round(mul(mov.cantidad, costo), 6);
+  // El importe es dinero y el dinero tiene dos decimales. El costo unitario
+  // conserva seis porque es un cociente, no un importe: la propia estructura
+  // 13.1 de SUNAT admite ocho decimales en el unitario y sólo dos en el total.
+  //
+  // Redondear aquí es lo que mantiene el kardex y la cuenta 20 en el mismo
+  // número. Con seis decimales el almacén y la contabilidad derivaban unas
+  // milésimas por movimiento, y esa deriva sale a la luz el día que SUNAT
+  // cruza el inventario valorizado contra el balance.
+  const importe = round(mov.importeTotal ?? mul(mov.cantidad, costo), 2);
   const cantidad = add(estado.cantidad, mov.cantidad);
   const valor = add(estado.valor, importe);
 
@@ -212,7 +226,11 @@ function salir(
       ? consumirCapas(estado.capas, mov.cantidad, estado)
       : [consumoPromedio(estado, mov.cantidad)];
 
-  const importe = consumos.reduce<Dec>((a, c) => add(a, c.importe), ZERO);
+  // Se redondea una sola vez, aquí: los consumos conservan su precisión para
+  // que el costo unitario siga siendo el promedio real, y el importe —que es
+  // el que va a la contabilidad— es dinero de dos decimales.
+  const exacto = consumos.reduce<Dec>((a, c) => add(a, c.importe), ZERO);
+  const importe = round(exacto, 2);
   const cantidad = sub(estado.cantidad, mov.cantidad);
   const valor = sub(estado.valor, importe);
 
@@ -226,7 +244,10 @@ function salir(
     capas,
   };
 
-  const costoUnitario = isZero(mov.cantidad) ? ZERO : round(div(importe, mov.cantidad), 6);
+  // El unitario se deriva del importe sin redondear: con seis decimales dice
+  // el promedio real, y su producto por la cantidad vuelve a dar el importe
+  // redondeado, que es lo que exige la estructura 13.1.
+  const costoUnitario = isZero(mov.cantidad) ? ZERO : round(div(exacto, mov.cantidad), 6);
 
   return {
     estado: nuevo,

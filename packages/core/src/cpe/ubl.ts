@@ -151,18 +151,18 @@ const CIEN = dec("100");
 const porcentaje = (fraccion: Dec): string => dtoa(mul(fraccion, CIEN), 2);
 
 /** Importe con dos decimales, que es lo que SUNAT espera en los totales. */
-const i2 = (v: Dec): string => dtoa(v, 2);
+export const i2 = (v: Dec): string => dtoa(v, 2);
 /** Valores unitarios: hasta diez decimales admite SUNAT; se usan seis. */
 const i6 = (v: Dec): string => dtoa(v, 6);
 
-const el = (nombre: string, valor: string | number, attrs = ""): string =>
+export const el = (nombre: string, valor: string | number, attrs = ""): string =>
   `<${nombre}${attrs}>${esc(valor)}</${nombre}>`;
 
 /** El nodo de extensión donde después se inserta la firma. */
-const extensiones = (): string =>
+export const extensiones = (): string =>
   `<ext:UBLExtensions><ext:UBLExtension><ext:ExtensionContent></ext:ExtensionContent></ext:UBLExtension></ext:UBLExtensions>`;
 
-function firmante(emisor: Emisor): string {
+export function firmante(emisor: Emisor): string {
   return [
     "<cac:Signature>",
     el("cbc:ID", `${emisor.ruc}`),
@@ -289,7 +289,11 @@ function lineaXml(c: ComprobanteCpe, l: LineaCpe, etiqueta: string): string {
     `<${etiqueta}>`,
     el("cbc:ID", l.numero),
     el(
-      etiqueta === "cac:InvoiceLine" ? "cbc:InvoicedQuantity" : "cbc:CreditedQuantity",
+      etiqueta === "cac:InvoiceLine"
+        ? "cbc:InvoicedQuantity"
+        : etiqueta === "cac:DebitNoteLine"
+          ? "cbc:DebitedQuantity"
+          : "cbc:CreditedQuantity",
       i6(l.cantidad),
       ` unitCode="${esc(l.unidad)}" unitCodeListID="UN/ECE rec 20" unitCodeListAgencyName="United Nations Economic Commission for Europe"`,
     ),
@@ -449,6 +453,57 @@ export function construirNotaCredito(c: ComprobanteCpe): string {
   ].join("");
 }
 
+/**
+ * Construye el XML de una nota de débito.
+ *
+ * Es la de crédito con tres diferencias que SUNAT sí distingue: el documento
+ * raíz es `DebitNote`, el total va en `RequestedMonetaryTotal` en vez de
+ * `LegalMonetaryTotal`, y la cantidad de cada línea es `DebitedQuantity`.
+ */
+export function construirNotaDebito(c: ComprobanteCpe): string {
+  if (!c.notaModificada) {
+    throw new Error("una nota de débito debe indicar el comprobante que modifica");
+  }
+  const moneda = ` currencyID="${esc(c.moneda)}"`;
+  const id = `${c.serie}-${c.numero}`;
+  const m = c.notaModificada;
+
+  return [
+    '<?xml version="1.0" encoding="UTF-8" standalone="no"?>',
+    `<DebitNote xmlns="${NS.debitNote}" xmlns:cac="${NS.cac}" xmlns:cbc="${NS.cbc}" xmlns:ext="${NS.ext}" xmlns:ds="${NS.ds}">`,
+    extensiones(),
+    el("cbc:UBLVersionID", "2.1"),
+    el("cbc:CustomizationID", "2.0"),
+    el("cbc:ID", id),
+    el("cbc:IssueDate", c.fechaEmision),
+    el("cbc:IssueTime", c.horaEmision ?? "00:00:00"),
+    ...(c.totalEnLetras ? [el("cbc:Note", c.totalEnLetras, ' languageLocaleID="1000"')] : []),
+    el("cbc:DocumentCurrencyCode", c.moneda),
+    "<cac:DiscrepancyResponse>",
+    el("cbc:ReferenceID", `${m.serie}-${m.numero}`),
+    el("cbc:ResponseCode", m.motivo),
+    el("cbc:Description", m.descripcionMotivo),
+    "</cac:DiscrepancyResponse>",
+    "<cac:BillingReference>",
+    "<cac:InvoiceDocumentReference>",
+    el("cbc:ID", `${m.serie}-${m.numero}`),
+    el("cbc:DocumentTypeCode", m.tipoDocumento),
+    "</cac:InvoiceDocumentReference>",
+    "</cac:BillingReference>",
+    firmante(c.emisor),
+    parteEmisor(c.emisor),
+    parteReceptor(c.receptor),
+    totalesImpuestos(c),
+    "<cac:RequestedMonetaryTotal>",
+    el("cbc:LineExtensionAmount", i2(sumaValorVenta(c)), moneda),
+    el("cbc:TaxInclusiveAmount", i2(c.total), moneda),
+    el("cbc:PayableAmount", i2(c.total), moneda),
+    "</cac:RequestedMonetaryTotal>",
+    ...c.lineas.map((l) => lineaXml(c, l, "cac:DebitNoteLine")),
+    "</DebitNote>",
+  ].join("");
+}
+
 const sumaValorVenta = (c: ComprobanteCpe): Dec =>
   add(add(c.gravadas, c.exoneradas), add(c.inafectas, c.exportacion));
 
@@ -465,6 +520,8 @@ export function construirXml(c: ComprobanteCpe): string {
       return construirFactura(c);
     case TIPO_DOCUMENTO.NOTA_CREDITO:
       return construirNotaCredito(c);
+    case TIPO_DOCUMENTO.NOTA_DEBITO:
+      return construirNotaDebito(c);
     default:
       throw new Error(`tipo de comprobante no soportado todavía: ${c.tipoDocumento}`);
   }

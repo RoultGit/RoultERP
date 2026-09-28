@@ -21,6 +21,7 @@
 import {
   type Dec, add, sub, mul, div, sum, round, distribute, ZERO, isZero, gt, lt,
 } from "../money.ts";
+import { ErrorDeNegocio } from "../errores.ts";
 
 /** Sobre qué magnitud se reparte un gasto entre los ítems del embarque. */
 export type BaseProrrateo = "fob" | "peso" | "volumen" | "cantidad" | "directo";
@@ -91,10 +92,9 @@ export type Liquidacion = {
   noCosto: { concepto: string; importe: Dec }[];
 };
 
-export class LiquidacionInvalida extends Error {
+export class LiquidacionInvalida extends ErrorDeNegocio {
   constructor(motivo: string) {
-    super(motivo);
-    this.name = "LiquidacionInvalida";
+    super(motivo, "LiquidacionInvalida");
   }
 }
 

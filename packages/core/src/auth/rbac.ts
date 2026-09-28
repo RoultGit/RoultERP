@@ -22,6 +22,7 @@ export const MODULOS = [
   "caja_bancos",
   "contabilidad",
   "cpe",
+  "planillas",
   "sig",
 ] as const;
 export type Modulo = (typeof MODULOS)[number];

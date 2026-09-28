@@ -14,6 +14,7 @@
 import {
   type Dec, add, sub, mul, neg, sum, round, toString, ZERO, isZero, gt, lt, eq,
 } from "../money.ts";
+import { ErrorDeNegocio } from "../errores.ts";
 
 export type Estado = "borrador" | "contabilizado" | "extornado" | "anulado";
 
@@ -50,12 +51,9 @@ export type Asiento = {
   origen?: { modulo: string; documentoId: string };
 };
 
-export class AsientoInvalido extends Error {
-  constructor(
-    readonly motivos: readonly string[],
-  ) {
-    super(motivos.join("; "));
-    this.name = "AsientoInvalido";
+export class AsientoInvalido extends ErrorDeNegocio {
+  constructor(motivos: readonly string[]) {
+    super(motivos, "AsientoInvalido");
   }
 }
 
@@ -103,7 +101,9 @@ export function validar(a: Asiento): string[] {
 
   a.lineas.forEach((l, i) => {
     const n = i + 1;
-    if (l.cuenta.trim() === "") motivos.push(`línea ${n}: falta la cuenta`);
+    // `?? ""` porque quien llama puede omitir la cuenta por error: el
+    // validador está para decírselo, no para reventar antes de contárselo.
+    if ((l.cuenta ?? "").trim() === "") motivos.push(`línea ${n}: falta la cuenta`);
     if (lt(l.debe, ZERO) || lt(l.haber, ZERO)) {
       motivos.push(`línea ${n}: los importes no pueden ser negativos; use el lado contrario`);
     }

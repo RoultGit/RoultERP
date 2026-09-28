@@ -13,8 +13,11 @@
 import postgres from "postgres";
 import { hashPassword, ROLES_BASE } from "@roulterp/core/auth";
 import { DETRACCION_SEED } from "@roulterp/core/tributario";
-import { money } from "@roulterp/core";
+import { eq, sql } from "drizzle-orm";
+import { ErrorDeNegocio, money } from "@roulterp/core";
+import { schema, type Db } from "@roulterp/db";
 import { PCGE, UNIDADES, nivelDe } from "./pcge.ts";
+import { FORMATOS_BASE } from "./formatos-base.ts";
 
 export type DatosEmpresa = {
   ruc: string;
@@ -147,6 +150,45 @@ export async function crearEmpresa(
         INSERT INTO almacenes (empresa_id, sucursal_id, codigo, nombre, es_transito)
         VALUES (${empresaId}, ${suc!.id}, 'TRA', 'Mercadería en tránsito', true)`;
 
+      /*
+       * Un centro de costo de partida.
+       *
+       * Buena parte de las cuentas de gasto del PCGE lo exigen al contabilizar
+       * —la planilla, los servicios, la depreciación—, así que sin ninguno la
+       * empresa no podía registrar su primer gasto y no había forma de crearlo
+       * salvo tocando la base. Uno genérico la deja operar desde el minuto
+       * cero; los suyos los crea después en Maestros.
+       */
+      await tx`
+        INSERT INTO centros_costo (empresa_id, codigo, nombre)
+        VALUES (${empresaId}, 'GEN', 'Gastos generales')`;
+
+      /*
+       * Los dos formatos de estados financieros de partida.
+       *
+       * Reproducen los estados que el programa traía cableados, de modo que una
+       * empresa que no configura nada ve lo mismo que antes. El contador los
+       * edita después, o crea los suyos.
+       */
+      for (const f of FORMATOS_BASE) {
+        const [formato] = await tx<{ id: string }[]>`
+          INSERT INTO formatos_eeff (empresa_id, codigo, nombre, tipo, es_predeterminado)
+          VALUES (${empresaId}, ${f.codigo}, ${f.nombre}, ${f.tipo},
+                  ${f.esPredeterminado ?? false})
+          RETURNING id`;
+        for (const [i, l] of f.lineas.entries()) {
+          await tx`
+            INSERT INTO formato_eeff_lineas
+              (empresa_id, formato_id, orden, codigo, concepto, clase, nivel,
+               cuentas, signo, suma, columna, papel)
+            VALUES (${empresaId}, ${formato!.id}, ${i + 1}, ${l.codigo ?? null},
+                    ${l.concepto}, ${l.clase ?? "detalle"}, ${l.nivel ?? 1},
+                    ${l.cuentas ?? null}, ${l.signo ?? "deudor"},
+                    ${l.suma?.length ? l.suma.join(",") : null}, ${l.columna ?? null},
+                    ${l.papel ?? null})`;
+        }
+      }
+
       return { empresaId, usuarioId, cuentasSembradas: PCGE.length };
     });
   } finally {
@@ -173,4 +215,120 @@ export async function abrirPeriodo(
   } finally {
     await sql.end();
   }
+}
+
+// ─── Datos de la propia empresa ───────────────────────────────────────────
+
+/**
+ * Lo que la empresa puede corregir de sí misma, ya en marcha y dentro de RLS.
+ *
+ * El alta ocurre fuera de RLS porque crea la empresa; esto es lo contrario:
+ * corre con la empresa activa y sólo puede tocar la suya. Hasta ahora estos
+ * datos se fijaban al dar de alta y ya no había forma de cambiarlos, así que una
+ * empresa que se mudaba de local o que la SUNAT designaba agente de retención
+ * tenía que pedir que le tocaran la base.
+ *
+ * El RUC y la razón social **no** están aquí a propósito. La razón social viaja
+ * dentro de cada XML ya firmado y enviado; cambiarla sin más dejaría los
+ * comprobantes viejos diciendo una cosa y la pantalla otra. Un cambio de razón
+ * social es un trámite, no un campo de formulario, y se hace desde fuera junto
+ * con la revisión de lo que ya se emitió.
+ */
+export type AjustesEmpresa = {
+  nombreComercial?: string;
+  direccion?: string;
+  ubigeo?: string;
+  metodoValorizacion?: "promedio" | "peps";
+  redondeoDetraccion?: "cercano" | "arriba";
+  /** Cuenta de detracciones del Banco de la Nación. Va impresa en la factura. */
+  cuentaDetracciones?: string;
+  esAgenteRetencion?: boolean;
+  esAgentePercepcion?: boolean;
+};
+
+export class EmpresaInvalida extends ErrorDeNegocio {
+  constructor(motivos: readonly string[]) {
+    super(motivos, "EmpresaInvalida");
+  }
+}
+
+/** Sólo dígitos, guiones y espacios; entre 8 y 25 caracteres. */
+const CUENTA_BN = /^[\d\s-]{8,25}$/;
+
+export async function ajustesDeEmpresa(db: Db, empresaId: string) {
+  const [e] = await db
+    .select()
+    .from(schema.empresas)
+    .where(eq(schema.empresas.id, empresaId))
+    .limit(1);
+  if (!e) throw new EmpresaInvalida(["la empresa no existe"]);
+  return e;
+}
+
+export async function guardarAjustesEmpresa(
+  db: Db,
+  empresaId: string,
+  datos: AjustesEmpresa,
+): Promise<void> {
+  const motivos: string[] = [];
+  if (datos.ubigeo && !/^\d{6}$/.test(datos.ubigeo)) {
+    // El ubigeo va en cada guía de remisión como punto de partida; uno de cinco
+    // dígitos lo rechaza la GRE con un error que no dice cuál es el campo.
+    motivos.push("el ubigeo son seis dígitos");
+  }
+  if (datos.cuentaDetracciones && !CUENTA_BN.test(datos.cuentaDetracciones)) {
+    motivos.push("la cuenta de detracciones lleva sólo dígitos, espacios y guiones");
+  }
+  if (datos.metodoValorizacion && !["promedio", "peps"].includes(datos.metodoValorizacion)) {
+    motivos.push("el método de valorización es «promedio» o «peps»");
+  }
+  if (datos.redondeoDetraccion && !["cercano", "arriba"].includes(datos.redondeoDetraccion)) {
+    motivos.push("el redondeo de la detracción es «cercano» o «arriba»");
+  }
+  if (motivos.length) throw new EmpresaInvalida(motivos);
+
+  /*
+   * Cambiar el método de valorización a mitad de ejercicio reescribiría el costo
+   * de todo lo que ya salió del almacén, y con él el costo de ventas de meses ya
+   * declarados. Se frena si hay movimientos: cambiarlo es una decisión contable
+   * que se toma al abrir el ejercicio, no un desplegable.
+   */
+  if (datos.metodoValorizacion) {
+    const actual = await ajustesDeEmpresa(db, empresaId);
+    if (datos.metodoValorizacion !== actual.metodoValorizacion) {
+      const [{ hay }] = (await db.execute(
+        sql`SELECT EXISTS (SELECT 1 FROM movimientos_inventario WHERE empresa_id = ${empresaId}) AS hay`,
+      )) as unknown as [{ hay: boolean }];
+      if (hay) {
+        throw new EmpresaInvalida([
+          "no se cambia el método de valorización con movimientos en el kardex: " +
+            "reescribiría el costo de ventas de periodos ya declarados",
+        ]);
+      }
+    }
+  }
+
+  const limpio = (v: string | undefined) => (v?.trim() ? v.trim() : null);
+  await db
+    .update(schema.empresas)
+    .set({
+      ...(datos.nombreComercial !== undefined
+        ? { nombreComercial: limpio(datos.nombreComercial) }
+        : {}),
+      ...(datos.direccion !== undefined ? { direccion: limpio(datos.direccion) } : {}),
+      ...(datos.ubigeo !== undefined ? { ubigeo: limpio(datos.ubigeo) } : {}),
+      ...(datos.cuentaDetracciones !== undefined
+        ? { cuentaDetracciones: limpio(datos.cuentaDetracciones) }
+        : {}),
+      ...(datos.metodoValorizacion ? { metodoValorizacion: datos.metodoValorizacion } : {}),
+      ...(datos.redondeoDetraccion ? { redondeoDetraccion: datos.redondeoDetraccion } : {}),
+      ...(datos.esAgenteRetencion !== undefined
+        ? { esAgenteRetencion: datos.esAgenteRetencion }
+        : {}),
+      ...(datos.esAgentePercepcion !== undefined
+        ? { esAgentePercepcion: datos.esAgentePercepcion }
+        : {}),
+      actualizadoEn: new Date(),
+    })
+    .where(eq(schema.empresas.id, empresaId));
 }

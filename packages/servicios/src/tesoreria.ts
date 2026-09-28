@@ -21,6 +21,8 @@ import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { money } from "@roulterp/core";
 import { schema as s, type Db } from "@roulterp/db";
 import { asentar } from "./contabilidad.ts";
+import { cuentasDe } from "./parametros.ts";
+import { ErrorDeNegocio } from "@roulterp/core";
 
 const { cuentasEfectivo, movimientosEfectivo, extractoBancario, arqueos, terceros } = s;
 
@@ -28,10 +30,9 @@ type Dec = money.Dec;
 const dec = (v: string | null | undefined): Dec => money.dec(v ?? "0");
 const txt2 = (v: Dec): string => money.toString(v, 2);
 
-export class TesoreriaInvalida extends Error {
-  constructor(readonly motivos: readonly string[]) {
-    super(motivos.join("; "));
-    this.name = "TesoreriaInvalida";
+export class TesoreriaInvalida extends ErrorDeNegocio {
+  constructor(motivos: readonly string[]) {
+    super(motivos, "TesoreriaInvalida");
   }
 }
 
@@ -140,6 +141,80 @@ export type DatosMovimiento = {
  * Los pagos y las cobranzas generan su movimiento por su cuenta, con su propio
  * asiento, y no pasan por aquí.
  */
+/**
+ * Anota el movimiento de caja de una operación que **ya se contabilizó**.
+ *
+ * La usan cobranzas, pagos y cualquier módulo que genere su propio asiento: si
+ * llamaran a `registrarMovimientoEfectivo` se contabilizaría dos veces.
+ *
+ * Existe porque sin ella el módulo de tesorería vivía en otro mundo: la
+ * contabilidad decía que el banco se había movido y la pantalla de Caja y
+ * Bancos seguía marcando cero. Con dos verdades sobre el mismo dinero la
+ * conciliación bancaria no puede funcionar, que es justamente para lo que
+ * existe el módulo.
+ */
+export async function anotarMovimientoDeOtroModulo(
+  db: Db,
+  empresaId: string,
+  usuarioId: string,
+  datos: {
+    cuentaId: string;
+    fecha: string;
+    sentido: "ingreso" | "egreso";
+    concepto: string;
+    importe: string;
+    referencia?: string;
+    terceroId?: string;
+    origenModulo: string;
+    origenId: string;
+    asientoId?: string;
+  },
+): Promise<string | null> {
+  const [cuenta] = await db
+    .select()
+    .from(cuentasEfectivo)
+    .where(eq(cuentasEfectivo.id, datos.cuentaId))
+    .limit(1);
+  // Sin cuenta no se anota nada: el asiento ya existe y la operación es válida.
+  // Es lo que ocurre mientras la empresa no ha dado de alta sus cuentas.
+  if (!cuenta || !cuenta.activa) return null;
+
+  const [mov] = await db
+    .insert(movimientosEfectivo)
+    .values({
+      empresaId,
+      cuentaId: datos.cuentaId,
+      fecha: datos.fecha,
+      sentido: datos.sentido,
+      concepto: datos.concepto,
+      importe: datos.importe,
+      moneda: cuenta.moneda,
+      referencia: datos.referencia ?? null,
+      terceroId: datos.terceroId ?? null,
+      origenModulo: datos.origenModulo,
+      origenId: datos.origenId,
+      asientoId: datos.asientoId ?? null,
+      creadoPor: usuarioId,
+    })
+    .returning({ id: movimientosEfectivo.id });
+
+  return mov!.id;
+}
+
+/** Cuentas de efectivo activas, para elegir de dónde sale o entra el dinero. */
+export const cuentasParaOperar = (db: Db) =>
+  db
+    .select({
+      id: cuentasEfectivo.id,
+      codigo: cuentasEfectivo.codigo,
+      nombre: cuentasEfectivo.nombre,
+      moneda: cuentasEfectivo.moneda,
+      cuentaContable: cuentasEfectivo.cuentaContable,
+    })
+    .from(cuentasEfectivo)
+    .where(eq(cuentasEfectivo.activa, true))
+    .orderBy(cuentasEfectivo.codigo);
+
 export async function registrarMovimientoEfectivo(
   db: Db,
   empresaId: string,
@@ -217,11 +292,23 @@ export async function registrarMovimientoEfectivo(
   return { movimientoId: mov!.id, asientoId };
 }
 
-export const movimientosDe = (db: Db, cuentaId: string, rango?: { desde?: string; hasta?: string }) => {
+/**
+ * Movimientos de una cuenta, los últimos 500.
+ *
+ * Los **últimos**, no los primeros: con el orden ascendente, una cuenta con más
+ * de quinientos movimientos mostraba los más viejos y escondía sin avisar los
+ * de esta semana, que son los que se miran. Se devuelven en orden cronológico,
+ * que es como se lee un libro de caja.
+ */
+export const movimientosDe = async (
+  db: Db,
+  cuentaId: string,
+  rango?: { desde?: string; hasta?: string },
+) => {
   const cond = [eq(movimientosEfectivo.cuentaId, cuentaId)];
   if (rango?.desde) cond.push(sql`${movimientosEfectivo.fecha} >= ${rango.desde}`);
   if (rango?.hasta) cond.push(sql`${movimientosEfectivo.fecha} <= ${rango.hasta}`);
-  return db
+  const filas = db
     .select({
       id: movimientosEfectivo.id,
       fecha: movimientosEfectivo.fecha,
@@ -230,14 +317,20 @@ export const movimientosDe = (db: Db, cuentaId: string, rango?: { desde?: string
       importe: movimientosEfectivo.importe,
       referencia: movimientosEfectivo.referencia,
       origenModulo: movimientosEfectivo.origenModulo,
+      // El origen y el asiento viajan en la consulta: son lo que permite ir
+      // del extracto del banco a la cobranza que lo produjo, y de ahí a su
+      // asiento. Sin eso, conciliar es adivinar.
+      origenId: movimientosEfectivo.origenId,
+      asientoId: movimientosEfectivo.asientoId,
       conciliadoEn: movimientosEfectivo.conciliadoEn,
       tercero: terceros.razonSocial,
     })
     .from(movimientosEfectivo)
     .leftJoin(terceros, eq(terceros.id, movimientosEfectivo.terceroId))
     .where(and(...cond))
-    .orderBy(asc(movimientosEfectivo.fecha), asc(movimientosEfectivo.creadoEn))
+    .orderBy(desc(movimientosEfectivo.fecha), desc(movimientosEfectivo.creadoEn))
     .limit(500);
+  return (await filas).reverse();
 };
 
 // ─── Conciliación bancaria ────────────────────────────────────────────────
@@ -483,6 +576,7 @@ export async function registrarArqueo(
     const sobrante = money.gt(diferencia, money.ZERO);
     const importe = txt2(sobrante ? diferencia : money.neg(diferencia));
     const periodo = datos.fecha.slice(0, 4) + datos.fecha.slice(5, 7);
+    const cuentas = await cuentasDe(db);
 
     asientoId = await asentar(db, empresaId, usuarioId, {
       periodo,
@@ -497,12 +591,12 @@ export async function registrarArqueo(
         ? [
             { cuenta: cuenta.cuentaContable, glosa: "Sobrante de arqueo", debe: importe },
             // Un sobrante es un ingreso de gestión hasta que se identifique.
-            { cuenta: "759", glosa: "Sobrante de caja", haber: importe },
+            { cuenta: cuentas.get("sobrante_caja"), glosa: "Sobrante de caja", haber: importe },
           ]
         : [
             // Un faltante es una pérdida; si después aparece el responsable, se
             // reclasifica a una cuenta por cobrar.
-            { cuenta: "6592", glosa: "Faltante de caja", debe: importe },
+            { cuenta: cuentas.get("faltante_caja"), glosa: "Faltante de caja", debe: importe },
             { cuenta: cuenta.cuentaContable, glosa: "Faltante de arqueo", haber: importe },
           ],
     });
@@ -548,3 +642,180 @@ export const listarArqueos = (db: Db, cuentaId?: string) =>
     .where(cuentaId ? eq(arqueos.cuentaId, cuentaId) : undefined)
     .orderBy(desc(arqueos.fecha))
     .limit(200);
+
+// ─── Libro de bancos ──────────────────────────────────────────────────────
+
+export type LineaLibroBancos = {
+  fecha: string;
+  concepto: string;
+  referencia: string | null;
+  tercero: string | null;
+  origen: string | null;
+  ingreso: string | null;
+  egreso: string | null;
+  saldo: string;
+  conciliado: boolean;
+};
+
+export type LibroBancos = {
+  cuenta: { id: string; codigo: string; nombre: string; moneda: string; cuentaContable: string; banco: string | null; numeroCuenta: string | null };
+  desde: string;
+  hasta: string;
+  saldoInicial: string;
+  ingresos: string;
+  egresos: string;
+  saldoFinal: string;
+  /** Saldo de la cuenta contable a la misma fecha, para contrastar. */
+  saldoContable: string;
+  diferencia: string;
+  cuadra: boolean;
+  sinConciliar: number;
+  lineas: LineaLibroBancos[];
+  avisos: string[];
+};
+
+/**
+ * Libro de bancos de una cuenta y un periodo.
+ *
+ * Es el auxiliar que se imprime y se archiva: saldo inicial, movimientos del
+ * periodo con el saldo corriendo, y saldo final.
+ *
+ * Lo que lo hace útil y no un simple listado es la última columna del resumen:
+ * el **contraste contra la cuenta contable**. El libro sale de
+ * `movimientos_efectivo` y el mayor sale de los asientos; son dos caminos
+ * distintos para el mismo dinero y sólo coinciden si todos los módulos anotan
+ * las dos cosas. Cuando no coinciden hay que enterarse aquí, no tres meses
+ * después al cerrar el ejercicio.
+ *
+ * El saldo contable se toma de la cuenta del PCGE que la cuenta de efectivo
+ * declara. Si dos cuentas de efectivo comparten la misma —dos cuentas
+ * corrientes en la 1041, que es lo normal— el contraste es del conjunto y se
+ * avisa, porque comparar una contra el total daría una diferencia falsa.
+ */
+export async function libroBancos(
+  db: Db,
+  cuentaId: string,
+  rango: { desde: string; hasta: string },
+): Promise<LibroBancos | null> {
+  const [cuenta] = await db
+    .select({
+      id: cuentasEfectivo.id,
+      codigo: cuentasEfectivo.codigo,
+      nombre: cuentasEfectivo.nombre,
+      moneda: cuentasEfectivo.moneda,
+      cuentaContable: cuentasEfectivo.cuentaContable,
+      banco: cuentasEfectivo.banco,
+      numeroCuenta: cuentasEfectivo.numeroCuenta,
+    })
+    .from(cuentasEfectivo)
+    .where(eq(cuentasEfectivo.id, cuentaId))
+    .limit(1);
+  if (!cuenta) return null;
+
+  const [inicial] = (await db.execute(sql`
+    SELECT coalesce(sum(CASE WHEN sentido = 'ingreso' THEN importe ELSE -importe END), 0)::text
+             AS saldo
+    FROM movimientos_efectivo
+    WHERE cuenta_id = ${cuentaId} AND fecha < ${rango.desde}`)) as unknown as [{ saldo: string }];
+
+  const filas = (await db.execute(sql`
+    SELECT m.fecha::text AS fecha, m.concepto, m.referencia, m.sentido,
+           m.importe::text AS importe, m.origen_modulo, t.razon_social AS tercero,
+           m.conciliado_en IS NOT NULL AS conciliado
+    FROM movimientos_efectivo m
+    LEFT JOIN terceros t ON t.id = m.tercero_id
+    WHERE m.cuenta_id = ${cuentaId}
+      AND m.fecha >= ${rango.desde} AND m.fecha <= ${rango.hasta}
+    ORDER BY m.fecha, m.creado_en`)) as unknown as {
+    fecha: string;
+    concepto: string;
+    referencia: string | null;
+    sentido: string;
+    importe: string;
+    origen_modulo: string | null;
+    tercero: string | null;
+    conciliado: boolean;
+  }[];
+
+  let saldo = money.dec(inicial.saldo);
+  let ingresos = money.ZERO;
+  let egresos = money.ZERO;
+  let sinConciliar = 0;
+
+  const lineas: LineaLibroBancos[] = [...filas].map((f) => {
+    const importe = money.dec(f.importe);
+    const entra = f.sentido === "ingreso";
+    if (entra) {
+      saldo = money.add(saldo, importe);
+      ingresos = money.add(ingresos, importe);
+    } else {
+      saldo = money.sub(saldo, importe);
+      egresos = money.add(egresos, importe);
+    }
+    if (!f.conciliado) sinConciliar++;
+    return {
+      fecha: f.fecha,
+      concepto: f.concepto,
+      referencia: f.referencia,
+      tercero: f.tercero,
+      origen: f.origen_modulo,
+      ingreso: entra ? money.toString(importe, 2) : null,
+      egreso: entra ? null : money.toString(importe, 2),
+      saldo: money.toString(saldo, 2),
+      conciliado: f.conciliado,
+    };
+  });
+
+  // El mayor de la cuenta contable hasta la misma fecha. Sólo asientos
+  // contabilizados: un borrador todavía no es contabilidad.
+  const [mayor] = (await db.execute(sql`
+    SELECT coalesce(sum(l.debe_funcional - l.haber_funcional), 0)::text AS saldo
+    FROM asiento_lineas l
+    JOIN asientos a ON a.id = l.asiento_id
+    WHERE a.estado IN ('contabilizado', 'extornado')
+      AND a.fecha <= ${rango.hasta}
+      AND l.cuenta = ${cuenta.cuentaContable}`)) as unknown as [{ saldo: string }];
+
+  const [compartida] = (await db.execute(sql`
+    SELECT count(*)::int AS n FROM cuentas_efectivo
+    WHERE cuenta_contable = ${cuenta.cuentaContable}`)) as unknown as [{ n: number }];
+
+  const saldoContable = money.dec(mayor.saldo);
+  const diferencia = money.sub(saldo, saldoContable);
+
+  const avisos: string[] = [];
+  if (compartida.n > 1) {
+    avisos.push(
+      `La cuenta contable ${cuenta.cuentaContable} la comparten ${compartida.n} cuentas de ` +
+        `efectivo, así que el saldo contable es el de todas juntas y la diferencia no es comparable.`,
+    );
+  } else if (!money.isZero(money.round(diferencia, 2))) {
+    avisos.push(
+      `El libro y la cuenta ${cuenta.cuentaContable} difieren en ` +
+        `${money.toString(diferencia, 2)}: hay un movimiento sin asiento o un asiento sin movimiento.`,
+    );
+  }
+  if (sinConciliar > 0) {
+    avisos.push(
+      `${sinConciliar} ${sinConciliar === 1 ? "movimiento" : "movimientos"} sin conciliar con el ` +
+        `extracto del banco en este periodo.`,
+    );
+  }
+
+  return {
+    cuenta,
+    desde: rango.desde,
+    hasta: rango.hasta,
+    saldoInicial: money.toString(money.dec(inicial.saldo), 2),
+    ingresos: money.toString(ingresos, 2),
+    egresos: money.toString(egresos, 2),
+    saldoFinal: money.toString(saldo, 2),
+    saldoContable: money.toString(saldoContable, 2),
+    diferencia: money.toString(diferencia, 2),
+    // Con la cuenta compartida no se puede afirmar que cuadre ni que no.
+    cuadra: compartida.n > 1 || money.isZero(money.round(diferencia, 2)),
+    sinConciliar,
+    lineas,
+    avisos,
+  };
+}

@@ -24,11 +24,15 @@ import {
 import { abrir, type SobreCifrado } from "@roulterp/core/auth";
 import { enEmpresa, schema as s, type Conexion, type Db } from "@roulterp/db";
 import { registrarMovimiento } from "./inventario.ts";
+import { atenderPedido } from "./pedidos.ts";
 import { asentar, type LineaAsientoEntrada } from "./contabilidad.ts";
+import { cuentasDe, type Cuentas } from "./parametros.ts";
+import { ErrorDeNegocio } from "@roulterp/core";
+import { horaEnPeru } from "@roulterp/core/fecha";
 
 const {
   comprobantes, comprobanteItems, terceros, productos, unidadesMedida,
-  empresas, seriesDocumento, certificadosDigitales, credencialesSunat, almacenes,
+  empresas, certificadosDigitales, credencialesSunat, 
 } = s;
 
 type Dec = money.Dec;
@@ -36,10 +40,9 @@ const dec = (v: string | null | undefined): Dec => money.dec(v ?? "0");
 const txt = (v: Dec, d = 6): string => money.toString(v, d);
 const txt2 = (v: Dec): string => money.toString(v, 2);
 
-export class VentaInvalida extends Error {
-  constructor(readonly motivos: readonly string[]) {
-    super(motivos.join("; "));
-    this.name = "VentaInvalida";
+export class VentaInvalida extends ErrorDeNegocio {
+  constructor(motivos: readonly string[]) {
+    super(motivos, "VentaInvalida");
   }
 }
 
@@ -67,6 +70,8 @@ export type DatosVenta = {
   lineas: LineaVenta[];
   /** Almacén del que sale la mercadería. Sin él, no se descarga inventario. */
   almacenId?: string;
+  /** Pedido que se atiende. Descuenta su saldo dentro de esta transacción. */
+  pedidoId?: string;
   detraccionCodigo?: string;
   otrosCargos?: string;
   descuentoGlobal?: string;
@@ -104,6 +109,22 @@ export async function emitirVenta(
   const cliente = await exigirCliente(db, datos.clienteId, datos.tipoDocumento);
   const lineasResueltas = await resolverLineas(db, datos.lineas);
 
+  // El pedido se descuenta antes que nada, dentro de esta misma transacción.
+  // Podría ir al final —todo se deshace igual—, pero entonces una factura que
+  // excede el pedido *y* el stock se rechazaría por el stock, y el usuario
+  // leería el problema equivocado.
+  if (datos.pedidoId) {
+    await atenderPedido(
+      db,
+      datos.pedidoId,
+      lineasResueltas.map((l) => ({
+        productoId: l.productoId ?? null,
+        codigo: l.codigo,
+        cantidad: l.cantidad,
+      })),
+    );
+  }
+
   const totales = tributario.totalizar(
     lineasResueltas.map((l) => ({
       cantidad: dec(l.cantidad),
@@ -136,7 +157,7 @@ export async function emitirVenta(
       serie: datos.serie,
       numero,
       fechaEmision: datos.fechaEmision,
-      horaEmision: new Date().toISOString().slice(11, 19),
+      horaEmision: horaEnPeru(),
       fechaVencimiento: datos.fechaVencimiento ?? null,
       periodo,
       moneda: datos.moneda,
@@ -160,6 +181,7 @@ export async function emitirVenta(
       detraccionTasa: detraccion?.aplica ? txt(detraccion.tasa) : null,
       detraccionMonto: detraccion?.aplica ? txt2(detraccion.monto) : "0",
       almacenId: datos.almacenId ?? null,
+      pedidoId: datos.pedidoId ?? null,
       estado: cpe.ESTADO_CPE.BORRADOR,
       creadoPor: usuarioId,
     })
@@ -223,7 +245,7 @@ export async function emitirVenta(
     tipoCambio: datos.tipoCambio,
     origenModulo: "ventas",
     origenId: comprobanteId,
-    lineas: lineasAsiento(totales, costoVenta, datos.clienteId, dec(datos.tipoCambio)),
+    lineas: lineasAsiento(await cuentasDe(db), totales, costoVenta, datos.clienteId, dec(datos.tipoCambio)),
   });
 
   await db.update(comprobantes).set({ asientoId }).where(eq(comprobantes.id, comprobanteId));
@@ -247,24 +269,38 @@ export async function emitirVenta(
  * aparece disparado hasta el cierre.
  */
 function lineasAsiento(
+  cuentas: Cuentas,
   totales: tributario.TotalesComprobante,
   costoVenta: Dec,
   clienteId: string,
   tipoCambio: Dec,
 ): LineaAsientoEntrada[] {
   const lineas: LineaAsientoEntrada[] = [
-    { cuenta: "1212", glosa: "Cliente", debe: txt2(totales.total), anexoId: clienteId },
+    {
+      cuenta: cuentas.get("clientes"),
+      glosa: "Cliente",
+      debe: txt2(totales.total),
+      anexoId: clienteId,
+    },
   ];
 
   if (!money.isZero(totales.igv)) {
-    lineas.push({ cuenta: "40111", glosa: "IGV de la venta", haber: txt2(totales.igv) });
+    lineas.push({
+      cuenta: cuentas.get("igv_ventas"),
+      glosa: "IGV de la venta",
+      haber: txt2(totales.igv),
+    });
   }
   const ingreso = money.add(
     money.add(totales.gravadas, totales.exoneradas),
     money.add(totales.inafectas, totales.exportacion),
   );
   if (!money.isZero(ingreso)) {
-    lineas.push({ cuenta: "70111", glosa: "Venta de mercadería", haber: txt2(ingreso) });
+    lineas.push({
+      cuenta: cuentas.get("ventas_mercaderia"),
+      glosa: "Venta de mercadería",
+      haber: txt2(ingreso),
+    });
   }
 
   // El costo de ventas ya viene en moneda funcional desde el kardex, así que se
@@ -275,16 +311,353 @@ function lineasAsiento(
       ? costoVenta
       : money.round(money.div(costoVenta, tipoCambio), 2);
     lineas.push({
-      cuenta: "69111",
+      cuenta: cuentas.get("costo_ventas"),
       glosa: "Costo de ventas",
       debe: txt2(enMonedaOperacion),
       debeFuncional: txt2(costoVenta),
     });
     lineas.push({
-      cuenta: "20111",
+      cuenta: cuentas.get("existencias"),
       glosa: "Salida de mercadería",
       haber: txt2(enMonedaOperacion),
       haberFuncional: txt2(costoVenta),
+    });
+  }
+
+  return lineas;
+}
+
+// ─── Notas de crédito y débito ────────────────────────────────────────────
+
+export type DatosNota = {
+  /** Comprobante que la nota modifica. */
+  comprobanteId: string;
+  /** "07" nota de crédito, "08" nota de débito. */
+  tipoDocumento: string;
+  serie: string;
+  fechaEmision: string;
+  /** Catálogo 09 para la de crédito, catálogo 10 para la de débito. */
+  motivo: string;
+  descripcionMotivo: string;
+  /**
+   * Líneas de la nota. Si se omiten se copian las del comprobante original,
+   * que es el caso de la anulación total y el más frecuente con diferencia.
+   */
+  lineas?: LineaVenta[];
+  /**
+   * Devuelve la mercadería al almacén. Sólo tiene sentido en una nota de
+   * crédito por devolución: una anulación por error en el RUC no mueve stock.
+   */
+  devuelveMercaderia?: boolean;
+};
+
+export type NotaEmitida = VentaEmitida & { modificaA: string };
+
+/**
+ * Emite una nota de crédito o de débito.
+ *
+ * Una nota no corrige el comprobante original: lo deja intacto y emite un
+ * documento nuevo que lo modifica. Eso es lo que exige SUNAT y también lo que
+ * hace que los libros sigan cuadrando —el original ya se declaró.
+ *
+ * El asiento es el inverso del de la venta para la nota de crédito y el mismo
+ * signo para la de débito. La devolución de mercadería es opcional y explícita:
+ * hay motivos de nota de crédito que no mueven un solo artículo.
+ */
+export async function emitirNota(
+  db: Db,
+  empresaId: string,
+  usuarioId: string,
+  datos: DatosNota,
+): Promise<NotaEmitida> {
+  const esCredito = datos.tipoDocumento === cpe.TIPO_DOCUMENTO.NOTA_CREDITO;
+  const motivos: string[] = [];
+  if (!esCredito && datos.tipoDocumento !== cpe.TIPO_DOCUMENTO.NOTA_DEBITO) {
+    motivos.push("una nota es de tipo 07 (crédito) o 08 (débito)");
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datos.fechaEmision)) {
+    motivos.push("la fecha de emisión es inválida");
+  }
+  if (!datos.motivo) motivos.push("indique el motivo de la nota");
+  if (motivos.length) throw new VentaInvalida(motivos);
+
+  const [original] = await db
+    .select()
+    .from(comprobantes)
+    .where(eq(comprobantes.id, datos.comprobanteId))
+    .limit(1);
+  if (!original) throw new VentaInvalida(["el comprobante que se modifica no existe"]);
+  if (original.tipoDocumento === cpe.TIPO_DOCUMENTO.NOTA_CREDITO ||
+      original.tipoDocumento === cpe.TIPO_DOCUMENTO.NOTA_DEBITO) {
+    throw new VentaInvalida(["una nota no modifica a otra nota"]);
+  }
+  // Un borrador todavía no se entregó a nadie: se corrige o se descarta, no se
+  // le emite una nota que SUNAT rechazaría por referirse a algo que no conoce.
+  if (original.estado === cpe.ESTADO_CPE.BORRADOR) {
+    throw new VentaInvalida([
+      "el comprobante todavía no se ha enviado a SUNAT; corríjalo en vez de emitir una nota",
+    ]);
+  }
+  if (original.estado === "anulado") {
+    throw new VentaInvalida(["el comprobante ya está anulado"]);
+  }
+
+  const cliente = await exigirCliente(db, original.clienteId, original.tipoDocumento);
+
+  // Sin líneas propias, la nota reproduce el comprobante entero.
+  const lineasNota: LineaVenta[] = datos.lineas ?? (await lineasDelOriginal(db, original.id));
+  if (lineasNota.length === 0) throw new VentaInvalida(["la nota necesita al menos una línea"]);
+
+  const lineasResueltas = await resolverLineas(db, lineasNota);
+  const totales = tributario.totalizar(
+    lineasResueltas.map((l) => ({
+      cantidad: dec(l.cantidad),
+      valorUnitario: dec(l.valorUnitario),
+      afectacion: l.afectacionIgv as tributario.Afectacion,
+      ...(l.descuento ? { descuento: dec(l.descuento) } : {}),
+    })),
+    {},
+  );
+
+  if (esCredito) {
+    // Una nota de crédito no puede llevarse más de lo que queda vivo del
+    // comprobante: si lo hiciera, el cliente quedaría con saldo a favor sin
+    // que nadie lo haya decidido.
+    const [saldo] = (await db.execute(sql`
+      SELECT (c.total - coalesce((
+                SELECT sum(n.total) FROM comprobantes n
+                WHERE n.modifica_a = c.id AND n.tipo_documento = '07'
+                  AND n.estado NOT IN ('anulado', 'rechazado')), 0))::text AS disponible
+      FROM comprobantes c WHERE c.id = ${original.id}`)) as unknown as [{ disponible: string }];
+    if (money.gt(totales.total, dec(saldo!.disponible))) {
+      throw new VentaInvalida([
+        `la nota (${txt2(totales.total)}) excede lo que queda del comprobante (${importeLegible(saldo!.disponible)})`,
+      ]);
+    }
+  }
+
+  const numero = await siguienteCorrelativo(db, datos.tipoDocumento, datos.serie);
+  const periodo = datos.fechaEmision.slice(0, 4) + datos.fechaEmision.slice(5, 7);
+
+  const [cab] = await db
+    .insert(comprobantes)
+    .values({
+      empresaId,
+      clienteId: original.clienteId,
+      tipoDocumento: datos.tipoDocumento,
+      serie: datos.serie,
+      numero,
+      fechaEmision: datos.fechaEmision,
+      horaEmision: horaEnPeru(),
+      periodo,
+      // La nota hereda moneda y tipo de cambio del original: convertirla a otro
+      // tipo dejaría una diferencia que nadie pidió.
+      moneda: original.moneda,
+      tipoCambio: original.tipoCambio,
+      tipoOperacion: original.tipoOperacion,
+      gravadas: txt2(totales.gravadas),
+      exoneradas: txt2(totales.exoneradas),
+      inafectas: txt2(totales.inafectas),
+      exportacion: txt2(totales.exportacion),
+      gratuitas: txt2(totales.gratuitas),
+      isc: txt2(totales.isc),
+      igv: txt2(totales.igv),
+      igvGratuitas: txt2(totales.igvGratuitas),
+      total: txt2(totales.total),
+      totalEnLetras: enLetras(totales.total, original.moneda),
+      modificaA: original.id,
+      motivoNota: datos.motivo,
+      descripcionMotivo: datos.descripcionMotivo,
+      almacenId: original.almacenId,
+      estado: cpe.ESTADO_CPE.BORRADOR,
+      creadoPor: usuarioId,
+    })
+    .returning({ id: comprobantes.id });
+  const notaId = cab!.id;
+
+  // Devolución al almacén, al costo con el que salió. Reingresarla al costo
+  // promedio del día inventaría un margen que no existió.
+  const movimientos: string[] = [];
+  let costoDevuelto = money.ZERO;
+  if (esCredito && datos.devuelveMercaderia && original.almacenId) {
+    const costos = await costosDelOriginal(db, original.id);
+    for (const l of lineasResueltas) {
+      if (!l.productoId || l.tipo !== "bien") continue;
+      const costoUnitario = costos.get(l.productoId);
+      if (costoUnitario === undefined) continue;
+      const cantidad = dec(l.cantidad);
+      const importeTotal = money.round(money.mul(cantidad, costoUnitario), 6);
+      const mov = await registrarMovimiento(db, empresaId, {
+        almacenId: original.almacenId,
+        productoId: l.productoId,
+        fecha: datos.fechaEmision,
+        sentido: "ingreso",
+        tipoOperacion: kardexDominio.TIPO_OPERACION.DEVOLUCION_RECIBIDA,
+        cantidad,
+        costoUnitario,
+        importeTotal,
+        origenModulo: "ventas",
+        origenId: notaId,
+      });
+      movimientos.push(mov.id);
+      costoDevuelto = money.add(costoDevuelto, dec(mov.importeTotal));
+    }
+  }
+
+  await db.insert(comprobanteItems).values(
+    lineasResueltas.map((l, i) => {
+      const calc = totales.lineas[i]!;
+      return {
+        empresaId,
+        comprobanteId: notaId,
+        linea: i + 1,
+        productoId: l.productoId ?? null,
+        codigo: l.codigo,
+        descripcion: l.descripcion,
+        unidad: l.unidad,
+        cantidad: l.cantidad,
+        valorUnitario: l.valorUnitario,
+        precioUnitario: txt(calc.precioUnitario),
+        descuento: l.descuento ?? "0",
+        afectacionIgv: l.afectacionIgv,
+        valorVenta: txt2(calc.valorVenta),
+        igv: txt2(calc.igv),
+        importeLinea: txt2(calc.importe),
+      };
+    }),
+  );
+
+  const asientoId = await asentar(db, empresaId, usuarioId, {
+    periodo,
+    fecha: datos.fechaEmision,
+    subdiario: "14",
+    glosa: `${esCredito ? "Nota de crédito" : "Nota de débito"} ${datos.serie}-${numero} sobre ${original.serie}-${original.numero} · ${cliente.razonSocial}`,
+    moneda: original.moneda,
+    tipoCambio: original.tipoCambio,
+    origenModulo: "ventas",
+    origenId: notaId,
+    lineas: lineasAsientoNota(
+      await cuentasDe(db),
+      totales,
+      costoDevuelto,
+      original.clienteId,
+      dec(original.tipoCambio),
+      esCredito,
+    ),
+  });
+
+  await db.update(comprobantes).set({ asientoId }).where(eq(comprobantes.id, notaId));
+
+  return {
+    comprobanteId: notaId,
+    modificaA: original.id,
+    serie: datos.serie,
+    numero,
+    total: txt2(totales.total),
+    asientoId,
+    movimientos,
+  };
+}
+
+const importeLegible = (v: string): string => txt2(dec(v));
+
+/** Las líneas del comprobante original, tal cual, para la nota total. */
+async function lineasDelOriginal(db: Db, comprobanteId: string): Promise<LineaVenta[]> {
+  const items = await db
+    .select()
+    .from(comprobanteItems)
+    .where(eq(comprobanteItems.comprobanteId, comprobanteId))
+    .orderBy(asc(comprobanteItems.linea));
+  return items.map((i) => ({
+    ...(i.productoId ? { productoId: i.productoId } : {}),
+    codigo: i.codigo,
+    descripcion: i.descripcion,
+    unidad: i.unidad,
+    cantidad: i.cantidad,
+    valorUnitario: i.valorUnitario,
+    ...(i.descuento && i.descuento !== "0.000000" ? { descuento: i.descuento } : {}),
+    afectacionIgv: i.afectacionIgv,
+  }));
+}
+
+/** Costo unitario con el que cada producto salió en la venta original. */
+async function costosDelOriginal(db: Db, comprobanteId: string): Promise<Map<string, Dec>> {
+  const items = await db
+    .select({ productoId: comprobanteItems.productoId, costo: comprobanteItems.costoUnitario })
+    .from(comprobanteItems)
+    .where(eq(comprobanteItems.comprobanteId, comprobanteId));
+  const mapa = new Map<string, Dec>();
+  for (const i of items) {
+    if (i.productoId && i.costo) mapa.set(i.productoId, dec(i.costo));
+  }
+  return mapa;
+}
+
+/**
+ * Asiento de la nota.
+ *
+ * La de crédito es la venta al revés: se abona al cliente y se cargan el
+ * ingreso y el IGV. La de débito repite el signo de la venta. La devolución de
+ * mercadería, cuando la hay, deshace también el costo de ventas.
+ */
+function lineasAsientoNota(
+  cuentas: Cuentas,
+  totales: tributario.TotalesComprobante,
+  costoDevuelto: Dec,
+  clienteId: string,
+  tipoCambio: Dec,
+  esCredito: boolean,
+): LineaAsientoEntrada[] {
+  const cargo = (importe: Dec) => (esCredito ? { haber: txt2(importe) } : { debe: txt2(importe) });
+  const abono = (importe: Dec) => (esCredito ? { debe: txt2(importe) } : { haber: txt2(importe) });
+
+  const lineas: LineaAsientoEntrada[] = [
+    {
+      cuenta: cuentas.get("clientes"),
+      glosa: "Cliente",
+      anexoId: clienteId,
+      ...cargo(totales.total),
+    },
+  ];
+
+  if (!money.isZero(totales.igv)) {
+    lineas.push({
+      cuenta: cuentas.get("igv_ventas"),
+      glosa: "IGV de la nota",
+      ...abono(totales.igv),
+    });
+  }
+  const ingreso = money.add(
+    money.add(totales.gravadas, totales.exoneradas),
+    money.add(totales.inafectas, totales.exportacion),
+  );
+  if (!money.isZero(ingreso)) {
+    // El 709 es la cuenta de devoluciones sobre ventas; una nota de débito
+    // aumenta el ingreso y vuelve a la 701.
+    lineas.push({
+      cuenta: esCredito
+        ? cuentas.get("ventas_devoluciones")
+        : cuentas.get("ventas_mercaderia"),
+      glosa: esCredito ? "Devolución sobre ventas" : "Aumento del valor de la venta",
+      ...abono(ingreso),
+    });
+  }
+
+  if (!money.isZero(costoDevuelto)) {
+    const enMonedaOperacion = money.isZero(tipoCambio)
+      ? costoDevuelto
+      : money.round(money.div(costoDevuelto, tipoCambio), 2);
+    lineas.push({
+      cuenta: cuentas.get("existencias"),
+      glosa: "Reingreso de mercadería",
+      debe: txt2(enMonedaOperacion),
+      debeFuncional: txt2(costoDevuelto),
+    });
+    lineas.push({
+      cuenta: cuentas.get("costo_ventas"),
+      glosa: "Extorno del costo de ventas",
+      haber: txt2(enMonedaOperacion),
+      haberFuncional: txt2(costoDevuelto),
     });
   }
 
@@ -485,7 +858,7 @@ async function materialDeFirma(db: Db, empresaId: string, kek: Uint8Array) {
 /** Traduce el comprobante almacenado a la forma que espera el generador de XML. */
 async function armarComprobanteCpe(
   db: Db,
-  empresaId: string,
+  _empresaId: string,
   comp: typeof comprobantes.$inferSelect,
 ): Promise<cpe.ComprobanteCpe> {
   const [emp] = await db.select().from(empresas).limit(1);
@@ -497,6 +870,20 @@ async function armarComprobanteCpe(
     .from(comprobanteItems)
     .where(eq(comprobanteItems.comprobanteId, comp.id))
     .orderBy(asc(comprobanteItems.linea));
+
+  // Una nota tiene que decir a qué comprobante se refiere; sin esto el XML no
+  // se construye siquiera.
+  const [modificado] = comp.modificaA
+    ? await db
+        .select({
+          tipoDocumento: comprobantes.tipoDocumento,
+          serie: comprobantes.serie,
+          numero: comprobantes.numero,
+        })
+        .from(comprobantes)
+        .where(eq(comprobantes.id, comp.modificaA))
+        .limit(1)
+    : [];
 
   return {
     tipoDocumento: comp.tipoDocumento as cpe.TipoDocumento,
@@ -548,6 +935,17 @@ async function armarComprobanteCpe(
     descuentoGlobal: dec(comp.descuentoGlobal),
     total: dec(comp.total),
     ...(comp.totalEnLetras ? { totalEnLetras: comp.totalEnLetras } : {}),
+    ...(modificado
+      ? {
+          notaModificada: {
+            tipoDocumento: modificado.tipoDocumento,
+            serie: modificado.serie,
+            numero: modificado.numero,
+            motivo: comp.motivoNota ?? "",
+            descripcionMotivo: comp.descripcionMotivo ?? "",
+          },
+        }
+      : {}),
     ...(comp.detraccionCodigo
       ? {
           detraccion: {

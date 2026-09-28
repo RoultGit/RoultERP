@@ -21,18 +21,23 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { money, tributario, contabilidad } from "@roulterp/core";
 import { schema as s, type Db } from "@roulterp/db";
 import { asentar, type LineaAsientoEntrada } from "./contabilidad.ts";
+import { anotarMovimientoDeOtroModulo } from "./tesoreria.ts";
+import { cuentasDe, type Cuentas } from "./parametros.ts";
+import { ErrorDeNegocio } from "@roulterp/core";
 
-const { documentosCxp, pagos, pagoAplicaciones, terceros, letras, letraDocumentos, empresas } = s;
+const {
+  documentosCxp, pagos, pagoAplicaciones, terceros, letras, letraDocumentos, letraPagos,
+  empresas, cuentasEfectivo,
+} = s;
 
 type Dec = money.Dec;
 const dec = (v: string | null | undefined): Dec => money.dec(v ?? "0");
 const txt2 = (v: Dec): string => money.toString(v, 2);
 const txt = (v: Dec, d = 6): string => money.toString(v, d);
 
-export class PagoInvalido extends Error {
-  constructor(readonly motivos: readonly string[]) {
-    super(motivos.join("; "));
-    this.name = "PagoInvalido";
+export class PagoInvalido extends ErrorDeNegocio {
+  constructor(motivos: readonly string[]) {
+    super(motivos, "PagoInvalido");
   }
 }
 
@@ -52,6 +57,14 @@ export type DatosPago = {
   medioPago: string;
   /** Cuenta contable de donde sale el dinero: 1041 banco, 1011 caja… */
   cuentaOrigen: string;
+  /**
+   * Cuenta de efectivo concreta de la que sale.
+   *
+   * Igual que en cobranzas: sin ella el pago se contabiliza pero no aparece en
+   * Caja y Bancos, y la conciliación se queda sin nada que casar contra el
+   * extracto del banco.
+   */
+  cuentaEfectivoId?: string;
   aplicaciones: AplicacionPago[];
   /** Retener el IGV. Sólo si la empresa es agente de retención. */
   retenerIgv?: boolean;
@@ -218,6 +231,18 @@ export async function registrarPago(
       .where(eq(documentosCxp.id, d.documentoId));
   }
 
+  // Ver la nota en cobranzas: la cuenta contable la manda la cuenta de
+  // efectivo elegida, para que el asiento y la tesorería no se contradigan.
+  const cuentaOrigen = datos.cuentaEfectivoId
+    ? (
+        await db
+          .select({ cuentaContable: cuentasEfectivo.cuentaContable })
+          .from(cuentasEfectivo)
+          .where(eq(cuentasEfectivo.id, datos.cuentaEfectivoId))
+          .limit(1)
+      )[0]?.cuentaContable ?? datos.cuentaOrigen
+    : datos.cuentaOrigen;
+
   const periodo = datos.fecha.slice(0, 4) + datos.fecha.slice(5, 7);
   const asientoId = await asentar(db, empresaId, usuarioId, {
     periodo,
@@ -228,19 +253,35 @@ export async function registrarPago(
     tipoCambio: datos.tipoCambio,
     origenModulo: "pagos",
     origenId: pagoId,
-    lineas: lineasAsientoPago({
+    lineas: lineasAsientoPago(await cuentasDe(db), {
       importeBruto,
       brutoHistorico,
       retencion: retencion.monto,
       importeNeto,
       diferencia: diferenciaTotal,
       tipoCambioPago,
-      cuentaOrigen: datos.cuentaOrigen,
+      cuentaOrigen,
       proveedorId: datos.proveedorId,
     }),
   });
 
   await db.update(pagos).set({ asientoId }).where(eq(pagos.id, pagoId));
+
+  if (datos.cuentaEfectivoId) {
+    // Sale el neto, no el bruto: la retención no cruza la cuenta del banco.
+    await anotarMovimientoDeOtroModulo(db, empresaId, usuarioId, {
+      cuentaId: datos.cuentaEfectivoId,
+      fecha: datos.fecha,
+      sentido: "egreso",
+      concepto: `Pago ${datos.numero} · ${proveedor.razonSocial}`,
+      importe: txt2(importeNeto),
+      ...(datos.referencia ? { referencia: datos.referencia } : {}),
+      terceroId: datos.proveedorId,
+      origenModulo: "pagos",
+      origenId: pagoId,
+      asientoId,
+    });
+  }
 
   return {
     pagoId,
@@ -266,7 +307,7 @@ export async function registrarPago(
  * tipo, la diferencia de cambio desaparecería y la deuda quedaría con un saldo
  * residual en la cuenta 42 que nadie sabría explicar.
  */
-function lineasAsientoPago(p: {
+function lineasAsientoPago(cuentas: Cuentas, p: {
   importeBruto: Dec;
   brutoHistorico: Dec;
   retencion: Dec;
@@ -280,7 +321,7 @@ function lineasAsientoPago(p: {
 
   const lineas: LineaAsientoEntrada[] = [
     {
-      cuenta: "4212",
+      cuenta: cuentas.get("proveedores"),
       glosa: "Cancelación al proveedor",
       debe: txt2(p.importeBruto),
       debeFuncional: txt2(p.brutoHistorico),
@@ -296,7 +337,7 @@ function lineasAsientoPago(p: {
 
   if (!money.isZero(p.retencion)) {
     lineas.push({
-      cuenta: "40114",
+      cuenta: cuentas.get("retencion_igv"),
       glosa: "Retención de IGV por pagar",
       haber: txt2(p.retencion),
       haberFuncional: aFuncional(p.retencion),
@@ -308,8 +349,16 @@ function lineasAsientoPago(p: {
     // moneda de la operación. Ganancia a la 776, pérdida a la 676; el signo lo
     // trae calculado `diferenciaCambio`, que sabe que esto es un pasivo.
     const linea: LineaAsientoEntrada = money.gt(p.diferencia, money.ZERO)
-      ? { cuenta: "776", glosa: "Diferencia de cambio", haberFuncional: txt2(p.diferencia) }
-      : { cuenta: "676", glosa: "Diferencia de cambio", debeFuncional: txt2(money.neg(p.diferencia)) };
+      ? {
+          cuenta: cuentas.get("ganancia_cambio"),
+          glosa: "Diferencia de cambio",
+          haberFuncional: txt2(p.diferencia),
+        }
+      : {
+          cuenta: cuentas.get("perdida_cambio"),
+          glosa: "Diferencia de cambio",
+          debeFuncional: txt2(money.neg(p.diferencia)),
+        };
     lineas.push(linea);
   }
 
@@ -431,9 +480,10 @@ export async function canjearPorLetra(
   const periodo = datos.fechaGiro.slice(0, 4) + datos.fechaGiro.slice(5, 7);
   // Por pagar se traslada de la 4212 a la 4231; por cobrar, de la 1212 a la
   // 1232, que es la divisionaria de letras en cartera.
+  const cuentas = await cuentasDe(db);
   const [origen, destino, glosaDestino] = porPagar
-    ? ["4212", "4231", "Letras por pagar no vencidas"]
-    : ["1232", "1212", "Letras por cobrar en cartera"];
+    ? [cuentas.get("proveedores"), cuentas.get("letras_por_pagar"), "Letras por pagar no vencidas"]
+    : [cuentas.get("letras_por_cobrar"), cuentas.get("clientes"), "Letras por cobrar en cartera"];
 
   const asientoId = await asentar(db, empresaId, usuarioId, {
     periodo,
@@ -557,30 +607,174 @@ export async function renovarLetra(
     .set({ estado: "renovada", saldo: "0", renuevaA: nueva!.id })
     .where(eq(letras.id, letraId));
 
-  // Los intereses son un gasto financiero nuevo, no parte de la deuda original.
   if (!money.isZero(intereses)) {
-    await asentar(db, empresaId, usuarioId, {
-      periodo: datos.fecha.slice(0, 4) + datos.fecha.slice(5, 7),
-      fecha: datos.fecha,
-      subdiario: "08",
-      glosa: `Intereses por renovación de la letra ${original.numero}`,
+    await asentarIntereses(db, empresaId, usuarioId, {
+      cartera: original.cartera,
+      terceroId: original.terceroId,
       moneda: original.moneda,
-      tipoCambio: "1",
-      origenModulo: "letras",
+      fecha: datos.fecha,
+      importe: intereses,
+      glosa: `Intereses por renovación de la letra ${original.numero}`,
       origenId: nueva!.id,
-      lineas: [
-        { cuenta: "6711", glosa: "Intereses de renovación", debe: txt2(intereses) },
-        {
-          cuenta: "4231",
-          glosa: "Letras por pagar",
-          haber: txt2(intereses),
-          anexoId: original.terceroId,
-        },
-      ],
     });
   }
 
   return { letraId: nueva!.id, importe: txt2(nuevoImporte) };
+}
+
+/**
+ * Asiento de los intereses de una renovación o una refinanciación.
+ *
+ * El signo depende de la cartera, y confundirlo es caro: si la letra es **por
+ * pagar**, los intereses son un gasto financiero y aumentan lo que debemos; si
+ * es **por cobrar**, son un ingreso financiero y aumentan lo que nos deben.
+ *
+ * Antes se asentaba siempre como gasto contra letras por pagar, con lo que
+ * refinanciarle una letra a un cliente inflaba el gasto y el pasivo por una
+ * operación que en realidad aumenta el activo y el ingreso. Los asientos
+ * cuadraban igual, que es lo que hacía el error invisible.
+ */
+async function asentarIntereses(
+  db: Db,
+  empresaId: string,
+  usuarioId: string,
+  datos: {
+    cartera: string;
+    terceroId: string;
+    moneda: string;
+    fecha: string;
+    importe: Dec;
+    glosa: string;
+    origenId: string;
+  },
+): Promise<void> {
+  const porPagar = datos.cartera === "pagar";
+  const cuentas = await cuentasDe(db);
+  await asentar(db, empresaId, usuarioId, {
+    periodo: datos.fecha.slice(0, 4) + datos.fecha.slice(5, 7),
+    fecha: datos.fecha,
+    subdiario: "08",
+    glosa: datos.glosa,
+    moneda: datos.moneda,
+    tipoCambio: "1",
+    origenModulo: "letras",
+    origenId: datos.origenId,
+    lineas: porPagar
+      ? [
+          { cuenta: cuentas.get("intereses_gasto"), glosa: datos.glosa, debe: txt2(datos.importe) },
+          {
+            cuenta: cuentas.get("letras_por_pagar"),
+            glosa: "Letras por pagar",
+            haber: txt2(datos.importe),
+            anexoId: datos.terceroId,
+          },
+        ]
+      : [
+          {
+            cuenta: cuentas.get("letras_por_cobrar"),
+            glosa: "Letras por cobrar",
+            debe: txt2(datos.importe),
+            anexoId: datos.terceroId,
+          },
+          { cuenta: cuentas.get("intereses_ingreso"), glosa: datos.glosa, haber: txt2(datos.importe) },
+        ],
+  });
+}
+
+export type Cuota = { numero: string; fechaVencimiento: string; importe: string };
+
+/**
+ * Refinancia una letra en varias cuotas.
+ *
+ * Es lo que se hace cuando el cliente no puede pagar el total en la fecha: en
+ * vez de protestar la letra, se reemplaza por dos o tres con vencimientos
+ * escalonados. Renovar es el caso de una sola cuota; esto generaliza.
+ *
+ * La suma de las cuotas tiene que ser el saldo más los intereses pactados, al
+ * céntimo. Dejar que no cuadre convertiría la refinanciación en una condonación
+ * parcial silenciosa, que es exactamente lo contrario de lo que se pretende.
+ */
+export async function refinanciarLetra(
+  db: Db,
+  empresaId: string,
+  usuarioId: string,
+  letraId: string,
+  datos: { fecha: string; cuotas: Cuota[]; intereses?: string },
+): Promise<{ letras: { id: string; numero: string; importe: string }[]; total: string }> {
+  const [original] = await db.select().from(letras).where(eq(letras.id, letraId)).limit(1);
+  if (!original) throw new PagoInvalido(["la letra no existe"]);
+  if (original.estado === "cobrada" || original.estado === "renovada") {
+    throw new PagoInvalido([`la letra está ${original.estado} y no se refinancia`]);
+  }
+  if (datos.cuotas.length < 2) {
+    throw new PagoInvalido([
+      "una refinanciación son dos cuotas o más: para una sola, renueve la letra",
+    ]);
+  }
+
+  const motivos: string[] = [];
+  for (const [i, c] of datos.cuotas.entries()) {
+    if (!c.numero.trim()) motivos.push(`cuota ${i + 1}: indique el número de la letra`);
+    if (!money.gt(dec(c.importe), money.ZERO)) {
+      motivos.push(`cuota ${i + 1}: el importe debe ser positivo`);
+    }
+    if (c.fechaVencimiento <= datos.fecha) {
+      motivos.push(`cuota ${i + 1}: debe vencer después de la fecha de refinanciación`);
+    }
+  }
+  if (motivos.length) throw new PagoInvalido(motivos);
+
+  const intereses = dec(datos.intereses);
+  const esperado = money.add(dec(original.saldo), intereses);
+  const suma = datos.cuotas.reduce<Dec>((a, c) => money.add(a, dec(c.importe)), money.ZERO);
+  if (suma !== esperado) {
+    throw new PagoInvalido([
+      `las cuotas suman ${txt2(suma)} y deberían sumar ${txt2(esperado)} ` +
+        `(saldo ${txt2(dec(original.saldo))} más intereses ${txt2(intereses)})`,
+    ]);
+  }
+
+  const nuevas: { id: string; numero: string; importe: string }[] = [];
+  for (const c of datos.cuotas) {
+    const [fila] = await db
+      .insert(letras)
+      .values({
+        empresaId,
+        numero: c.numero.trim(),
+        cartera: original.cartera,
+        terceroId: original.terceroId,
+        fechaGiro: datos.fecha,
+        fechaVencimiento: c.fechaVencimiento,
+        moneda: original.moneda,
+        importe: txt2(dec(c.importe)),
+        saldo: txt2(dec(c.importe)),
+        estado: "girada",
+        creadoPor: usuarioId,
+      })
+      .returning({ id: letras.id });
+    nuevas.push({ id: fila!.id, numero: c.numero.trim(), importe: txt2(dec(c.importe)) });
+  }
+
+  // La original apunta a la primera cuota: con varias herederas no hay una sola
+  // sucesora, y la primera es la que conserva el vencimiento más cercano.
+  await db
+    .update(letras)
+    .set({ estado: "renovada", saldo: "0", renuevaA: nuevas[0]!.id })
+    .where(eq(letras.id, letraId));
+
+  if (!money.isZero(intereses)) {
+    await asentarIntereses(db, empresaId, usuarioId, {
+      cartera: original.cartera,
+      terceroId: original.terceroId,
+      moneda: original.moneda,
+      fecha: datos.fecha,
+      importe: intereses,
+      glosa: `Intereses por refinanciación de la letra ${original.numero}`,
+      origenId: nuevas[0]!.id,
+    });
+  }
+
+  return { letras: nuevas, total: txt2(suma) };
 }
 
 // ─── Consultas ────────────────────────────────────────────────────────────
@@ -635,3 +829,400 @@ export const documentosPorPagar = (db: Db, proveedorId: string) =>
     .orderBy(asc(documentosCxp.fechaVencimiento));
 
 export { txt };
+
+// ─── Vencimiento de letras ────────────────────────────────────────────────
+
+/**
+ * Paga una letra al vencimiento.
+ *
+ * Es lo que cierra el ciclo del canje: la deuda dejó de estar en la factura
+ * cuando se giró la letra, y deja de estar en la letra cuando se paga. El
+ * asiento carga la 4231 y abona la cuenta de donde sale el dinero.
+ *
+ * Se admite el pago parcial —una letra se puede amortizar— pero no el que
+ * excede el saldo: eso sería un pago a cuenta de nada.
+ */
+export async function pagarLetra(
+  db: Db,
+  empresaId: string,
+  usuarioId: string,
+  datos: {
+    letraId: string;
+    fecha: string;
+    importe?: string;
+    cuentaOrigen?: string;
+    /** Cuenta de caja o banco de la que sale el dinero. */
+    cuentaEfectivoId?: string;
+    referencia?: string;
+    /** Obligatorio si la letra no está en soles. */
+    tipoCambio?: string;
+    /**
+     * Retener el IGV al pagar.
+     *
+     * Es el momento que manda la norma cuando la deuda se canjeó por letra: la
+     * retención no se hace al canjear —ahí no se pagó nada— sino al vencimiento
+     * o cuando la letra se hace efectiva, lo que ocurra primero.
+     */
+    retenerIgv?: boolean;
+  },
+): Promise<{
+  asientoId: string;
+  letraPagoId: string;
+  numero: string;
+  importe: string;
+  retencion: string;
+  importeNeto: string;
+  saldo: string;
+}> {
+  const [letra] = await db
+    .select()
+    .from(letras)
+    .where(eq(letras.id, datos.letraId))
+    .for("update")
+    .limit(1);
+  if (!letra) throw new PagoInvalido(["la letra no existe"]);
+  if (letra.cartera !== "pagar") {
+    throw new PagoInvalido(["esta letra es de la cartera por cobrar; se cobra, no se paga"]);
+  }
+  if (letra.estado === "cobrada" || letra.estado === "renovada") {
+    throw new PagoInvalido([`la letra ya está ${letra.estado}`]);
+  }
+
+  const saldo = dec(letra.saldo);
+  const importe = datos.importe ? dec(datos.importe) : saldo;
+  if (!money.gt(importe, money.ZERO)) throw new PagoInvalido(["el importe debe ser positivo"]);
+  if (money.gt(importe, saldo)) {
+    throw new PagoInvalido([
+      `la letra ${letra.numero} tiene un saldo de ${txt2(saldo)} y se intenta pagar ${txt2(importe)}`,
+    ]);
+  }
+
+  const saldoNuevo = money.sub(saldo, importe);
+
+  const [tercero] = await db
+    .select({
+      razonSocial: terceros.razonSocial,
+      esAgenteRetencion: terceros.esAgenteRetencion,
+    })
+    .from(terceros)
+    .where(eq(terceros.id, letra.terceroId))
+    .limit(1);
+  const [empresa] = await db
+    .select({ esAgenteRetencion: empresas.esAgenteRetencion })
+    .from(empresas)
+    .where(eq(empresas.id, empresaId))
+    .limit(1);
+
+  // Mismo criterio que en el pago de facturas: sólo retiene el agente, y no se
+  // le retiene a otro agente de retención.
+  const retencion =
+    datos.retenerIgv && empresa?.esAgenteRetencion && !tercero?.esAgenteRetencion
+      ? tributario.calcularRetencion(importe)
+      : { aplica: false, monto: money.ZERO, neto: importe, tasa: tributario.TASA_RETENCION };
+  const importeNeto = retencion.neto;
+
+  // Si se dice de qué cuenta de efectivo sale, la cuenta contable se toma de
+  // ella: escribir "1041" a mano cuando el dinero sale de la caja chica deja el
+  // asiento diciendo una cosa y la tesorería otra.
+  const cuentas = await cuentasDe(db);
+  let cuenta = datos.cuentaOrigen ?? cuentas.get("banco_por_defecto");
+  if (datos.cuentaEfectivoId) {
+    const [ce] = await db
+      .select({ cuentaContable: cuentasEfectivo.cuentaContable, moneda: cuentasEfectivo.moneda })
+      .from(cuentasEfectivo)
+      .where(eq(cuentasEfectivo.id, datos.cuentaEfectivoId))
+      .limit(1);
+    if (!ce) throw new PagoInvalido(["la cuenta de efectivo no existe en esta empresa"]);
+    cuenta = datos.cuentaOrigen ?? ce.cuentaContable;
+  }
+  // Una letra vencida y no pagada pasó a la 4232; la que se paga a tiempo sigue
+  // en la 4231. El asiento tiene que cargar la que corresponda.
+  const cuentaLetra =
+    letra.estado === "protestada"
+      ? cuentas.get("letras_por_pagar_vencidas")
+      : cuentas.get("letras_por_pagar");
+  const periodo = datos.fecha.slice(0, 4) + datos.fecha.slice(5, 7);
+
+  const asientoId = await asentar(db, empresaId, usuarioId, {
+    periodo,
+    fecha: datos.fecha,
+    subdiario: "01",
+    glosa: `Pago de la letra ${letra.numero}`,
+    moneda: letra.moneda,
+    // El tipo de cambio lo indica quien paga; si no lo da, se asienta al de la
+    // moneda de la letra. Antes se pasaba aquí el importe de la letra, que no
+    // es un tipo de cambio: en una letra en dólares el asiento salía disparado.
+    tipoCambio: datos.tipoCambio ?? "1",
+    origenModulo: "letras",
+    origenId: letra.id,
+    lineas: [
+      {
+        cuenta: cuentaLetra,
+        glosa: "Letra pagada",
+        debe: txt2(importe),
+        anexoId: letra.terceroId,
+      },
+      { cuenta, glosa: "Salida de fondos", haber: txt2(importeNeto) },
+      ...(money.isZero(retencion.monto)
+        ? []
+        : [
+            {
+              cuenta: cuentas.get("retencion_igv"),
+              glosa: "Retención de IGV por pagar",
+              haber: txt2(retencion.monto),
+            },
+          ]),
+    ],
+  });
+
+  const [letraPago] = await db
+    .insert(letraPagos)
+    .values({
+      empresaId,
+      letraId: letra.id,
+      fecha: datos.fecha,
+      importe: txt2(importe),
+      retencionMonto: txt2(retencion.monto),
+      importeNeto: txt2(importeNeto),
+      moneda: letra.moneda,
+      tipoCambio: datos.tipoCambio ?? "1",
+      cuentaEfectivoId: datos.cuentaEfectivoId ?? null,
+      referencia: datos.referencia ?? null,
+      asientoId,
+      creadoPor: usuarioId,
+    })
+    .returning({ id: letraPagos.id });
+
+  /*
+   * El dinero tiene que aparecer en Caja y Bancos.
+   *
+   * Sin esto el asiento decía que el banco se había movido y la tesorería
+   * seguía marcando lo mismo: dos verdades sobre el mismo dinero, que es
+   * exactamente lo que impide conciliar. Sale el neto, porque la retención no
+   * cruza la cuenta del banco.
+   */
+  if (datos.cuentaEfectivoId) {
+    await anotarMovimientoDeOtroModulo(db, empresaId, usuarioId, {
+      cuentaId: datos.cuentaEfectivoId,
+      fecha: datos.fecha,
+      sentido: "egreso",
+      concepto: `Pago de la letra ${letra.numero}${tercero ? ` · ${tercero.razonSocial}` : ""}`,
+      importe: txt2(importeNeto),
+      ...(datos.referencia ? { referencia: datos.referencia } : {}),
+      terceroId: letra.terceroId,
+      origenModulo: "letras",
+      origenId: letraPago!.id,
+      asientoId,
+    });
+  }
+
+  await db
+    .update(letras)
+    .set({
+      saldo: txt2(saldoNuevo),
+      // "cobrada" es el estado terminal en las dos carteras: la letra dejó de
+      // deber. Se conserva el nombre para no multiplicar estados equivalentes.
+      estado: money.isZero(saldoNuevo) ? "cobrada" : letra.estado,
+    })
+    .where(eq(letras.id, letra.id));
+
+  return {
+    asientoId,
+    letraPagoId: letraPago!.id,
+    numero: letra.numero,
+    importe: txt2(importe),
+    retencion: txt2(retencion.monto),
+    importeNeto: txt2(importeNeto),
+    saldo: txt2(saldoNuevo),
+  };
+}
+
+/**
+ * Protesta una letra vencida y no pagada.
+ *
+ * El protesto no cancela la deuda: la reclasifica. En la cartera por pagar
+ * mueve la letra de "no vencidas" a "vencidas"; en la de cobrar, de "en
+ * cartera" a "en cobranza judicial". Los gastos del protesto, si los hay, son
+ * gasto financiero del periodo.
+ */
+export async function protestarLetra(
+  db: Db,
+  empresaId: string,
+  usuarioId: string,
+  datos: { letraId: string; fecha: string; gastos?: string; motivo?: string },
+): Promise<{ asientoId: string; numero: string }> {
+  const [letra] = await db
+    .select()
+    .from(letras)
+    .where(eq(letras.id, datos.letraId))
+    .for("update")
+    .limit(1);
+  if (!letra) throw new PagoInvalido(["la letra no existe"]);
+  if (letra.estado === "cobrada") throw new PagoInvalido(["una letra pagada no se protesta"]);
+  if (letra.estado === "protestada") throw new PagoInvalido(["la letra ya está protestada"]);
+  if (datos.fecha < letra.fechaVencimiento) {
+    throw new PagoInvalido([
+      `la letra vence el ${letra.fechaVencimiento}; no se puede protestar antes`,
+    ]);
+  }
+
+  const saldo = dec(letra.saldo);
+  const porPagar = letra.cartera === "pagar";
+  const cuentas = await cuentasDe(db);
+  const [desde, hasta] = porPagar
+    ? [cuentas.get("letras_por_pagar"), cuentas.get("letras_por_pagar_vencidas")]
+    : [cuentas.get("letras_por_cobrar"), cuentas.get("letras_por_cobrar_vencidas")];
+  const periodo = datos.fecha.slice(0, 4) + datos.fecha.slice(5, 7);
+  const gastos = dec(datos.gastos ?? "0");
+
+  const lineas: LineaAsientoEntrada[] = [
+    { cuenta: desde, glosa: "Letra protestada", debe: txt2(saldo), anexoId: letra.terceroId },
+    { cuenta: hasta, glosa: "Letra vencida", haber: txt2(saldo), anexoId: letra.terceroId },
+  ];
+
+  if (!money.isZero(gastos)) {
+    lineas.push({
+      cuenta: cuentas.get("gastos_bancarios"),
+      glosa: "Gastos del protesto",
+      debe: txt2(gastos),
+    });
+    lineas.push({
+      cuenta: cuentas.get("banco_por_defecto"),
+      glosa: "Gastos del protesto",
+      haber: txt2(gastos),
+    });
+  }
+
+  const asientoId = await asentar(db, empresaId, usuarioId, {
+    periodo,
+    fecha: datos.fecha,
+    subdiario: "08",
+    glosa: `Protesto de la letra ${letra.numero}${datos.motivo ? ` · ${datos.motivo}` : ""}`,
+    moneda: letra.moneda,
+    tipoCambio: "1",
+    origenModulo: "letras",
+    origenId: letra.id,
+    lineas,
+  });
+
+  await db.update(letras).set({ estado: "protestada" }).where(eq(letras.id, letra.id));
+  return { asientoId, numero: letra.numero };
+}
+
+/**
+ * Letras que vencen dentro de un plazo, o que ya vencieron.
+ *
+ * Es la pantalla que el tesorero mira cada mañana: lo vencido primero, porque
+ * es lo que ya está costando dinero.
+ */
+export async function letrasPorVencer(
+  db: Db,
+  opciones: { cartera?: "cobrar" | "pagar"; hasta?: string; dias?: number } = {},
+) {
+  const cartera = opciones.cartera ?? "pagar";
+  const hasta =
+    opciones.hasta ??
+    new Date(Date.now() + (opciones.dias ?? 30) * 86_400_000).toISOString().slice(0, 10);
+
+  const filas = (await db.execute(sql`
+    SELECT l.id, l.numero, l.fecha_vencimiento::text AS vencimiento,
+           l.moneda, l.importe::text AS importe, l.saldo::text AS saldo,
+           l.estado, t.razon_social AS tercero,
+           (current_date - l.fecha_vencimiento)::int AS dias_vencida
+    FROM letras l
+    JOIN terceros t ON t.id = l.tercero_id
+    WHERE l.cartera = ${cartera}
+      AND l.estado NOT IN ('cobrada', 'renovada')
+      AND l.saldo > 0
+      AND l.fecha_vencimiento <= ${hasta}
+    ORDER BY l.fecha_vencimiento
+    LIMIT 200`)) as unknown as {
+    id: string; numero: string; vencimiento: string; moneda: string;
+    importe: string; saldo: string; estado: string; tercero: string;
+    dias_vencida: number;
+  }[];
+  return [...filas];
+}
+
+/**
+ * Programación de egresos.
+ *
+ * Junta en una sola vista todo lo que hay que pagar y cuándo: facturas de
+ * proveedor con saldo y letras aceptadas. Se agrupa por semana porque así se
+ * decide —«esta semana pago esto, la siguiente aquello»— y se acumula el total
+ * para ver dónde se rompe la caja.
+ */
+export type LineaEgreso = {
+  tipo: "factura" | "letra";
+  id: string;
+  documento: string;
+  tercero: string;
+  vencimiento: string;
+  moneda: string;
+  saldo: string;
+  /** Días hasta el vencimiento; negativo si ya venció. */
+  dias: number;
+};
+
+export async function programacionDeEgresos(
+  db: Db,
+  opciones: { hasta?: string; dias?: number } = {},
+) {
+  const hasta =
+    opciones.hasta ??
+    new Date(Date.now() + (opciones.dias ?? 60) * 86_400_000).toISOString().slice(0, 10);
+
+  const filas = (await db.execute(sql`
+    SELECT 'factura' AS tipo, d.id, d.serie || '-' || d.numero AS documento,
+           t.razon_social AS tercero, d.fecha_vencimiento::text AS vencimiento,
+           d.moneda, d.saldo::text AS saldo,
+           (d.fecha_vencimiento - current_date)::int AS dias
+    FROM documentos_cxp d
+    JOIN terceros t ON t.id = d.proveedor_id
+    WHERE d.saldo > 0 AND d.fecha_vencimiento <= ${hasta}
+
+    UNION ALL
+
+    SELECT 'letra' AS tipo, l.id, l.numero AS documento,
+           t.razon_social AS tercero, l.fecha_vencimiento::text AS vencimiento,
+           l.moneda, l.saldo::text AS saldo,
+           (l.fecha_vencimiento - current_date)::int AS dias
+    FROM letras l
+    JOIN terceros t ON t.id = l.tercero_id
+    WHERE l.cartera = 'pagar' AND l.saldo > 0
+      AND l.estado NOT IN ('cobrada', 'renovada')
+      AND l.fecha_vencimiento <= ${hasta}
+
+    ORDER BY vencimiento, documento
+    LIMIT 500`)) as unknown as LineaEgreso[];
+
+  const lineas = [...filas];
+
+  // El acumulado es lo que hace útil la lista: dice cuánta caja hace falta
+  // hasta cada fecha, no cuánto se debe en total.
+  let acumulado = money.ZERO;
+  const conAcumulado = lineas.map((l) => {
+    acumulado = money.add(acumulado, dec(l.saldo));
+    return { ...l, acumulado: txt2(acumulado) };
+  });
+
+  return {
+    lineas: conAcumulado,
+    total: txt2(acumulado),
+    vencido: txt2(
+      lineas.filter((l) => l.dias < 0).reduce<Dec>((a, l) => money.add(a, dec(l.saldo)), money.ZERO),
+    ),
+  };
+}
+
+/**
+ * ¿La empresa es agente de retención del IGV?
+ *
+ * La pantalla lo pregunta para no ofrecer la casilla de retener a quien no lo
+ * es: el servicio le devolvería cero de todos modos, y una casilla que no hace
+ * nada es peor que no tenerla.
+ */
+export async function esAgenteRetencion(db: Db): Promise<boolean> {
+  const [e] = await db.select({ agente: empresas.esAgenteRetencion }).from(empresas).limit(1);
+  return e?.agente ?? false;
+}

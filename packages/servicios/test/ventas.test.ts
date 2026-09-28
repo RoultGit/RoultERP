@@ -13,9 +13,9 @@ import { money, cpe } from "@roulterp/core";
 import { sellar } from "@roulterp/core/auth";
 import { certificadoDePrueba, pfxDePrueba } from "@roulterp/core/cpe";
 import {
-  crearEmpresa, registrarCompra, emitirVenta, enviarASunat, listarVentas,
+  crearEmpresa, registrarCompra, emitirVenta, emitirNota, enviarASunat, listarVentas,
   cargarComprobante, pendientesDeEnvio, enLetras, existencias,
-  balanceComprobacion, VentaInvalida,
+  balanceComprobacion, documentosPorCobrar, VentaInvalida,
 } from "../src/index.ts";
 import { zipSync } from "fflate";
 
@@ -190,7 +190,7 @@ describe("emisión de la venta", () => {
             lineas: [{ productoId: producto, cantidad: "500", valorUnitario: "500" }],
           }),
         ),
-      /stock insuficiente/i,
+      /no hay stock suficiente: quedan .* y se piden /i,
     );
   });
 
@@ -451,5 +451,185 @@ describe("aislamiento", () => {
       (db) => listarVentas(db),
     );
     assert.deepEqual(desdeOtra, []);
+  });
+});
+
+// ─── Notas de crédito y débito ────────────────────────────────────────────
+
+describe("notas de crédito y débito", () => {
+  /** Una venta ya enviada: sólo sobre eso se emite una nota. */
+  async function ventaEnviada() {
+    const r = await con((db) => emitirVenta(db, empresaId, usuarioId, ventaBase()));
+    await raw`UPDATE comprobantes SET estado = 'aceptado' WHERE id = ${r.comprobanteId}`;
+    await raw`
+      INSERT INTO series_documento (empresa_id, tipo_documento, serie, correlativo)
+      VALUES (${empresaId}, '07', 'FC01', 0), (${empresaId}, '08', 'FD01', 0)`;
+    return r;
+  }
+
+  const notaBase = (comprobanteId: string) => ({
+    comprobanteId,
+    tipoDocumento: "07",
+    serie: "FC01",
+    fechaEmision: "2026-09-12",
+    motivo: cpe.MOTIVO_NOTA_CREDITO.DEVOLUCION_TOTAL,
+    descripcionMotivo: "Devolución total de la mercadería",
+  });
+
+  test("sin líneas propias, la nota reproduce el comprobante entero", async () => {
+    const venta = await ventaEnviada();
+    const nota = await con((db) => emitirNota(db, empresaId, usuarioId, notaBase(venta.comprobanteId)));
+    assert.equal(nota.total, venta.total);
+    assert.equal(nota.modificaA, venta.comprobanteId);
+    assert.equal(nota.numero, "00000001");
+  });
+
+  test("el asiento de la nota de crédito es el inverso del de la venta", async () => {
+    const venta = await ventaEnviada();
+    await con((db) => emitirNota(db, empresaId, usuarioId, notaBase(venta.comprobanteId)));
+
+    const balance = await con((db) => balanceComprobacion(db, "202609"));
+    // El cliente vuelve a cero: se le facturó y se le abonó lo mismo.
+    assert.equal(s2(balance.find((b) => b.cuenta === "1212")!.saldo), "0.00");
+    // El ingreso queda neteado por la cuenta de devoluciones.
+    assert.equal(s2(balance.find((b) => b.cuenta === "70911")!.saldo), "5000.00");
+    assert.equal(s2(balance.find((b) => b.cuenta === "70111")!.saldo), "-5000.00");
+  });
+
+  test("la nota de crédito cancela la deuda del cliente", async () => {
+    const venta = await ventaEnviada();
+    const antes = await con((db) => documentosPorCobrar(db, cliente));
+    assert.equal(s2(antes[0]!.saldo), "5900.00");
+
+    await con((db) => emitirNota(db, empresaId, usuarioId, notaBase(venta.comprobanteId)));
+    const despues = await con((db) => documentosPorCobrar(db, cliente));
+    assert.equal(despues.length, 0, "no queda nada por cobrar");
+  });
+
+  test("la devolución de mercadería reingresa al costo con el que salió", async () => {
+    const venta = await ventaEnviada();
+    const antes = await con((db) => existencias(db));
+    assert.equal(s2(antes.find((e) => e.codigo === "P001")!.cantidad), "90.00");
+
+    await con((db) =>
+      emitirNota(db, empresaId, usuarioId, {
+        ...notaBase(venta.comprobanteId),
+        devuelveMercaderia: true,
+      }),
+    );
+
+    const despues = await con((db) => existencias(db));
+    const fila = despues.find((e) => e.codigo === "P001")!;
+    assert.equal(s2(fila.cantidad), "100.00", "vuelven las diez unidades");
+    // 100 unidades a 300 de costo: si el reingreso hubiera usado el precio de
+    // venta, aquí saldrían 32 000.
+    assert.equal(s2(fila.valor), "30000.00");
+  });
+
+  test("sin devolución explícita el stock no se mueve", async () => {
+    const venta = await ventaEnviada();
+    await con((db) => emitirNota(db, empresaId, usuarioId, notaBase(venta.comprobanteId)));
+    const e = await con((db) => existencias(db));
+    assert.equal(s2(e.find((x) => x.codigo === "P001")!.cantidad), "90.00");
+  });
+
+  test("una nota de crédito parcial deja vivo el resto del comprobante", async () => {
+    const venta = await ventaEnviada();
+    await con((db) =>
+      emitirNota(db, empresaId, usuarioId, {
+        ...notaBase(venta.comprobanteId),
+        motivo: cpe.MOTIVO_NOTA_CREDITO.DEVOLUCION_POR_ITEM,
+        lineas: [{ productoId: producto, cantidad: "4", valorUnitario: "500" }],
+      }),
+    );
+    const pendientes = await con((db) => documentosPorCobrar(db, cliente));
+    assert.equal(s2(pendientes[0]!.saldo), "3540.00", "5900 menos 2360");
+  });
+
+  test("una nota de crédito no se lleva más de lo que queda del comprobante", async () => {
+    const venta = await ventaEnviada();
+    await assert.rejects(
+      () =>
+        con((db) =>
+          emitirNota(db, empresaId, usuarioId, {
+            ...notaBase(venta.comprobanteId),
+            lineas: [{ productoId: producto, cantidad: "20", valorUnitario: "500" }],
+          }),
+        ),
+      /excede lo que queda del comprobante/,
+    );
+  });
+
+  test("dos notas de crédito no pueden sumar más que el comprobante", async () => {
+    const venta = await ventaEnviada();
+    const mitad = {
+      ...notaBase(venta.comprobanteId),
+      motivo: cpe.MOTIVO_NOTA_CREDITO.DEVOLUCION_POR_ITEM,
+      lineas: [{ productoId: producto, cantidad: "6", valorUnitario: "500" }],
+    };
+    await con((db) => emitirNota(db, empresaId, usuarioId, mitad));
+    await assert.rejects(
+      () => con((db) => emitirNota(db, empresaId, usuarioId, mitad)),
+      /excede lo que queda del comprobante/,
+    );
+  });
+
+  test("la nota de débito aumenta la deuda y vuelve a la cuenta de ingresos", async () => {
+    const venta = await ventaEnviada();
+    await con((db) =>
+      emitirNota(db, empresaId, usuarioId, {
+        comprobanteId: venta.comprobanteId,
+        tipoDocumento: "08",
+        serie: "FD01",
+        fechaEmision: "2026-09-12",
+        motivo: cpe.MOTIVO_NOTA_DEBITO.INTERES_MORA,
+        descripcionMotivo: "Intereses por mora",
+        lineas: [{ codigo: "MORA", descripcion: "Intereses", unidad: "ZZ", cantidad: "1", valorUnitario: "100" }],
+      }),
+    );
+    const pendientes = await con((db) => documentosPorCobrar(db, cliente));
+    assert.equal(s2(pendientes[0]!.saldo), "6018.00", "5900 más 118");
+
+    const balance = await con((db) => balanceComprobacion(db, "202609"));
+    assert.equal(s2(balance.find((b) => b.cuenta === "70111")!.saldo), "-5100.00");
+  });
+
+  test("el balance sigue cuadrando después de las notas", async () => {
+    const venta = await ventaEnviada();
+    await con((db) =>
+      emitirNota(db, empresaId, usuarioId, { ...notaBase(venta.comprobanteId), devuelveMercaderia: true }),
+    );
+    const balance = await con((db) => balanceComprobacion(db, "202609"));
+    const total = balance.reduce((a, b) => money.add(a, money.dec(b.saldo)), money.ZERO);
+    assert.equal(money.toString(total, 2), "0.00");
+  });
+
+  test("no se emite una nota sobre un borrador", async () => {
+    const venta = await con((db) => emitirVenta(db, empresaId, usuarioId, ventaBase()));
+    await raw`
+      INSERT INTO series_documento (empresa_id, tipo_documento, serie, correlativo)
+      VALUES (${empresaId}, '07', 'FC01', 0)`;
+    await assert.rejects(
+      () => con((db) => emitirNota(db, empresaId, usuarioId, notaBase(venta.comprobanteId))),
+      /todavía no se ha enviado a SUNAT/,
+    );
+  });
+
+  test("no se emite una nota sobre otra nota", async () => {
+    const venta = await ventaEnviada();
+    const nota = await con((db) => emitirNota(db, empresaId, usuarioId, notaBase(venta.comprobanteId)));
+    await assert.rejects(
+      () => con((db) => emitirNota(db, empresaId, usuarioId, notaBase(nota.comprobanteId))),
+      /no modifica a otra nota/,
+    );
+  });
+
+  test("el XML de la nota referencia el comprobante que modifica", async () => {
+    const venta = await ventaEnviada();
+    const nota = await con((db) => emitirNota(db, empresaId, usuarioId, notaBase(venta.comprobanteId)));
+
+    const doc = await con((db) => cargarComprobante(db, nota.comprobanteId));
+    assert.equal(doc.cabecera.modificaA, venta.comprobanteId);
+    assert.equal(doc.cabecera.motivoNota, "06");
   });
 });

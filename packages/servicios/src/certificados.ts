@@ -14,19 +14,20 @@ import { desc, eq } from "drizzle-orm";
 import { sellar, abrir, type SobreCifrado } from "@roulterp/core/auth";
 import { abrirPfx, CertificadoInvalido } from "@roulterp/core/cpe";
 import { schema as s, type Db } from "@roulterp/db";
+import { ErrorDeNegocio } from "@roulterp/core";
 
 const { certificadosDigitales, credencialesSunat, empresas } = s;
 
-export class ConfiguracionInvalida extends Error {
+export class ConfiguracionInvalida extends ErrorDeNegocio {
   constructor(motivo: string) {
-    super(motivo);
-    this.name = "ConfiguracionInvalida";
+    super(motivo, "ConfiguracionInvalida");
   }
 }
 
 /** Contexto de cifrado. Ata el secreto a su empresa: uno de otra no se abre. */
 const contextoCertificado = (empresaId: string) => `empresa:${empresaId}:certificado`;
 const contextoSol = (empresaId: string) => `empresa:${empresaId}:sol`;
+const contextoGre = (empresaId: string) => `empresa:${empresaId}:gre`;
 
 export type ResumenCertificado = {
   id: string;
@@ -239,11 +240,61 @@ export async function guardarCredencialesSol(
   };
 }
 
+/**
+ * Guarda las credenciales de la API de guías de remisión.
+ *
+ * No son las SOL: la GRE usa un `client_id` y un `client_secret` que se generan
+ * aparte en el menú SOL. El secreto se cifra con su propio contexto, así que un
+ * sobre de la GRE no se puede abrir como si fuera el de la clave SOL.
+ */
+export async function guardarCredencialesGre(
+  db: Db,
+  empresaId: string,
+  datos: { clientId: string; clientSecret: string },
+  kek: Uint8Array,
+  kekId: string,
+): Promise<void> {
+  const clientId = datos.clientId.trim();
+  if (clientId.length < 8) {
+    throw new ConfiguracionInvalida("el client_id de la GRE no parece válido");
+  }
+  if (datos.clientSecret.trim().length === 0) {
+    throw new ConfiguracionInvalida("el client_secret es obligatorio");
+  }
+
+  const [existente] = await db.select().from(credencialesSunat).limit(1);
+  if (!existente) {
+    throw new ConfiguracionInvalida(
+      "configure primero las credenciales SOL; las de la GRE se guardan junto a ellas",
+    );
+  }
+
+  await db
+    .update(credencialesSunat)
+    .set({
+      greClientId: clientId,
+      greClientSecretCifrado: sellar(
+        kek,
+        kekId,
+        new TextEncoder().encode(datos.clientSecret.trim()),
+        contextoGre(empresaId),
+      ),
+    })
+    .where(eq(credencialesSunat.id, existente.id));
+}
+
 /** Credenciales configuradas, sin la clave. */
-export async function credencialesActuales(db: Db): Promise<ResumenCredenciales | null> {
+export async function credencialesActuales(
+  db: Db,
+): Promise<(ResumenCredenciales & { greClientId: string | null }) | null> {
   const [fila] = await db.select().from(credencialesSunat).limit(1);
   return fila
-    ? { usuarioSol: fila.usuarioSol, entorno: fila.entorno, configuradoEn: fila.creadoEn }
+    ? {
+        usuarioSol: fila.usuarioSol,
+        entorno: fila.entorno,
+        configuradoEn: fila.creadoEn,
+        greClientId: fila.greClientId,
+      }
     : null;
 }
 
@@ -253,11 +304,35 @@ export async function credencialesActuales(db: Db): Promise<ResumenCredenciales 
  * Reúne en un solo lugar todo lo que hace falta, para poder decírselo al
  * usuario de una vez en lugar de que lo descubra error por error.
  */
+export type Preparacion = {
+  /** Se puede emitir el comprobante: numerarlo, mover stock y contabilizarlo. */
+  puedeEmitir: boolean;
+  /** Se puede enviar a SUNAT: hay certificado y credenciales utilizables. */
+  puedeEnviar: boolean;
+  /** Lo que impide emitir. */
+  faltantesEmision: string[];
+  /** Lo que impide enviar, aunque se pueda emitir. */
+  faltantesEnvio: string[];
+  avisos: string[];
+};
+
+/**
+ * Qué falta para emitir y qué falta para enviar. **No es lo mismo.**
+ *
+ * Emitir es un acto de la empresa: numerar el comprobante, descargar el
+ * almacén, generar el asiento y la cuenta por cobrar. Para eso sólo hace falta
+ * una serie, porque un comprobante sin número no existe.
+ *
+ * Enviar es una conversación con SUNAT, y eso sí necesita certificado y
+ * credenciales. Confundir las dos cosas dejaba a una empresa recién dada de
+ * alta sin poder registrar una sola venta mientras esperaba su certificado, que
+ * tarda días: el ERP quedaba inservible justo cuando más se le necesita.
+ */
 export async function listaParaEmitir(
   db: Db,
   empresaId: string,
   kek: Uint8Array,
-): Promise<{ lista: boolean; faltantes: string[]; avisos: string[] }> {
+): Promise<Preparacion> {
   const faltantes: string[] = [];
   const avisos: string[] = [];
 
@@ -289,7 +364,15 @@ export async function listaParaEmitir(
     .from(s.seriesDocumento)
     .where(eq(s.seriesDocumento.activa, true))
     .limit(1);
-  if (series.length === 0) faltantes.push("Registre al menos una serie de facturación");
 
-  return { lista: faltantes.length === 0, faltantes, avisos };
+  const faltantesEmision =
+    series.length === 0 ? ["Registre al menos una serie de facturación"] : [];
+
+  return {
+    puedeEmitir: faltantesEmision.length === 0,
+    puedeEnviar: faltantesEmision.length === 0 && faltantes.length === 0,
+    faltantesEmision,
+    faltantesEnvio: faltantes,
+    avisos,
+  };
 }

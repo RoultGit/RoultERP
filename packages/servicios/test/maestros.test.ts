@@ -4,7 +4,8 @@ import postgres from "postgres";
 import { conectar, enEmpresa, migrar, type Conexion, type Db } from "@roulterp/db";
 import {
   crearEmpresa, guardarProducto, listarProductos, desactivarProducto,
-  guardarTercero, listarTerceros, listarUnidades, listarCuentas,
+  guardarTercero, listarTerceros, listarUnidades, listarCuentas, sincronizarPlanCuentas,
+  guardarSucursal, listarSucursales,
   MaestroInvalido,
 } from "../src/index.ts";
 
@@ -290,5 +291,137 @@ describe("aislamiento de maestros", () => {
       (db) => listarProductos(db),
     );
     assert.equal(lista.length, 1, "cada empresa tiene su propio catálogo");
+  });
+});
+
+// ─── El plan de cuentas se pone al día ────────────────────────────────────
+
+describe("sincronización del plan de cuentas", () => {
+  /**
+   * El plan se siembra al crear la empresa y ahí se quedaba. Cuando el catálogo
+   * creció —hacían falta las cuentas de planilla— las empresas ya existentes no
+   * las recibían, y lo descubrían el día que intentaban asentar la nómina.
+   */
+  test("devuelve las cuentas que faltaban y las inserta", async () => {
+    await raw`
+      DELETE FROM plan_cuentas
+      WHERE empresa_id = ${empresaId} AND cuenta IN ('6211', '4111', '891')`;
+
+    const r = await con((db) => sincronizarPlanCuentas(db, empresaId));
+    assert.ok(r.agregadas.includes("6211"));
+    assert.ok(r.agregadas.includes("4111"));
+
+    const cuentas = await con((db) => listarCuentas(db));
+    assert.ok(cuentas.some((c) => c.cuenta === "6211"), "la cuenta debe quedar en el plan");
+  });
+
+  test("es idempotente: correrla dos veces no duplica nada", async () => {
+    await con((db) => sincronizarPlanCuentas(db, empresaId));
+    const segunda = await con((db) => sincronizarPlanCuentas(db, empresaId));
+    assert.deepEqual(segunda.agregadas, []);
+  });
+
+  test("no toca lo que la empresa personalizó", async () => {
+    // Una empresa puede renombrar una cuenta o cambiarle lo que exige; la
+    // sincronización sólo añade lo que falta.
+    await raw`
+      UPDATE plan_cuentas SET descripcion = 'Caja principal de la tienda'
+      WHERE empresa_id = ${empresaId} AND cuenta = '1011'`;
+    await con((db) => sincronizarPlanCuentas(db, empresaId));
+    const cuentas = await con((db) => listarCuentas(db));
+    assert.equal(
+      cuentas.find((c) => c.cuenta === "1011")!.descripcion,
+      "Caja principal de la tienda",
+    );
+  });
+
+  test("la empresa puede asentar su planilla con el plan al día", async () => {
+    await con((db) => sincronizarPlanCuentas(db, empresaId));
+    const cuentas = await con((db) => listarCuentas(db, true));
+    for (const necesaria of ["6211", "6271", "4111", "4031"]) {
+      assert.ok(
+        cuentas.some((c) => c.cuenta === necesaria),
+        `falta la cuenta ${necesaria}, que toda empresa con trabajadores necesita`,
+      );
+    }
+  });
+});
+
+// ─── Sucursales ───────────────────────────────────────────────────────────
+
+describe("sucursales", () => {
+  const con = <T,>(t: (db: Db) => Promise<T>) => enEmpresa(app, { empresaId, usuarioId }, t);
+
+  /**
+   * El ubigeo es el punto de partida de toda guía de remisión. La empresa nace
+   * con su sucursal pero sin él, y hasta que hubo esta pantalla no había forma
+   * de completarlo: cada guía obligaba a teclearlo a mano.
+   */
+  test("se le puede poner el ubigeo a la sucursal que nació con la empresa", async () => {
+    const [antes] = await con((db) => listarSucursales(db));
+    assert.equal(antes!.ubigeo, null, "la empresa nueva no trae ubigeo");
+
+    await con((db) =>
+      guardarSucursal(db, empresaId, usuarioId, {
+        id: antes!.id,
+        codigo: antes!.codigo,
+        nombre: "Oficina principal",
+        direccion: "Av. Prolong. Mariscal Nieto 108, Ate",
+        ubigeo: "150103",
+        codigoSunat: "0000",
+      }),
+    );
+
+    const [despues] = await con((db) => listarSucursales(db));
+    assert.equal(despues!.ubigeo, "150103");
+    assert.equal(despues!.codigoSunat, "0000");
+  });
+
+  test("un ubigeo que no son seis dígitos se rechaza", async () => {
+    const [s] = await con((db) => listarSucursales(db));
+    await assert.rejects(
+      () =>
+        con((db) =>
+          guardarSucursal(db, empresaId, usuarioId, {
+            id: s!.id, codigo: s!.codigo, nombre: s!.nombre, ubigeo: "15010",
+          }),
+        ),
+      /seis dígitos/,
+    );
+  });
+
+  test("un código de establecimiento que no son cuatro dígitos se rechaza", async () => {
+    const [s] = await con((db) => listarSucursales(db));
+    await assert.rejects(
+      () =>
+        con((db) =>
+          guardarSucursal(db, empresaId, usuarioId, {
+            id: s!.id, codigo: s!.codigo, nombre: s!.nombre, codigoSunat: "00",
+          }),
+        ),
+      /cuatro dígitos/,
+    );
+  });
+
+  test("no se repite el código de una sucursal", async () => {
+    const [s] = await con((db) => listarSucursales(db));
+    await assert.rejects(
+      () =>
+        con((db) =>
+          guardarSucursal(db, empresaId, usuarioId, { codigo: s!.codigo, nombre: "Otra" }),
+        ),
+      /ya existe una sucursal/,
+    );
+  });
+
+  test("se puede abrir una sucursal nueva", async () => {
+    await con((db) =>
+      guardarSucursal(db, empresaId, usuarioId, {
+        codigo: "002", nombre: "Tienda Ate", ubigeo: "150103", codigoSunat: "0001",
+      }),
+    );
+    const lista = await con((db) => listarSucursales(db));
+    assert.equal(lista.length, 2);
+    assert.equal(lista[1]!.nombre, "Tienda Ate");
   });
 });

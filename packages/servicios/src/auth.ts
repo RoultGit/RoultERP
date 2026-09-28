@@ -20,19 +20,20 @@
  * - El token de sesión se guarda hasheado. Un volcado de la tabla de sesiones
  *   no le sirve a nadie para suplantar a un usuario.
  */
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   hashPassword, verifyPassword, needsRehash, dummyHash, assertPasswordUsable,
   nuevoTokenSesion, hashToken, sesionVigente, renovarExpiracion,
   SESSION_TTL_MS, RESET_TTL_MS, INVITACION_TTL_MS,
   verifyTotp, generateSecret, otpauthUri, generateRecoveryCodes,
-  sellar, abrir, type SobreCifrado,
+  sellar, abrir, MODULOS, ACCIONES, todosDe, type SobreCifrado,
   evaluarAmbos, registrarFallo, limpiar, type Intentos,
   construirActor, puede, exigir as exigirPermiso, SinPermiso,
   ROLES_BASE, type Actor, type Permiso,
 } from "@roulterp/core/auth";
 import { enAuth, schema as s, type Conexion, type Db } from "@roulterp/db";
+import { ErrorDeNegocio } from "@roulterp/core";
 
 const { usuarios, sesiones, usuarioEmpresa, roles, tokensUnUso, intentosLogin } = s;
 
@@ -53,24 +54,28 @@ const ahoraDe = (e: Entorno) => e.ahora?.() ?? new Date();
 
 // ─── Errores ──────────────────────────────────────────────────────────────
 
-export class CredencialesInvalidas extends Error {
+export class CredencialesInvalidas extends ErrorDeNegocio {
   constructor() {
-    super("correo o contraseña incorrectos");
-    this.name = "CredencialesInvalidas";
+    super("correo o contraseña incorrectos", "CredencialesInvalidas");
   }
 }
 
-export class DemasiadosIntentos extends Error {
+export class DemasiadosIntentos extends ErrorDeNegocio {
   constructor(readonly esperaMs: number) {
-    super("demasiados intentos; espere antes de reintentar");
-    this.name = "DemasiadosIntentos";
+    super("demasiados intentos; espere antes de reintentar", "DemasiadosIntentos");
   }
 }
 
-export class TokenInvalido extends Error {
+/** Un rol mal definido o intocable. Lo lee quien administra usuarios. */
+export class RolInvalido extends ErrorDeNegocio {
+  constructor(motivo: string) {
+    super(motivo, "RolInvalido");
+  }
+}
+
+export class TokenInvalido extends ErrorDeNegocio {
   constructor(motivo = "el enlace no es válido o ya venció") {
-    super(motivo);
-    this.name = "TokenInvalido";
+    super(motivo, "TokenInvalido");
   }
 }
 
@@ -519,7 +524,7 @@ export async function invitarUsuario(
       .from(roles)
       .where(and(eq(roles.empresaId, datos.empresaId), eq(roles.codigo, datos.rolCodigo)))
       .limit(1);
-    if (!rol) throw new Error(`el rol ${datos.rolCodigo} no existe en esta empresa`);
+    if (!rol) throw new RolInvalido(`el rol ${datos.rolCodigo} no existe en esta empresa`);
 
     let [usuario] = await db.select().from(usuarios).where(eq(usuarios.email, correo)).limit(1);
     let token: string | null = null;
@@ -742,4 +747,157 @@ async function limpiarIntentos(db: Db, claves: string[]): Promise<void> {
   await db.delete(intentosLogin).where(inArray(intentosLogin.clave, claves));
 }
 
-export { ROLES_BASE, puede, exigirPermiso, SinPermiso, type Actor, type Permiso };
+export { ROLES_BASE, MODULOS, ACCIONES, todosDe, puede, exigirPermiso, SinPermiso, type Actor, type Permiso };
+
+// ─── Administración de usuarios y roles ───────────────────────────────────
+
+/**
+ * Usuarios con acceso a una empresa.
+ *
+ * Va contra el rol `auth`, no contra el de negocio: las tablas de identidad
+ * viven fuera de RLS porque un usuario pertenece a varias empresas y su fila no
+ * es de ninguna. El filtro por empresa lo pone esta consulta, y es la única
+ * puerta: no hay forma de listar los usuarios de otra empresa desde aquí.
+ */
+export async function usuariosDeEmpresa(env: Entorno, empresaId: string) {
+  return enAuth(env.auth, async (db) => {
+    const filas = await db
+      .select({
+        usuarioId: usuarios.id,
+        email: usuarios.email,
+        nombre: usuarios.nombre,
+        activoCuenta: usuarios.activo,
+        mfaActivo: usuarios.mfaActivo,
+        ultimoAcceso: usuarios.ultimoAccesoEn,
+        activo: usuarioEmpresa.activo,
+        rolId: roles.id,
+        rolCodigo: roles.codigo,
+        rolNombre: roles.nombre,
+      })
+      .from(usuarioEmpresa)
+      .innerJoin(usuarios, eq(usuarios.id, usuarioEmpresa.usuarioId))
+      .innerJoin(roles, eq(roles.id, usuarioEmpresa.rolId))
+      .where(eq(usuarioEmpresa.empresaId, empresaId))
+      .orderBy(usuarios.nombre);
+    return filas;
+  });
+}
+
+/** Roles definidos en la empresa, con sus permisos. */
+export async function rolesDeEmpresa(env: Entorno, empresaId: string) {
+  return enAuth(env.auth, (db) =>
+    db
+      .select()
+      .from(roles)
+      .where(eq(roles.empresaId, empresaId))
+      .orderBy(roles.nombre),
+  );
+}
+
+/**
+ * Crea o actualiza un rol.
+ *
+ * Un rol del sistema no se edita: son el punto de partida de cada empresa
+ * nueva, y dejarlos cambiar significaría que dos empresas con el mismo rol
+ * "contador" no tienen los mismos permisos. Para variar, se copia.
+ */
+export async function guardarRol(
+  env: Entorno,
+  empresaId: string,
+  datos: { rolId?: string; codigo: string; nombre: string; permisos: string[] },
+): Promise<string> {
+  const codigo = datos.codigo.trim().toLowerCase();
+  if (!/^[a-z0-9_-]{2,30}$/.test(codigo)) {
+    throw new RolInvalido("el código del rol lleva letras, números, guiones y guiones bajos");
+  }
+  if (datos.nombre.trim().length < 2) throw new RolInvalido("el rol necesita un nombre");
+
+  // Se filtra contra el catálogo real: un permiso inventado no protege nada y
+  // esconde el error hasta que alguien no puede hacer su trabajo.
+  const validos = new Set<string>(MODULOS.flatMap(todosDe));
+  const permisos = [...new Set(datos.permisos)].filter((p) => validos.has(p));
+  if (permisos.length === 0) throw new RolInvalido("un rol sin permisos no sirve para nada");
+
+  return enAuth(env.auth, async (db) => {
+    if (datos.rolId) {
+      const [existente] = await db.select().from(roles).where(eq(roles.id, datos.rolId)).limit(1);
+      if (!existente || existente.empresaId !== empresaId) throw new RolInvalido("el rol no existe");
+      if (existente.esSistema) {
+        throw new RolInvalido(
+          `«${existente.nombre}» es un rol del sistema y no se edita; duplíquelo para partir de él`,
+        );
+      }
+      await db
+        .update(roles)
+        .set({ codigo, nombre: datos.nombre.trim(), permisos })
+        .where(eq(roles.id, datos.rolId));
+      return datos.rolId;
+    }
+
+    const [fila] = await db
+      .insert(roles)
+      .values({ empresaId, codigo, nombre: datos.nombre.trim(), permisos, esSistema: false })
+      .returning({ id: roles.id });
+    return fila!.id;
+  });
+}
+
+/** Cambia el rol de un usuario dentro de una empresa. */
+export async function cambiarRol(
+  env: Entorno,
+  usuarioId: string,
+  empresaId: string,
+  rolId: string,
+): Promise<void> {
+  await enAuth(env.auth, async (db) => {
+    const [rol] = await db.select().from(roles).where(eq(roles.id, rolId)).limit(1);
+    if (!rol || rol.empresaId !== empresaId) throw new RolInvalido("el rol no existe en esta empresa");
+    await db
+      .update(usuarioEmpresa)
+      .set({ rolId, activo: true })
+      .where(
+        and(eq(usuarioEmpresa.usuarioId, usuarioId), eq(usuarioEmpresa.empresaId, empresaId)),
+      );
+  });
+}
+
+/** Devuelve el acceso a alguien a quien se le había revocado. */
+export async function restaurarAcceso(
+  env: Entorno,
+  usuarioId: string,
+  empresaId: string,
+): Promise<void> {
+  await enAuth(env.auth, (db) =>
+    db
+      .update(usuarioEmpresa)
+      .set({ activo: true })
+      .where(
+        and(eq(usuarioEmpresa.usuarioId, usuarioId), eq(usuarioEmpresa.empresaId, empresaId)),
+      ),
+  );
+}
+
+/**
+ * Cuántos administradores activos quedan en la empresa.
+ *
+ * Sirve para no dejarla sin nadie que pueda administrarla: revocar al último
+ * administrador es irreversible desde dentro del producto.
+ */
+export async function administradoresActivos(env: Entorno, empresaId: string): Promise<number> {
+  return enAuth(env.auth, async (db) => {
+    const filas = await db
+      .select({ id: usuarioEmpresa.id })
+      .from(usuarioEmpresa)
+      .innerJoin(roles, eq(roles.id, usuarioEmpresa.rolId))
+      .innerJoin(usuarios, eq(usuarios.id, usuarioEmpresa.usuarioId))
+      .where(
+        and(
+          eq(usuarioEmpresa.empresaId, empresaId),
+          eq(usuarioEmpresa.activo, true),
+          eq(usuarios.activo, true),
+          sql`'usuarios:editar' = ANY(${roles.permisos})`,
+        ),
+      );
+    return filas.length;
+  });
+}

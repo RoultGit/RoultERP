@@ -13,14 +13,17 @@ import { and, asc, eq, ilike, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { money } from "@roulterp/core";
 import { schema as s, type Db } from "@roulterp/db";
+import { PCGE, nivelDe } from "./pcge.ts";
 import { rucValido } from "./empresas.ts";
+import { ErrorDeNegocio } from "@roulterp/core";
 
-const { productos, terceros, unidadesMedida, planCuentas, almacenes, sucursales } = s;
+const {
+  productos, terceros, unidadesMedida, planCuentas, almacenes, sucursales, centrosCosto,
+} = s;
 
-export class MaestroInvalido extends Error {
-  constructor(readonly motivos: readonly string[]) {
-    super(motivos.join("; "));
-    this.name = "MaestroInvalido";
+export class MaestroInvalido extends ErrorDeNegocio {
+  constructor(motivos: readonly string[]) {
+    super(motivos, "MaestroInvalido");
   }
 }
 
@@ -280,6 +283,91 @@ export async function listarTerceros(
     .limit(500);
 }
 
+// ─── Sucursales ───────────────────────────────────────────────────────────
+
+const sucursalSchema = z.object({
+  id: z.string().uuid().optional(),
+  codigo: texto(10),
+  nombre: texto(120),
+  direccion: z.string().trim().max(200).optional(),
+  /**
+   * Ubigeo del INEI, seis dígitos.
+   *
+   * Lo exige la guía de remisión electrónica como punto de partida. Mientras la
+   * sucursal no lo tenga, quien emite una guía lo tiene que teclear a mano cada
+   * vez —y adivinar—, que es como estaba: la sucursal se creaba con la empresa
+   * y después no había pantalla para completarla.
+   */
+  ubigeo: z.string().trim().optional(),
+  /** Código del establecimiento anexo ante SUNAT; «0000» es el domicilio fiscal. */
+  codigoSunat: z.string().trim().optional(),
+  activa: z.boolean().optional(),
+});
+
+export type DatosSucursal = z.input<typeof sucursalSchema>;
+
+export const listarSucursales = (db: Db) =>
+  db
+    .select({
+      id: sucursales.id,
+      codigo: sucursales.codigo,
+      nombre: sucursales.nombre,
+      direccion: sucursales.direccion,
+      ubigeo: sucursales.ubigeo,
+      codigoSunat: sucursales.codigoSunat,
+      activa: sucursales.activa,
+    })
+    .from(sucursales)
+    .orderBy(asc(sucursales.codigo));
+
+export async function guardarSucursal(
+  db: Db,
+  empresaId: string,
+  usuarioId: string,
+  datos: DatosSucursal,
+): Promise<{ id: string }> {
+  const r = sucursalSchema.safeParse(datos);
+  if (!r.success) {
+    throw new MaestroInvalido(r.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`));
+  }
+  const d = r.data;
+
+  const motivos: string[] = [];
+  if (d.ubigeo && !/^\d{6}$/.test(d.ubigeo)) {
+    motivos.push("el ubigeo son seis dígitos del INEI, por ejemplo 150103 para Ate");
+  }
+  if (d.codigoSunat && !/^\d{4}$/.test(d.codigoSunat)) {
+    motivos.push("el código de establecimiento ante SUNAT son cuatro dígitos; el fiscal es 0000");
+  }
+  if (motivos.length) throw new MaestroInvalido(motivos);
+
+  const valores = {
+    nombre: d.nombre,
+    direccion: d.direccion || null,
+    ubigeo: d.ubigeo || null,
+    codigoSunat: d.codigoSunat || null,
+    ...(d.activa === undefined ? {} : { activa: d.activa }),
+  };
+
+  if (d.id) {
+    await db.update(sucursales).set(valores).where(eq(sucursales.id, d.id));
+    return { id: d.id };
+  }
+
+  const [existe] = await db
+    .select({ id: sucursales.id })
+    .from(sucursales)
+    .where(eq(sucursales.codigo, d.codigo))
+    .limit(1);
+  if (existe) throw new MaestroInvalido([`ya existe una sucursal con el código ${d.codigo}`]);
+
+  const [fila] = await db
+    .insert(sucursales)
+    .values({ empresaId, codigo: d.codigo, ...valores, creadoPor: usuarioId })
+    .returning({ id: sucursales.id });
+  return { id: fila!.id };
+}
+
 // ─── Consultas de apoyo ───────────────────────────────────────────────────
 
 export const listarUnidades = (db: Db) =>
@@ -298,6 +386,82 @@ export const listarAlmacenes = (db: Db) =>
     .from(almacenes)
     .leftJoin(sucursales, eq(sucursales.id, almacenes.sucursalId))
     .orderBy(asc(almacenes.codigo));
+
+/**
+ * Añade al plan de la empresa las cuentas del PCGE que le falten.
+ *
+ * El plan se siembra al crear la empresa y ahí se queda: cuando el catálogo
+ * crece —porque hacía falta la planilla, o las cuentas de cierre— las empresas
+ * ya existentes se quedaban sin ellas y no podían asentar operaciones
+ * corrientes. Esto lo reconcilia sin tocar lo que la empresa haya personalizado:
+ * sólo inserta lo que no está.
+ */
+export async function sincronizarPlanCuentas(
+  db: Db,
+  empresaId: string,
+): Promise<{ agregadas: string[] }> {
+  const existentes = new Set(
+    (await db.select({ cuenta: planCuentas.cuenta }).from(planCuentas)).map((c) => c.cuenta),
+  );
+  const faltan = PCGE.filter((c) => !existentes.has(c.cuenta));
+  if (faltan.length === 0) return { agregadas: [] };
+
+  await db.insert(planCuentas).values(
+    faltan.map((c) => ({
+      empresaId,
+      cuenta: c.cuenta,
+      descripcion: c.descripcion,
+      nivel: nivelDe(c.cuenta),
+      naturaleza: c.naturaleza,
+      esMovimiento: c.esMovimiento ?? false,
+      exigeAnexo: c.exigeAnexo ?? false,
+      exigeCentroCosto: c.exigeCentroCosto ?? false,
+      exigeDocumento: c.exigeDocumento ?? false,
+      moneda: c.moneda ?? null,
+    })),
+  );
+
+  return { agregadas: faltan.map((c) => c.cuenta) };
+}
+
+/** Centros de costo de la empresa, activos primero. */
+export const listarCentrosCosto = (db: Db) =>
+  db.select().from(centrosCosto).orderBy(asc(centrosCosto.codigo));
+
+/**
+ * Crea o renombra un centro de costo.
+ *
+ * No se borran: un centro de costo aparece en asientos ya contabilizados y
+ * borrarlo dejaría líneas apuntando a la nada. Se desactiva, y deja de
+ * ofrecerse al capturar.
+ */
+export async function guardarCentroCosto(
+  db: Db,
+  empresaId: string,
+  datos: { id?: string; codigo: string; nombre: string; activo?: boolean },
+): Promise<string> {
+  const codigo = datos.codigo.trim().toUpperCase();
+  if (!/^[A-Z0-9-]{2,20}$/.test(codigo)) {
+    throw new MaestroInvalido(["el código lleva letras, números y guiones, de 2 a 20 caracteres"]);
+  }
+  if (datos.nombre.trim().length < 2) {
+    throw new MaestroInvalido(["el centro de costo necesita un nombre"]);
+  }
+
+  if (datos.id) {
+    await db
+      .update(centrosCosto)
+      .set({ codigo, nombre: datos.nombre.trim(), activo: datos.activo ?? true })
+      .where(eq(centrosCosto.id, datos.id));
+    return datos.id;
+  }
+
+  const [fila] = await db
+    .insert(centrosCosto)
+    .values({ empresaId, codigo, nombre: datos.nombre.trim() })
+    .returning({ id: centrosCosto.id });
+  return fila!.id;
+}
 
 export const listarCuentas = (db: Db, soloMovimiento = false) =>
   db

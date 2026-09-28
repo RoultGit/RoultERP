@@ -16,11 +16,13 @@
  * inventario y el asiento, y ya no se edita. Si algo estaba mal se anula y se
  * vuelve a liquidar, dejando el rastro de las dos.
  */
-import { and, asc, eq, sql } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { money, importaciones as dominio, inventario as kardex } from "@roulterp/core";
 import { schema as s, type Db } from "@roulterp/db";
 import { registrarMovimiento } from "./inventario.ts";
 import { asentar, type LineaAsientoEntrada } from "./contabilidad.ts";
+import { cuentasDe, type Cuentas } from "./parametros.ts";
+import { ErrorDeNegocio } from "@roulterp/core";
 
 const {
   importaciones: tImportaciones,
@@ -31,6 +33,7 @@ const {
   productos,
   terceros,
   almacenes,
+  documentosCxp,
 } = s;
 
 type Dec = money.Dec;
@@ -38,10 +41,9 @@ const dec = (v: string | null | undefined): Dec => money.dec(v ?? "0");
 const txt = (v: Dec, d = 6): string => money.toString(v, d);
 const txt2 = (v: Dec): string => money.toString(v, 2);
 
-export class ImportacionInvalida extends Error {
+export class ImportacionInvalida extends ErrorDeNegocio {
   constructor(motivo: string) {
-    super(motivo);
-    this.name = "ImportacionInvalida";
+    super(motivo, "ImportacionInvalida");
   }
 }
 
@@ -327,7 +329,7 @@ export async function confirmarLiquidacion(
   importacionId: string,
   datos: { numero: string; fecha: string; periodo: string },
 ): Promise<ResultadoConfirmacion> {
-  const { cabecera } = await cargar(db, importacionId);
+  const { cabecera, gastos } = await cargar(db, importacionId);
   if (cabecera.estado === "liquidada") {
     throw new ImportacionInvalida("esta importación ya fue liquidada");
   }
@@ -401,6 +403,29 @@ export async function confirmarLiquidacion(
     movimientos.push(mov.id);
   }
 
+  /*
+   * Reparto de la deuda por acreedor.
+   *
+   * El FOB se le debe al exportador; el agenciamiento, al agente de aduanas; el
+   * almacenaje, al terminal. Cargarlo todo a la cuenta del exportador —que es
+   * lo que se hacía— dejaba a cada uno de esos proveedores con saldo cero y al
+   * exportador con la deuda de todos, así que ningún pago cuadraba después.
+   */
+  const porGasto = new Map(gastos.map((g) => [g.id, g]));
+  const deudaPorProveedor = new Map<string, Dec>();
+  const sumar = (proveedorId: string, importe: Dec) =>
+    deudaPorProveedor.set(
+      proveedorId,
+      money.add(deudaPorProveedor.get(proveedorId) ?? money.ZERO, importe),
+    );
+
+  sumar(cabecera.proveedorId, liquidacion.fobTotal);
+  for (const item of liquidacion.items) {
+    for (const p of item.gastos) {
+      sumar(porGasto.get(p.gastoId)?.proveedorId ?? cabecera.proveedorId, p.importe);
+    }
+  }
+
   const asientoId = await asentar(db, empresaId, usuarioId, {
     periodo: datos.periodo,
     fecha: datos.fecha,
@@ -410,8 +435,52 @@ export async function confirmarLiquidacion(
     tipoCambio: "1",
     origenModulo: "importaciones",
     origenId: liquidacionId,
-    lineas: lineasDelAsiento(liquidacion, cabecera.proveedorId),
+    lineas: lineasDelAsiento(await cuentasDe(db), liquidacion, deudaPorProveedor),
   });
+
+  /*
+   * La deuda también entra al auxiliar de cuentas por pagar, una fila por
+   * acreedor.
+   *
+   * El asiento abona la 4212, pero sin fila en `documentos_cxp` esa deuda
+   * existía en el mayor y en ninguna otra parte: no aparecía en la antigüedad
+   * de saldos y no se podía pagar desde el módulo de pagos. Para un importador
+   * eso es dejar fuera del circuito su pasivo principal.
+   *
+   * El vencimiento sale de los días de crédito de cada proveedor; si no los
+   * tiene, vence el mismo día, que es lo que hace una compra al contado.
+   */
+  for (const [proveedorId, total] of deudaPorProveedor) {
+    if (money.isZero(total)) continue;
+
+    const [prov] = await db
+      .select({ diasCredito: terceros.diasCredito })
+      .from(terceros)
+      .where(eq(terceros.id, proveedorId))
+      .limit(1);
+    const vencimiento = new Date(`${datos.fecha}T00:00:00Z`);
+    vencimiento.setUTCDate(vencimiento.getUTCDate() + (prov?.diasCredito ?? 0));
+
+    await db.insert(documentosCxp).values({
+      empresaId,
+      proveedorId,
+      // Catálogo 01: "91" es el comprobante del exterior, que es lo que
+      // sustenta la deuda de una importación.
+      tipoDocumento: "91",
+      serie: "IMP",
+      numero: cabecera.numero,
+      fechaEmision: datos.fecha,
+      fechaVencimiento: vencimiento.toISOString().slice(0, 10),
+      // La deuda se lleva en soles porque el asiento va en soles: los gastos
+      // locales de la importación no están en la moneda del embarque.
+      moneda: "PEN",
+      tipoCambio: "1",
+      total: txt2(total),
+      saldo: txt2(total),
+      estado: "pendiente",
+      creadoPor: usuarioId,
+    });
+  }
 
   await db
     .update(liquidaciones)
@@ -432,14 +501,21 @@ export async function confirmarLiquidacion(
  * cuentas de crédito fiscal, y abona todo contra la cuenta por pagar. Que el
  * IGV vaya a la 40111 y no a la 20 es la diferencia entre un inventario
  * correcto y uno inflado en un 18 %.
+ *
+ * El haber se abre por acreedor. Antes iba entero al proveedor del exterior, y
+ * eso dejaba la factura del agente de aduanas cargada a la cuenta del
+ * exportador: el saldo del agente quedaba en cero y el del exportador inflado,
+ * así que al pagar no cuadraba ninguno de los dos. Cada gasto con proveedor
+ * propio abona al suyo; el FOB y los gastos sin proveedor, al del embarque.
  */
 function lineasDelAsiento(
+  cuentas: Cuentas,
   liquidacion: dominio.Liquidacion,
-  proveedorId: string,
+  deudaPorProveedor: ReadonlyMap<string, Dec>,
 ): LineaAsientoEntrada[] {
   const lineas: LineaAsientoEntrada[] = [
     {
-      cuenta: "20111",
+      cuenta: cuentas.get("existencias"),
       glosa: "Mercadería importada al costo",
       debe: txt2(liquidacion.costoTotal),
     },
@@ -447,33 +523,33 @@ function lineasDelAsiento(
 
   for (const n of liquidacion.noCosto) {
     lineas.push({
-      cuenta: cuentaNoCosto(n.concepto),
+      cuenta: cuentaNoCosto(cuentas, n.concepto),
       glosa: n.concepto,
       debe: txt2(n.importe),
     });
   }
 
-  const totalDebe = liquidacion.noCosto.reduce<Dec>(
-    (acc, n) => money.add(acc, n.importe),
-    liquidacion.costoTotal,
-  );
-
-  lineas.push({
-    cuenta: "4212",
-    glosa: "Proveedores del exterior y gastos de importación",
-    haber: txt2(totalDebe),
-    anexoId: proveedorId,
-  });
+  for (const [proveedorId, importe] of deudaPorProveedor) {
+    if (money.isZero(importe)) continue;
+    lineas.push({
+      cuenta: cuentas.get("proveedores"),
+      glosa: "Proveedores del exterior y gastos de importación",
+      haber: txt2(importe),
+      anexoId: proveedorId,
+    });
+  }
 
   return lineas;
 }
 
 /** Cuenta de destino de los conceptos que no son costo. */
-function cuentaNoCosto(concepto: string): string {
+function cuentaNoCosto(cuentas: Cuentas, concepto: string): string {
   const c = concepto.toLowerCase();
+  // La percepción tiene cuenta propia y no es crédito fiscal: es un pago a
+  // cuenta del IGV que se aplica después, así que no se configura junto al IGV.
   if (c.includes("percepción") || c.includes("percepcion")) return "40113";
   // IGV, IPM y cualquier otro tributo recuperable comparten la cuenta propia.
-  return "40111";
+  return cuentas.get("igv_compras");
 }
 
 // ─── Consultas ────────────────────────────────────────────────────────────

@@ -21,10 +21,13 @@ import { money, tributario, inventario as kardex } from "@roulterp/core";
 import { schema as s, type Db } from "@roulterp/db";
 import { registrarMovimiento } from "./inventario.ts";
 import { asentar, type LineaAsientoEntrada } from "./contabilidad.ts";
+import { cuentasDe, type Cuentas } from "./parametros.ts";
+import { siguienteNumero } from "./correlativos.ts";
+import { ErrorDeNegocio } from "@roulterp/core";
 
 const {
   ordenesCompra, ordenCompraItems, compras, compraItems,
-  documentosCxp, productos, terceros, almacenes, reglasDetraccion, empresas,
+  documentosCxp, productos, terceros, reglasDetraccion, empresas,
 } = s;
 
 type Dec = money.Dec;
@@ -32,17 +35,17 @@ const dec = (v: string | null | undefined): Dec => money.dec(v ?? "0");
 const txt = (v: Dec, d = 6): string => money.toString(v, d);
 const txt2 = (v: Dec): string => money.toString(v, 2);
 
-export class CompraInvalida extends Error {
-  constructor(readonly motivos: readonly string[]) {
-    super(motivos.join("; "));
-    this.name = "CompraInvalida";
+export class CompraInvalida extends ErrorDeNegocio {
+  constructor(motivos: readonly string[]) {
+    super(motivos, "CompraInvalida");
   }
 }
 
 // ─── Órdenes de compra ────────────────────────────────────────────────────
 
 export type LineaOrden = {
-  productoId: string;
+  /** Opcional: se ordenan servicios igual que bienes. */
+  productoId?: string;
   descripcion: string;
   cantidad: string;
   valorUnitario: string;
@@ -51,7 +54,8 @@ export type LineaOrden = {
 };
 
 export type DatosOrden = {
-  numero: string;
+  /** Si falta, se numera solo: OC2026-000001. */
+  numero?: string;
   proveedorId: string;
   almacenId?: string;
   fecha: string;
@@ -73,6 +77,9 @@ export async function crearOrden(
     throw new CompraInvalida(["una orden de compra necesita al menos una línea"]);
   }
   await exigirProveedor(db, datos.proveedorId);
+  const numero =
+    datos.numero ??
+    (await siguienteNumero(db, ordenesCompra, ordenesCompra.numero, "OC", datos.fecha.slice(0, 4)));
 
   const totales = tributario.totalizar(
     datos.lineas.map((l) => ({
@@ -87,7 +94,7 @@ export async function crearOrden(
     .insert(ordenesCompra)
     .values({
       empresaId,
-      numero: datos.numero,
+      numero,
       proveedorId: datos.proveedorId,
       almacenId: datos.almacenId ?? null,
       fecha: datos.fecha,
@@ -108,7 +115,7 @@ export async function crearOrden(
       empresaId,
       ordenId: cab!.id,
       linea: i + 1,
-      productoId: l.productoId,
+      productoId: l.productoId ?? null,
       descripcion: l.descripcion,
       cantidad: l.cantidad,
       valorUnitario: l.valorUnitario,
@@ -377,7 +384,7 @@ export async function registrarCompra(
     tipoCambio: datos.tipoCambio,
     origenModulo: "compras",
     origenId: compraId,
-    lineas: lineasAsiento(datos, totales, detraccion, proveedor.id),
+    lineas: lineasAsiento(await cuentasDe(db), datos, totales, proveedor.id),
   });
 
   await db.update(compras).set({ asientoId }).where(eq(compras.id, compraId));
@@ -427,9 +434,9 @@ export async function registrarCompra(
  * lo que se le debe.
  */
 function lineasAsiento(
+  cuentas: Cuentas,
   datos: DatosCompra,
   totales: tributario.TotalesComprobante,
-  detraccion: { aplica: boolean; monto: Dec } | null,
   proveedorId: string,
 ): LineaAsientoEntrada[] {
   const lineas: LineaAsientoEntrada[] = [];
@@ -441,7 +448,7 @@ function lineasAsiento(
   datos.lineas.forEach((l, i) => {
     // Con producto, la cuenta de existencias; sin él, la que indicó el usuario
     // (ya validada más arriba como obligatoria).
-    const cuenta = l.cuenta ?? "20111";
+    const cuenta = l.cuenta ?? cuentas.get("existencias");
     const clave = `${cuenta}|${l.centroCostoId ?? ""}`;
     const previo = grupos.get(clave);
     grupos.set(clave, {
@@ -462,11 +469,15 @@ function lineasAsiento(
   }
 
   if (!money.isZero(totales.igv)) {
-    lineas.push({ cuenta: "40111", glosa: "IGV crédito fiscal", debe: txt2(totales.igv) });
+    lineas.push({
+      cuenta: cuentas.get("igv_compras"),
+      glosa: "IGV crédito fiscal",
+      debe: txt2(totales.igv),
+    });
   }
 
   lineas.push({
-    cuenta: "4212",
+    cuenta: cuentas.get("proveedores"),
     glosa: "Proveedor",
     haber: txt2(totales.total),
     anexoId: proveedorId,

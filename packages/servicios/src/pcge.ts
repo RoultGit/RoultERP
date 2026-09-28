@@ -62,6 +62,15 @@ export const PCGE: readonly CuentaSemilla[] = [
   d("1233", "En descuento", conTercero),
   d("1234", "En cobranza", conTercero),
 
+  // Entregas a rendir: dinero que salió de caja y todavía no es gasto. Sin
+  // estas cuentas el adelanto para un viaje se registraba como gasto el día que
+  // salía, y el gasto del mes aparecía en el mes equivocado.
+  d("14", "Cuentas por cobrar al personal, a los accionistas y directores"),
+  d("141", "Personal"),
+  d("1412", "Entregas a rendir cuenta", mov),
+  d("142", "Accionistas (o socios)"),
+  d("1422", "Entregas a rendir cuenta", mov),
+
   d("16", "Cuentas por cobrar diversas — terceros"),
   d("1673", "Préstamos y otros", { ...mov, exigeAnexo: true }),
 
@@ -102,6 +111,18 @@ export const PCGE: readonly CuentaSemilla[] = [
   a("4231", "No vencidas", conTercero),
   a("4232", "Vencidas", conTercero),
 
+  a("4031", "ESSALUD", mov),
+  a("4032", "ONP", mov),
+  a("4071", "Administradoras de fondos de pensiones", mov),
+
+  // ── Planilla ──────────────────────────────────────────────────────────
+  // Sin estas cuentas una empresa con trabajadores no puede asentar su
+  // planilla, que es el gasto que toda empresa tiene todos los meses.
+  a("41", "Remuneraciones y participaciones por pagar"),
+  a("4111", "Sueldos y salarios por pagar", mov),
+  a("4114", "Gratificaciones por pagar", mov),
+  a("4151", "Compensación por tiempo de servicios", mov),
+
   a("46", "Cuentas por pagar diversas — terceros"),
   a("4699", "Otras cuentas por pagar", { ...mov, exigeAnexo: true }),
 
@@ -130,6 +151,12 @@ export const PCGE: readonly CuentaSemilla[] = [
   d("611", "Mercaderías"),
   d("6111", "Mercaderías manufacturadas", mov),
 
+  d("62", "Gastos de personal, directores y gerentes"),
+  d("6211", "Sueldos y salarios", { ...mov, exigeCentroCosto: true }),
+  d("6214", "Gratificaciones", { ...mov, exigeCentroCosto: true }),
+  d("6271", "Régimen de prestaciones de salud", { ...mov, exigeCentroCosto: true }),
+  d("6291", "Compensación por tiempo de servicios", { ...mov, exigeCentroCosto: true }),
+
   d("63", "Gastos de servicios prestados por terceros"),
   d("6311", "Transporte de carga", { ...mov, exigeCentroCosto: true }),
   d("634", "Mantenimiento y reparaciones", { ...mov, exigeCentroCosto: true }),
@@ -154,6 +181,11 @@ export const PCGE: readonly CuentaSemilla[] = [
   // determina partida por partida, no por el neto.
   d("676", "Diferencia de cambio", mov),
 
+  d("68", "Valuación y deterioro de activos y provisiones"),
+  d("68141", "Depreciación de edificaciones", { ...mov, exigeCentroCosto: true }),
+  d("68142", "Depreciación de maquinaria y equipo", { ...mov, exigeCentroCosto: true }),
+  d("6861", "Amortización de intangibles", { ...mov, exigeCentroCosto: true }),
+
   d("69", "Costo de ventas"),
   d("691", "Mercaderías"),
   d("69111", "Terceros", mov),
@@ -169,7 +201,46 @@ export const PCGE: readonly CuentaSemilla[] = [
   a("759", "Otros ingresos de gestión", mov),
 
   a("77", "Ingresos financieros"),
+  // Los intereses que cobra la empresa: refinanciar una letra a un cliente
+  // genera ingreso financiero, no menos gasto.
+  a("7721", "Intereses sobre cuentas por cobrar comerciales", mov),
   a("776", "Diferencia de cambio", mov),
+
+  /*
+   * Cargas imputables a cuenta de costos y gastos.
+   *
+   * Es la contrapartida del asiento de destino: se abona por el total de los
+   * gastos de la clase 6 que se reclasifican en la clase 9. Su saldo y el de
+   * toda la clase 9 se anulan entre sí, de modo que el resultado del ejercicio
+   * no cambia: lo único que cambia es cómo se presenta.
+   */
+  a("79", "Cargas imputables a cuenta de costos y gastos"),
+  a("791", "Cargas imputables a cuenta de costos y gastos", mov),
+
+  // ── Elemento 9: contabilidad analítica de explotación ─────────────────
+  //
+  // El estado de resultados **por función** sale de aquí. El PCGE presenta los
+  // gastos por naturaleza en la clase 6; para saber cuánto costó vender y
+  // cuánto administrar hace falta reclasificarlos, y eso es lo que hace el
+  // asiento de destino.
+  // Se usan las cuentas que la práctica peruana tiene asentadas, una por
+  // función y sin sinónimos: dos cuentas para lo mismo sólo sirven para que
+  // medio año de gastos acabe en la equivocada.
+  d("92", "Costo de producción"),
+  d("921", "Costo de producción", mov),
+  d("94", "Gastos de administración"),
+  d("941", "Gastos de administración", mov),
+  d("95", "Gastos de ventas"),
+  d("951", "Gastos de ventas", mov),
+  d("97", "Gastos financieros"),
+  d("971", "Gastos financieros", mov),
+
+  // ── Elemento 8: saldos intermediarios de gestión ──────────────────────
+  // Sólo se mueven al cerrar el ejercicio: recogen el saldo de las cuentas de
+  // resultado y lo trasladan a patrimonio. Fuera del cierre están en cero.
+  d("89", "Determinación del resultado del ejercicio"),
+  a("891", "Utilidad", mov),
+  d("892", "Pérdida", mov),
 ];
 
 /** Nivel derivado de la longitud del código, como manda el propio PCGE. */

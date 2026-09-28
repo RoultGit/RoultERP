@@ -230,11 +230,27 @@ describe("credenciales SOL", () => {
 describe("estado de preparación para emitir", () => {
   test("una empresa recién creada enumera todo lo que le falta", async () => {
     const r = await con((db) => listaParaEmitir(db, empresaId, KEK));
-    assert.equal(r.lista, false);
-    assert.equal(r.faltantes.length, 3, "certificado, credenciales y serie");
-    assert.ok(r.faltantes.some((f) => /certificado digital/.test(f)));
-    assert.ok(r.faltantes.some((f) => /clave SOL/.test(f)));
-    assert.ok(r.faltantes.some((f) => /serie de facturación/.test(f)));
+    assert.equal(r.puedeEmitir, false);
+    assert.equal(r.puedeEnviar, false);
+    assert.deepEqual(r.faltantesEmision.length, 1, "sólo la serie impide emitir");
+    assert.ok(r.faltantesEmision.some((f) => /serie de facturación/.test(f)));
+    assert.equal(r.faltantesEnvio.length, 2, "certificado y credenciales impiden enviar");
+    assert.ok(r.faltantesEnvio.some((f) => /certificado digital/.test(f)));
+    assert.ok(r.faltantesEnvio.some((f) => /clave SOL/.test(f)));
+  });
+
+  test("con serie pero sin certificado se puede emitir, no enviar", async () => {
+    // Es el estado de toda empresa recién dada de alta mientras tramita su
+    // certificado, y tiene que poder facturar: el comprobante se numera, mueve
+    // el almacén y se contabiliza; el envío espera.
+    await raw`
+      INSERT INTO series_documento (empresa_id, tipo_documento, serie)
+      VALUES (${empresaId}, '01', 'F001')`;
+
+    const r = await con((db) => listaParaEmitir(db, empresaId, KEK));
+    assert.equal(r.puedeEmitir, true, JSON.stringify(r.faltantesEmision));
+    assert.equal(r.puedeEnviar, false);
+    assert.ok(r.faltantesEnvio.some((f) => /certificado digital/.test(f)));
   });
 
   test("con todo configurado queda lista, y avisa de que está en pruebas", async () => {
@@ -254,7 +270,8 @@ describe("estado de preparación para emitir", () => {
       VALUES (${empresaId}, '01', 'F001')`;
 
     const r = await con((db) => listaParaEmitir(db, empresaId, KEK));
-    assert.equal(r.lista, true, JSON.stringify(r.faltantes));
+    assert.equal(r.puedeEmitir, true, JSON.stringify(r.faltantesEmision));
+    assert.equal(r.puedeEnviar, true, JSON.stringify(r.faltantesEnvio));
     assert.ok(r.avisos.some((a) => /entorno de pruebas/.test(a)));
   });
 
@@ -264,8 +281,8 @@ describe("estado de preparación para emitir", () => {
       cargarCertificado(db, empresaId, usuarioId, pfxDe(cert), CLAVE_PFX, KEK, "test"),
     );
     const r = await con((db) => listaParaEmitir(db, empresaId, new Uint8Array(32).fill(7)));
-    assert.equal(r.lista, false);
-    assert.ok(r.faltantes.some((f) => /no se puede usar/.test(f)));
+    assert.equal(r.puedeEnviar, false);
+    assert.ok(r.faltantesEnvio.some((f) => /no se puede usar/.test(f)));
   });
 });
 

@@ -18,11 +18,12 @@
  *    exactamente lo que hace un contador a mano y lo que Starsoft llama
  *    «recalcular kardex».
  */
-import { and, asc, eq, gt, or, sql } from "drizzle-orm";
+import { and, asc, eq, gt, sql } from "drizzle-orm";
 import { money, inventario as kardex } from "@roulterp/core";
 import { schema as s, type Db } from "@roulterp/db";
+import { ErrorDeNegocio } from "@roulterp/core";
 
-const { movimientosInventario, saldosInventario, almacenes, productos, empresas } = s;
+const { movimientosInventario, saldosInventario, almacenes, productos, empresas, lotes } = s;
 
 type Dec = money.Dec;
 
@@ -57,10 +58,9 @@ export type MovimientoRegistrado = {
   recalculado: boolean;
 };
 
-export class InventarioInvalido extends Error {
+export class InventarioInvalido extends ErrorDeNegocio {
   constructor(motivo: string) {
-    super(motivo);
-    this.name = "InventarioInvalido";
+    super(motivo, "InventarioInvalido");
   }
 }
 
@@ -285,25 +285,82 @@ export async function recalcular(
   return { estado, lineas, porMovimiento };
 }
 
-/** Kardex de un producto en un almacén, para la pantalla y para el PLE 13.1. */
+/** Una línea del kardex, con el documento que la causó. */
+export type LineaKardexDe = {
+  id: string;
+  fecha: string;
+  orden: number;
+  sentido: string;
+  tipoOperacion: string;
+  cantidad: string;
+  costoUnitario: string;
+  importeTotal: string;
+  consumos: unknown;
+  lote: string | null;
+  serie: string | null;
+  origenModulo: string | null;
+  origenId: string | null;
+  /** Código del catálogo 1 de SUNAT, cuando el origen es un comprobante. */
+  refTipo: string | null;
+  /** Serie y número, o el número de la nota o de la liquidación. */
+  refDocumento: string | null;
+  /** A quién se le compró o vendió. */
+  tercero: string | null;
+};
+
+/**
+ * Kardex de un producto en un almacén, para la pantalla y para el PLE 13.1.
+ *
+ * Trae además la **referencia**: el documento que causó cada movimiento y el
+ * tercero. Sin ella, una salida es una cantidad y una fecha, y cuando el saldo
+ * no cuadra con el conteo físico no hay por dónde empezar a buscar; con ella se
+ * va a la factura y se pregunta. Es la columna que Starsoft imprime y la que el
+ * almacenero usa de verdad.
+ *
+ * El origen se resuelve por módulo. Los movimientos de kits apuntan a su nota
+ * de almacén, igual que las notas manuales, así que comparten el mismo enlace.
+ */
 export async function kardexDe(
   db: Db,
   almacenId: string,
   productoId: string,
   rango?: { desde?: string; hasta?: string },
-) {
-  const condiciones = [
-    eq(movimientosInventario.almacenId, almacenId),
-    eq(movimientosInventario.productoId, productoId),
-  ];
-  if (rango?.desde) condiciones.push(sql`${movimientosInventario.fecha} >= ${rango.desde}`);
-  if (rango?.hasta) condiciones.push(sql`${movimientosInventario.fecha} <= ${rango.hasta}`);
+): Promise<LineaKardexDe[]> {
+  const desde = rango?.desde ? sql` AND m.fecha >= ${rango.desde}` : sql``;
+  const hasta = rango?.hasta ? sql` AND m.fecha <= ${rango.hasta}` : sql``;
 
-  return db
-    .select()
-    .from(movimientosInventario)
-    .where(and(...condiciones))
-    .orderBy(asc(movimientosInventario.fecha), asc(movimientosInventario.orden));
+  const filas = await db.execute(sql`
+    SELECT m.id, m.fecha::text AS fecha, m.orden, m.sentido,
+           m.tipo_operacion  AS "tipoOperacion",
+           m.cantidad::text  AS cantidad,
+           m.costo_unitario::text AS "costoUnitario",
+           m.importe_total::text  AS "importeTotal",
+           m.consumos, m.lote, m.serie,
+           m.origen_modulo AS "origenModulo",
+           m.origen_id     AS "origenId",
+           coalesce(cp.tipo_documento, cv.tipo_documento) AS "refTipo",
+           coalesce(
+             cp.serie || '-' || cp.numero,
+             cv.serie || '-' || cv.numero,
+             na.tipo || ' ' || na.numero,
+             li.numero
+           ) AS "refDocumento",
+           coalesce(tp.razon_social, tc.razon_social, tn.razon_social, ti.razon_social) AS tercero
+    FROM movimientos_inventario m
+    LEFT JOIN compras cp      ON m.origen_modulo = 'compras'       AND cp.id = m.origen_id
+    LEFT JOIN terceros tp     ON tp.id = cp.proveedor_id
+    LEFT JOIN comprobantes cv ON m.origen_modulo = 'ventas'        AND cv.id = m.origen_id
+    LEFT JOIN terceros tc     ON tc.id = cv.cliente_id
+    LEFT JOIN notas_almacen na ON m.origen_modulo IN ('notas_almacen', 'kits')
+                              AND na.id = m.origen_id
+    LEFT JOIN terceros tn     ON tn.id = na.tercero_id
+    LEFT JOIN liquidaciones li ON m.origen_modulo = 'importaciones' AND li.id = m.origen_id
+    LEFT JOIN importaciones im ON im.id = li.importacion_id
+    LEFT JOIN terceros ti     ON ti.id = im.proveedor_id
+    WHERE m.almacen_id = ${almacenId} AND m.producto_id = ${productoId}${desde}${hasta}
+    ORDER BY m.fecha, m.orden`);
+
+  return filas as unknown as LineaKardexDe[];
 }
 
 /** Existencias valorizadas de un almacén. Cuadra contra la cuenta 20. */
@@ -431,7 +488,7 @@ function valoresFila(
 
 async function guardarSaldo(
   db: Db,
-  empresaId: string,
+  _empresaId: string,
   e: EntradaMovimiento,
   estado: kardex.EstadoKardex,
   movimientoId: string,
@@ -462,7 +519,13 @@ async function guardarSaldo(
  */
 async function exigirProductoAlmacen(db: Db, e: EntradaMovimiento): Promise<void> {
   const [prod] = await db
-    .select({ tipo: productos.tipo, activo: productos.activo, codigo: productos.codigo })
+    .select({
+      tipo: productos.tipo,
+      activo: productos.activo,
+      codigo: productos.codigo,
+      controlLote: productos.controlLote,
+      controlSerie: productos.controlSerie,
+    })
     .from(productos)
     .where(eq(productos.id, e.productoId))
     .limit(1);
@@ -470,6 +533,49 @@ async function exigirProductoAlmacen(db: Db, e: EntradaMovimiento): Promise<void
   if (!prod.activo) throw new InventarioInvalido(`el producto ${prod.codigo} está dado de baja`);
   if (prod.tipo !== "bien") {
     throw new InventarioInvalido(`${prod.codigo} es un servicio y no lleva kardex`);
+  }
+
+  /*
+   * Trazabilidad por lote y por serie.
+   *
+   * Las columnas existían desde el principio y nadie las obligaba: un producto
+   * marcado «controla lote» se movía sin lote y la trazabilidad quedaba en una
+   * intención. Se comprueba aquí, que es por donde pasan todos los módulos —
+   * compras, ventas, notas, kits, importaciones—, y no en cada uno de ellos.
+   */
+  if (prod.controlLote && !e.lote?.trim()) {
+    throw new InventarioInvalido(`${prod.codigo} se controla por lote: indique el lote`);
+  }
+  if (prod.controlSerie) {
+    if (!e.serie?.trim()) {
+      throw new InventarioInvalido(`${prod.codigo} se controla por serie: indique la serie`);
+    }
+    // Una serie identifica una unidad concreta. Dos unidades con la misma serie
+    // no son dos unidades: son un error de captura.
+    if (!money.eq(e.cantidad, money.dec("1"))) {
+      throw new InventarioInvalido(
+        `${prod.codigo} se controla por serie: cada movimiento es de una unidad`,
+      );
+    }
+    const enStock = await serieEnStock(db, e.productoId, e.serie.trim());
+    if (e.sentido === "ingreso" && enStock) {
+      throw new InventarioInvalido(
+        `la serie ${e.serie.trim()} de ${prod.codigo} ya está en el almacén`,
+      );
+    }
+    if (e.sentido === "salida" && !enStock) {
+      throw new InventarioInvalido(
+        `la serie ${e.serie.trim()} de ${prod.codigo} no está en ningún almacén`,
+      );
+    }
+  }
+  if (prod.controlLote && e.sentido === "salida") {
+    const disponible = await saldoDeLote(db, e.almacenId, e.productoId, e.lote!.trim());
+    if (money.gt(e.cantidad, disponible)) {
+      throw new InventarioInvalido(
+        `el lote ${e.lote!.trim()} de ${prod.codigo} sólo tiene ${txt(disponible)} disponibles`,
+      );
+    }
   }
 
   const [alm] = await db
@@ -482,3 +588,183 @@ async function exigirProductoAlmacen(db: Db, e: EntradaMovimiento): Promise<void
 }
 
 export { kardex };
+
+// ─── Trazabilidad por lote y por serie ────────────────────────────────────
+
+/**
+ * Saldo de un lote en un almacén.
+ *
+ * Se deriva de los movimientos y no se guarda: un saldo almacenado en dos
+ * sitios acaba siendo dos saldos distintos, y aquí el kardex ya es la verdad.
+ */
+export async function saldoDeLote(
+  db: Db,
+  almacenId: string,
+  productoId: string,
+  lote: string,
+): Promise<Dec> {
+  const [fila] = (await db.execute(sql`
+    SELECT coalesce(sum(CASE WHEN sentido = 'ingreso' THEN cantidad ELSE -cantidad END), 0)::text
+             AS saldo
+    FROM movimientos_inventario
+    WHERE almacen_id = ${almacenId} AND producto_id = ${productoId} AND lote = ${lote}`)) as unknown as [
+    { saldo: string },
+  ];
+  return money.dec(fila?.saldo ?? "0");
+}
+
+/** ¿Esa serie está ahora mismo en algún almacén? */
+export async function serieEnStock(
+  db: Db,
+  productoId: string,
+  serie: string,
+): Promise<boolean> {
+  const [fila] = (await db.execute(sql`
+    SELECT coalesce(sum(CASE WHEN sentido = 'ingreso' THEN 1 ELSE -1 END), 0)::text AS saldo
+    FROM movimientos_inventario
+    WHERE producto_id = ${productoId} AND serie = ${serie}`)) as unknown as [{ saldo: string }];
+  return Number(fila?.saldo ?? "0") > 0;
+}
+
+/**
+ * Existencias abiertas por lote, con su vencimiento.
+ *
+ * Es el reporte que justifica todo el control: qué hay, dónde, y cuánto le
+ * queda antes de caducar.
+ */
+export async function existenciasPorLote(
+  db: Db,
+  filtro?: { almacenId?: string; productoId?: string; venceAntesDe?: string },
+) {
+  const cond = [sql`m.lote IS NOT NULL`];
+  if (filtro?.almacenId) cond.push(sql`m.almacen_id = ${filtro.almacenId}`);
+  if (filtro?.productoId) cond.push(sql`m.producto_id = ${filtro.productoId}`);
+  const donde = cond.reduce((a, c) => sql`${a} AND ${c}`);
+  const vence = filtro?.venceAntesDe
+    ? sql`AND l.fecha_vencimiento IS NOT NULL AND l.fecha_vencimiento <= ${filtro.venceAntesDe}`
+    : sql``;
+
+  const filas = (await db.execute(sql`
+    SELECT p.codigo, p.descripcion, a.nombre AS almacen, m.almacen_id, m.producto_id,
+           m.lote, l.fecha_vencimiento, l.fecha_fabricacion,
+           sum(CASE WHEN m.sentido = 'ingreso' THEN m.cantidad ELSE -m.cantidad END)::text
+             AS cantidad,
+           sum(CASE WHEN m.sentido = 'ingreso' THEN m.importe_total ELSE -m.importe_total END)::text
+             AS valor
+    FROM movimientos_inventario m
+    JOIN productos p ON p.id = m.producto_id
+    JOIN almacenes a ON a.id = m.almacen_id
+    LEFT JOIN lotes l ON l.producto_id = m.producto_id AND l.codigo = m.lote
+    WHERE ${donde}
+    GROUP BY p.codigo, p.descripcion, a.nombre, m.almacen_id, m.producto_id, m.lote,
+             l.fecha_vencimiento, l.fecha_fabricacion
+    HAVING sum(CASE WHEN m.sentido = 'ingreso' THEN m.cantidad ELSE -m.cantidad END) > 0
+    ${vence}
+    ORDER BY l.fecha_vencimiento NULLS LAST, p.codigo, m.lote`)) as unknown as {
+    codigo: string;
+    descripcion: string;
+    almacen: string;
+    almacen_id: string;
+    producto_id: string;
+    lote: string;
+    fecha_vencimiento: string | null;
+    fecha_fabricacion: string | null;
+    cantidad: string;
+    valor: string;
+  }[];
+  return [...filas];
+}
+
+/** Series en stock, para saber qué unidad concreta está dónde. */
+export async function seriesEnStock(
+  db: Db,
+  filtro?: { almacenId?: string; productoId?: string },
+) {
+  const cond = [sql`m.serie IS NOT NULL`];
+  if (filtro?.almacenId) cond.push(sql`m.almacen_id = ${filtro.almacenId}`);
+  if (filtro?.productoId) cond.push(sql`m.producto_id = ${filtro.productoId}`);
+  const donde = cond.reduce((a, c) => sql`${a} AND ${c}`);
+
+  const filas = (await db.execute(sql`
+    SELECT p.codigo, p.descripcion, a.nombre AS almacen, m.serie, m.lote,
+           max(m.fecha) AS ultima_fecha
+    FROM movimientos_inventario m
+    JOIN productos p ON p.id = m.producto_id
+    JOIN almacenes a ON a.id = m.almacen_id
+    WHERE ${donde}
+    GROUP BY p.codigo, p.descripcion, a.nombre, m.serie, m.lote
+    HAVING sum(CASE WHEN m.sentido = 'ingreso' THEN 1 ELSE -1 END) > 0
+    ORDER BY p.codigo, m.serie`)) as unknown as {
+    codigo: string;
+    descripcion: string;
+    almacen: string;
+    serie: string;
+    lote: string | null;
+    ultima_fecha: string;
+  }[];
+  return [...filas];
+}
+
+export type DatosLote = {
+  productoId: string;
+  codigo: string;
+  fechaFabricacion?: string;
+  fechaVencimiento?: string;
+  observaciones?: string;
+};
+
+/** Alta o actualización de un lote: sólo las fechas, que el kardex no sabe. */
+export async function guardarLote(
+  db: Db,
+  empresaId: string,
+  usuarioId: string,
+  datos: DatosLote,
+): Promise<string> {
+  if (!datos.codigo.trim()) throw new InventarioInvalido("el lote necesita un código");
+  if (
+    datos.fechaFabricacion &&
+    datos.fechaVencimiento &&
+    datos.fechaVencimiento < datos.fechaFabricacion
+  ) {
+    throw new InventarioInvalido("el vencimiento no puede ser anterior a la fabricación");
+  }
+
+  const [fila] = await db
+    .insert(lotes)
+    .values({
+      empresaId,
+      productoId: datos.productoId,
+      codigo: datos.codigo.trim(),
+      fechaFabricacion: datos.fechaFabricacion ?? null,
+      fechaVencimiento: datos.fechaVencimiento ?? null,
+      observaciones: datos.observaciones ?? null,
+      creadoPor: usuarioId,
+    })
+    .onConflictDoUpdate({
+      target: [lotes.productoId, lotes.codigo],
+      set: {
+        fechaFabricacion: datos.fechaFabricacion ?? null,
+        fechaVencimiento: datos.fechaVencimiento ?? null,
+        observaciones: datos.observaciones ?? null,
+      },
+    })
+    .returning({ id: lotes.id });
+  return fila!.id;
+}
+
+export const listarLotes = (db: Db, productoId?: string) =>
+  db
+    .select({
+      id: lotes.id,
+      productoId: lotes.productoId,
+      codigo: lotes.codigo,
+      producto: productos.codigo,
+      descripcion: productos.descripcion,
+      fechaFabricacion: lotes.fechaFabricacion,
+      fechaVencimiento: lotes.fechaVencimiento,
+      observaciones: lotes.observaciones,
+    })
+    .from(lotes)
+    .innerJoin(productos, eq(productos.id, lotes.productoId))
+    .where(productoId ? eq(lotes.productoId, productoId) : sql`true`)
+    .orderBy(sql`${lotes.fechaVencimiento} NULLS LAST`, productos.codigo, lotes.codigo);

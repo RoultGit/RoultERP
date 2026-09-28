@@ -501,7 +501,7 @@ describe("kardex", () => {
           await registrarMovimiento(db, empresaId, ingreso("2026-09-01", "10", "5"));
           await registrarMovimiento(db, empresaId, salida("2026-09-02", "11"));
         }),
-      /stock insuficiente/i,
+      /no hay stock suficiente: quedan .* y se piden /i,
     );
   });
 

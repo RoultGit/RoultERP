@@ -12,6 +12,8 @@ import { conectar, enEmpresa, migrar, type Conexion, type Db } from "@roulterp/d
 import { money } from "@roulterp/core";
 import {
   crearEmpresa, registrarCompra, registrarPago, canjearPorLetra, renovarLetra,
+  pagarLetra, protestarLetra, letrasPorVencer, programacionDeEgresos,
+  crearCuenta, cuentasConSaldo, movimientosDe, emitirRetencionDeLetra,
   listarPagos, listarLetras, documentosPorPagar, listarCxp,
   balanceComprobacion, PagoInvalido,
 } from "../src/index.ts";
@@ -510,5 +512,371 @@ describe("aislamiento", () => {
       (db) => listarPagos(db),
     );
     assert.deepEqual(desdeOtra, []);
+  });
+});
+
+// ─── Vencimiento de letras y programación de egresos ──────────────────────
+
+describe("vencimiento de letras", () => {
+  const canjeVencido = (documentoId: string, importe: string) => ({
+    numero: "LT-900",
+    cartera: "pagar" as const,
+    terceroId: proveedor,
+    // Giro y vencimiento en el mismo mes: el balance de comprobación es por
+    // periodo, y un canje de agosto no cuadraría dentro de septiembre.
+    fechaGiro: "2026-09-01",
+    fechaVencimiento: "2026-09-05",
+    moneda: "PEN",
+    documentos: [{ documentoId, importe }],
+  });
+
+  async function letraGirada(importe = "1180.00") {
+    const doc = await compra("0000900", "1000");
+    const r = await con((db) =>
+      canjearPorLetra(db, empresaId, usuarioId, canjeVencido(doc, importe)),
+    );
+    return r.letraId;
+  }
+
+  test("pagarla la cancela y deja el libro cuadrado", async () => {
+    const letraId = await letraGirada();
+    const r = await con((db) =>
+      pagarLetra(db, empresaId, usuarioId, { letraId, fecha: "2026-09-05" }),
+    );
+    assert.equal(s2(r.importe), "1180.00");
+    assert.equal(s2(r.saldo), "0.00");
+
+    const cartera = await con((db) => listarLetras(db, "pagar"));
+    assert.equal(cartera[0]!.estado, "cobrada", "la letra dejó de deber");
+
+    const balance = await con((db) => balanceComprobacion(db, "202609"));
+    const total = balance.reduce((a, b) => money.add(a, money.dec(b.saldo)), money.ZERO);
+    assert.equal(money.toString(total, 2), "0.00");
+    // La deuda salió de las letras por pagar.
+    assert.equal(s2(balance.find((b) => b.cuenta === "4231")!.saldo), "0.00");
+  });
+
+  test("se puede amortizar en parte", async () => {
+    const letraId = await letraGirada();
+    const r = await con((db) =>
+      pagarLetra(db, empresaId, usuarioId, { letraId, fecha: "2026-09-05", importe: "500.00" }),
+    );
+    assert.equal(s2(r.saldo), "680.00");
+    const cartera = await con((db) => listarLetras(db, "pagar"));
+    assert.equal(cartera[0]!.estado, "girada", "sigue viva mientras quede saldo");
+  });
+
+  test("no se paga más de lo que se debe", async () => {
+    const letraId = await letraGirada();
+    await assert.rejects(
+      () =>
+        con((db) =>
+          pagarLetra(db, empresaId, usuarioId, { letraId, fecha: "2026-09-05", importe: "2000" }),
+        ),
+      /se intenta pagar/,
+    );
+  });
+
+  test("una letra pagada no se paga dos veces", async () => {
+    const letraId = await letraGirada();
+    await con((db) => pagarLetra(db, empresaId, usuarioId, { letraId, fecha: "2026-09-05" }));
+    await assert.rejects(
+      () => con((db) => pagarLetra(db, empresaId, usuarioId, { letraId, fecha: "2026-09-06" })),
+      /ya está cobrada/,
+    );
+  });
+
+  test("el protesto reclasifica la deuda, no la cancela", async () => {
+    const letraId = await letraGirada();
+    await con((db) =>
+      protestarLetra(db, empresaId, usuarioId, { letraId, fecha: "2026-09-10" }),
+    );
+
+    const balance = await con((db) => balanceComprobacion(db, "202609"));
+    assert.equal(s2(balance.find((b) => b.cuenta === "4231")!.saldo), "0.00");
+    // La misma deuda, ahora en la divisionaria de vencidas.
+    assert.equal(s2(balance.find((b) => b.cuenta === "4232")!.saldo), "-1180.00");
+
+    const cartera = await con((db) => listarLetras(db, "pagar"));
+    assert.equal(cartera[0]!.estado, "protestada");
+    assert.equal(s2(cartera[0]!.saldo), "1180.00", "seguir debiéndola es el punto del protesto");
+  });
+
+  test("los gastos del protesto son gasto financiero", async () => {
+    const letraId = await letraGirada();
+    await con((db) =>
+      protestarLetra(db, empresaId, usuarioId, {
+        letraId, fecha: "2026-09-10", gastos: "45.00", motivo: "Falta de fondos",
+      }),
+    );
+    const balance = await con((db) => balanceComprobacion(db, "202609"));
+    assert.equal(s2(balance.find((b) => b.cuenta === "6373")!.saldo), "45.00");
+  });
+
+  test("una letra protestada se paga desde la cuenta de vencidas", async () => {
+    const letraId = await letraGirada();
+    await con((db) => protestarLetra(db, empresaId, usuarioId, { letraId, fecha: "2026-09-10" }));
+    await con((db) => pagarLetra(db, empresaId, usuarioId, { letraId, fecha: "2026-09-20" }));
+
+    const balance = await con((db) => balanceComprobacion(db, "202609"));
+    assert.equal(s2(balance.find((b) => b.cuenta === "4232")!.saldo), "0.00");
+    const total = balance.reduce((a, b) => money.add(a, money.dec(b.saldo)), money.ZERO);
+    assert.equal(money.toString(total, 2), "0.00");
+  });
+
+  test("no se protesta antes del vencimiento", async () => {
+    const letraId = await letraGirada();
+    await assert.rejects(
+      () => con((db) => protestarLetra(db, empresaId, usuarioId, { letraId, fecha: "2026-09-01" })),
+      /no se puede protestar antes/,
+    );
+  });
+
+  test("una letra pagada no se protesta", async () => {
+    const letraId = await letraGirada();
+    await con((db) => pagarLetra(db, empresaId, usuarioId, { letraId, fecha: "2026-09-05" }));
+    await assert.rejects(
+      () => con((db) => protestarLetra(db, empresaId, usuarioId, { letraId, fecha: "2026-09-10" })),
+      /una letra pagada no se protesta/,
+    );
+  });
+
+  test("la cartera por cobrar no se paga: se cobra", async () => {
+    const doc = await compra("0000901", "1000");
+    const r = await con((db) =>
+      canjearPorLetra(db, empresaId, usuarioId, canjeVencido(doc, "1180.00")),
+    );
+    await raw`UPDATE letras SET cartera = 'cobrar' WHERE id = ${r.letraId}`;
+    await assert.rejects(
+      () =>
+        con((db) => pagarLetra(db, empresaId, usuarioId, { letraId: r.letraId, fecha: "2026-09-05" })),
+      /se cobra, no se paga/,
+    );
+  });
+
+  test("las letras por vencer se listan de la más antigua a la más nueva", async () => {
+    await letraGirada();
+    const lista = await con((db) => letrasPorVencer(db, { hasta: "2026-12-31" }));
+    assert.equal(lista.length, 1);
+    assert.equal(lista[0]!.numero, "LT-900");
+    assert.equal(s2(lista[0]!.saldo), "1180.00");
+  });
+
+  test("una letra ya pagada sale de la lista de vencimientos", async () => {
+    const letraId = await letraGirada();
+    await con((db) => pagarLetra(db, empresaId, usuarioId, { letraId, fecha: "2026-09-05" }));
+    const lista = await con((db) => letrasPorVencer(db, { hasta: "2026-12-31" }));
+    assert.equal(lista.length, 0);
+  });
+});
+
+// ─── La letra, al pagarse ─────────────────────────────────────────────────
+
+describe("retención y caja al pagar una letra", () => {
+  const canje = (documentoId: string, importe: string) => ({
+    numero: `LT-RET-${Date.now().toString().slice(-6)}`,
+    cartera: "pagar" as const,
+    terceroId: proveedor,
+    fechaGiro: "2026-09-01",
+    fechaVencimiento: "2026-09-05",
+    moneda: "PEN",
+    documentos: [{ documentoId, importe }],
+  });
+
+  async function letra(importe = "1180.00") {
+    const doc = await compra(`00009${Date.now().toString().slice(-2)}`, "1000");
+    const r = await con((db) => canjearPorLetra(db, empresaId, usuarioId, canje(doc, importe)));
+    return r.letraId;
+  }
+
+  async function cuentaBanco() {
+    return con((db) =>
+      crearCuenta(db, empresaId, usuarioId, {
+        codigo: `BCO-${Date.now().toString().slice(-5)}`,
+        nombre: "Banco para letras",
+        tipo: "banco",
+        moneda: "PEN",
+        cuentaContable: "1041",
+        banco: "BBVA",
+        numeroCuenta: `0011-${Date.now().toString().slice(-10)}`,
+      }),
+    );
+  }
+
+  /**
+   * El agujero que esto cierra: el asiento decía que el banco se había movido y
+   * Caja y Bancos seguía marcando lo mismo. Con dos verdades sobre el mismo
+   * dinero, la conciliación bancaria no puede funcionar.
+   */
+  test("el pago llega a Caja y Bancos", async () => {
+    const cuentaId = await cuentaBanco();
+    const letraId = await letra();
+    await con((db) =>
+      pagarLetra(db, empresaId, usuarioId, {
+        letraId, fecha: "2026-09-05", cuentaEfectivoId: cuentaId, referencia: "OP-118",
+      }),
+    );
+
+    const movs = await con((db) => movimientosDe(db, cuentaId));
+    assert.equal(movs.length, 1);
+    assert.equal(s2(movs[0]!.importe), "1180.00");
+    assert.equal(movs[0]!.sentido, "egreso");
+    assert.equal(movs[0]!.referencia, "OP-118");
+
+    const cuenta = (await con((db) => cuentasConSaldo(db))).find((c) => c.id === cuentaId)!;
+    assert.equal(s2(cuenta.saldo), "-1180.00");
+  });
+
+  test("sin ser agente de retención no se retiene aunque se pida", async () => {
+    const letraId = await letra();
+    const r = await con((db) =>
+      pagarLetra(db, empresaId, usuarioId, { letraId, fecha: "2026-09-05", retenerIgv: true }),
+    );
+    assert.equal(r.retencion, "0.00");
+    assert.equal(r.importeNeto, "1180.00");
+  });
+
+  describe("siendo agente de retención", () => {
+    beforeEach(async () => {
+      await raw`UPDATE empresas SET es_agente_retencion = true WHERE id = ${empresaId}`;
+      await raw`
+        INSERT INTO series_documento (empresa_id, tipo_documento, serie, correlativo)
+        VALUES (${empresaId}, '20', 'R001', 0)
+        ON CONFLICT DO NOTHING`;
+    });
+
+    /**
+     * La norma manda retener al pagar la letra, no al canjearla: en el canje no
+     * se pagó nada. Por eso el 3 % aparece aquí y no dos meses antes.
+     */
+    test("retiene el 3 %: la letra se cancela entera y del banco sale el neto", async () => {
+      const cuentaId = await cuentaBanco();
+      const letraId = await letra();
+      const r = await con((db) =>
+        pagarLetra(db, empresaId, usuarioId, {
+          letraId, fecha: "2026-09-05", cuentaEfectivoId: cuentaId, retenerIgv: true,
+        }),
+      );
+
+      assert.equal(r.importe, "1180.00");
+      assert.equal(r.retencion, "35.40");
+      assert.equal(r.importeNeto, "1144.60");
+      assert.equal(s2(r.saldo), "0.00", "la letra queda cancelada por el bruto");
+
+      const balance = await con((db) => balanceComprobacion(db, "202609"));
+      const total = balance.reduce((a, b) => money.add(a, money.dec(b.saldo)), money.ZERO);
+      assert.equal(money.toString(total, 2), "0.00", "el asiento tiene que cuadrar");
+      assert.equal(s2(balance.find((b) => b.cuenta === "4231")!.saldo), "0.00");
+      assert.equal(s2(balance.find((b) => b.cuenta === "40114")!.saldo), "-35.40");
+
+      // Del banco sale el neto: la retención no cruza la cuenta.
+      const movs = await con((db) => movimientosDe(db, cuentaId));
+      assert.equal(s2(movs[0]!.importe), "1144.60");
+    });
+
+    test("el comprobante de retención acredita las facturas canjeadas", async () => {
+      const letraId = await letra();
+      const r = await con((db) =>
+        pagarLetra(db, empresaId, usuarioId, {
+          letraId, fecha: "2026-09-05", retenerIgv: true,
+        }),
+      );
+
+      const cre = await con((db) =>
+        emitirRetencionDeLetra(db, empresaId, usuarioId, {
+          letraPagoId: r.letraPagoId, serie: "R001",
+        }),
+      );
+      assert.equal(cre.importeTotal, "35.40");
+
+      const [item] = (await raw`
+        SELECT ri.serie, ri.numero, ri.importe::text AS importe, ri.letra_pago_id
+        FROM retencion_items ri WHERE ri.retencion_id = ${cre.id}`) as [
+        { serie: string; numero: string; importe: string; letra_pago_id: string },
+      ];
+      // Lo que el proveedor tiene que ver acreditado es su factura, no la letra:
+      // la letra es la forma de la deuda, no su origen.
+      assert.equal(item.serie, "F001");
+      assert.equal(s2(item.importe), "35.40");
+      assert.equal(item.letra_pago_id, r.letraPagoId);
+    });
+
+    test("no se emite dos veces el mismo comprobante", async () => {
+      const letraId = await letra();
+      const r = await con((db) =>
+        pagarLetra(db, empresaId, usuarioId, { letraId, fecha: "2026-09-05", retenerIgv: true }),
+      );
+      await con((db) =>
+        emitirRetencionDeLetra(db, empresaId, usuarioId, {
+          letraPagoId: r.letraPagoId, serie: "R001",
+        }),
+      );
+      await assert.rejects(
+        () =>
+          con((db) =>
+            emitirRetencionDeLetra(db, empresaId, usuarioId, {
+              letraPagoId: r.letraPagoId, serie: "R001",
+            }),
+          ),
+        /ya tiene su comprobante/,
+      );
+    });
+
+    test("un pago que no retuvo nada no tiene comprobante que emitir", async () => {
+      const letraId = await letra();
+      const r = await con((db) =>
+        pagarLetra(db, empresaId, usuarioId, { letraId, fecha: "2026-09-05" }),
+      );
+      await assert.rejects(
+        () =>
+          con((db) =>
+            emitirRetencionDeLetra(db, empresaId, usuarioId, {
+              letraPagoId: r.letraPagoId, serie: "R001",
+            }),
+          ),
+        /no retuvo nada/,
+      );
+    });
+  });
+});
+
+describe("programación de egresos", () => {
+  test("junta facturas y letras con su acumulado", async () => {
+    const doc = await compra("0000801", "1000");
+    await compra("0000802", "2000");
+    await con((db) =>
+      canjearPorLetra(db, empresaId, usuarioId, {
+        numero: "LT-800",
+        cartera: "pagar",
+        terceroId: proveedor,
+        fechaGiro: "2026-09-01",
+        fechaVencimiento: "2026-10-15",
+        moneda: "PEN",
+        documentos: [{ documentoId: doc, importe: "1180.00" }],
+      }),
+    );
+
+    const p = await con((db) => programacionDeEgresos(db, { hasta: "2027-12-31" }));
+    // La factura canjeada ya no está; en su lugar, la letra.
+    assert.equal(p.lineas.length, 2);
+    assert.deepEqual(p.lineas.map((l) => l.tipo).sort(), ["factura", "letra"]);
+    assert.equal(s2(p.total), "3540.00", "2360 de la factura más 1180 de la letra");
+
+    // El acumulado crece con cada línea: dice cuánta caja hace falta hasta esa
+    // fecha, no cuánto se debe en total.
+    assert.equal(s2(p.lineas.at(-1)!.acumulado), s2(p.total));
+  });
+
+  test("lo vencido se informa aparte", async () => {
+    await compra("0000803", "1000");
+    // La compra vence a 30 días de una fecha ya pasada, así que está vencida.
+    const p = await con((db) => programacionDeEgresos(db, { hasta: "2027-12-31" }));
+    assert.ok(Number(p.vencido) > 0, "hay deuda vencida y hay que decirlo");
+  });
+
+  test("no incluye lo que vence más allá del horizonte", async () => {
+    await compra("0000804", "1000");
+    const p = await con((db) => programacionDeEgresos(db, { hasta: "2020-01-01" }));
+    assert.equal(p.lineas.length, 0);
   });
 });

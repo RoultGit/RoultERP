@@ -16,21 +16,24 @@
  * El documento por cobrar nace al emitir el comprobante de venta; aquí sólo se
  * cobra, se canjea por letra y se consulta.
  */
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import { money, contabilidad } from "@roulterp/core";
 import { schema as s, type Db } from "@roulterp/db";
 import { asentar, type LineaAsientoEntrada } from "./contabilidad.ts";
+import { cuentasDe, type Cuentas } from "./parametros.ts";
+import { anotarMovimientoDeOtroModulo } from "./tesoreria.ts";
+import { ErrorDeNegocio } from "@roulterp/core";
+import { hoyEnPeru } from "@roulterp/core/fecha";
 
-const { comprobantes, terceros, letras, letraDocumentos, empresas } = s;
+const { comprobantes, terceros, letraDocumentos } = s;
 
 type Dec = money.Dec;
 const dec = (v: string | null | undefined): Dec => money.dec(v ?? "0");
 const txt2 = (v: Dec): string => money.toString(v, 2);
 
-export class CobranzaInvalida extends Error {
-  constructor(readonly motivos: readonly string[]) {
-    super(motivos.join("; "));
-    this.name = "CobranzaInvalida";
+export class CobranzaInvalida extends ErrorDeNegocio {
+  constructor(motivos: readonly string[]) {
+    super(motivos, "CobranzaInvalida");
   }
 }
 
@@ -49,11 +52,26 @@ export class CobranzaInvalida extends Error {
  * ahora vive en la letra. Esta expresión es la única definición del saldo; el
  * resto de consultas la reutilizan para que no puedan discrepar.
  */
-const SALDO = sql`(c.total
+/**
+ * Saldo vivo de un comprobante, con el alias `c`.
+ *
+ * Se exporta porque es la definición de «lo que este cliente todavía debe por
+ * este documento», y tenerla dos veces es tenerla mal una vez: una proyección
+ * que olvide restar lo canjeado por letras cuenta la misma deuda dos veces.
+ */
+export const SALDO_POR_COBRAR = sql`(c.total
   - coalesce((SELECT sum(ca.importe) FROM cobranza_aplicaciones ca
               WHERE ca.comprobante_id = c.id), 0)
   - coalesce((SELECT sum(ld.importe) FROM letra_documentos ld
-              WHERE ld.documento_id = c.id), 0))`;
+              WHERE ld.documento_id = c.id), 0)
+  -- Las notas modifican la deuda sin tocar el comprobante original: la de
+  -- crédito la reduce, la de débito la aumenta.
+  - coalesce((SELECT sum(n.total) FROM comprobantes n
+              WHERE n.modifica_a = c.id AND n.tipo_documento = '07'
+                AND n.estado NOT IN ('anulado', 'rechazado')), 0)
+  + coalesce((SELECT sum(n.total) FROM comprobantes n
+              WHERE n.modifica_a = c.id AND n.tipo_documento = '08'
+                AND n.estado NOT IN ('anulado', 'rechazado')), 0))`;
 
 export async function documentosPorCobrar(db: Db, clienteId?: string) {
   const filtro = clienteId ? sql`AND c.cliente_id = ${clienteId}` : sql``;
@@ -61,12 +79,12 @@ export async function documentosPorCobrar(db: Db, clienteId?: string) {
     SELECT c.id, c.cliente_id, t.razon_social AS cliente, t.numero_documento AS documento_cliente,
            c.tipo_documento, c.serie, c.numero, c.fecha_emision, c.fecha_vencimiento,
            c.moneda, c.tipo_cambio::text AS tipo_cambio, c.total::text AS total,
-           ${SALDO}::text AS saldo
+           ${SALDO_POR_COBRAR}::text AS saldo
     FROM comprobantes c
     JOIN terceros t ON t.id = c.cliente_id
     WHERE c.estado NOT IN ('anulado', 'rechazado')
       AND c.tipo_documento IN ('01', '03')
-      AND ${SALDO} > 0
+      AND ${SALDO_POR_COBRAR} > 0
       ${filtro}
     ORDER BY c.fecha_vencimiento NULLS LAST, c.fecha_emision`)) as unknown as {
     id: string;
@@ -101,6 +119,15 @@ export type DatosCobranza = {
   medioCobro: string;
   /** Cuenta contable donde entra el dinero: 1041 banco, 1011 caja… */
   cuentaDestino: string;
+  /**
+   * Cuenta de efectivo concreta a la que entra.
+   *
+   * Cuando se indica, la cobranza también aparece en Caja y Bancos y entra en
+   * la conciliación bancaria. Sin ella el asiento se hace igual, pero el
+   * tesorero no ve el ingreso: la contabilidad y la tesorería contarían cosas
+   * distintas sobre el mismo dinero.
+   */
+  cuentaEfectivoId?: string;
   aplicaciones: AplicacionCobranza[];
   referencia?: string;
 };
@@ -222,6 +249,23 @@ export async function registrarCobranza(
     });
   }
 
+  /*
+   * Si se eligió una cuenta de efectivo, manda su cuenta contable.
+   *
+   * Así no hay forma de que el asiento diga «entró al banco» y la tesorería
+   * anote el ingreso en la caja chica: la cuenta contable y la cuenta de
+   * efectivo salen de la misma elección del usuario.
+   */
+  const cuentaDestino = datos.cuentaEfectivoId
+    ? (
+        await db
+          .select({ cuentaContable: s.cuentasEfectivo.cuentaContable })
+          .from(s.cuentasEfectivo)
+          .where(eq(s.cuentasEfectivo.id, datos.cuentaEfectivoId))
+          .limit(1)
+      )[0]?.cuentaContable ?? datos.cuentaDestino
+    : datos.cuentaDestino;
+
   const periodo = datos.fecha.slice(0, 4) + datos.fecha.slice(5, 7);
   const asientoId = await asentar(db, empresaId, usuarioId, {
     periodo,
@@ -232,17 +276,32 @@ export async function registrarCobranza(
     tipoCambio: datos.tipoCambio,
     origenModulo: "cobranzas",
     origenId: cobranzaId,
-    lineas: lineasAsientoCobranza({
+    lineas: lineasAsientoCobranza(await cuentasDe(db), {
       importe: importeTotal,
       historico,
       diferencia: diferenciaTotal,
       tipoCambioCobro,
-      cuentaDestino: datos.cuentaDestino,
+      cuentaDestino,
       clienteId: datos.clienteId,
     }),
   });
 
   await db.update(s.cobranzas).set({ asientoId }).where(eq(s.cobranzas.id, cobranzaId));
+
+  if (datos.cuentaEfectivoId) {
+    await anotarMovimientoDeOtroModulo(db, empresaId, usuarioId, {
+      cuentaId: datos.cuentaEfectivoId,
+      fecha: datos.fecha,
+      sentido: "ingreso",
+      concepto: `Cobranza ${datos.numero} · ${cliente.razonSocial}`,
+      importe: txt2(importeTotal),
+      ...(datos.referencia ? { referencia: datos.referencia } : {}),
+      terceroId: datos.clienteId,
+      origenModulo: "cobranzas",
+      origenId: cobranzaId,
+      asientoId,
+    });
+  }
 
   const nuevosSaldos = await saldosDe(db, ids);
   return {
@@ -261,7 +320,7 @@ export async function registrarCobranza(
  * cliente por lo que la deuda vale **en la cuenta**, al tipo con el que se
  * facturó. La diferencia es real y va a la 776 o a la 676.
  */
-function lineasAsientoCobranza(p: {
+function lineasAsientoCobranza(cuentas: Cuentas, p: {
   importe: Dec;
   historico: Dec;
   diferencia: Dec;
@@ -277,7 +336,7 @@ function lineasAsientoCobranza(p: {
       debeFuncional: txt2(money.round(money.mul(p.importe, p.tipoCambioCobro), 2)),
     },
     {
-      cuenta: "1212",
+      cuenta: cuentas.get("clientes"),
       glosa: "Cancelación del cliente",
       haber: txt2(p.importe),
       haberFuncional: txt2(p.historico),
@@ -288,9 +347,13 @@ function lineasAsientoCobranza(p: {
   if (!money.isZero(p.diferencia)) {
     lineas.push(
       money.gt(p.diferencia, money.ZERO)
-        ? { cuenta: "776", glosa: "Diferencia de cambio", haberFuncional: txt2(p.diferencia) }
+        ? {
+            cuenta: cuentas.get("ganancia_cambio"),
+            glosa: "Diferencia de cambio",
+            haberFuncional: txt2(p.diferencia),
+          }
         : {
-            cuenta: "676",
+            cuenta: cuentas.get("perdida_cambio"),
             glosa: "Diferencia de cambio",
             debeFuncional: txt2(money.neg(p.diferencia)),
           },
@@ -378,7 +441,7 @@ export async function estadoCredito(db: Db, clienteId: string): Promise<EstadoCr
   const [hoyFila] = (await db.execute(sql`SELECT current_date::text AS hoy`)) as unknown as [
     { hoy: string },
   ];
-  const hoy = hoyFila?.hoy ?? new Date().toISOString().slice(0, 10);
+  const hoy = hoyFila?.hoy ?? hoyEnPeru();
 
   const usado = documentos.reduce((a, d) => money.add(a, dec(d.saldo)), money.ZERO);
   const vencido = documentos
@@ -444,15 +507,15 @@ export async function carteraPorCliente(db: Db) {
   const filas = (await db.execute(sql`
     SELECT t.id, t.razon_social, t.numero_documento, t.limite_credito::text AS limite,
            count(*)::int AS documentos,
-           sum(${SALDO})::text AS saldo,
-           sum(CASE WHEN c.fecha_vencimiento < current_date THEN ${SALDO} ELSE 0 END)::text AS vencido
+           sum(${SALDO_POR_COBRAR})::text AS saldo,
+           sum(CASE WHEN c.fecha_vencimiento < current_date THEN ${SALDO_POR_COBRAR} ELSE 0 END)::text AS vencido
     FROM comprobantes c
     JOIN terceros t ON t.id = c.cliente_id
     WHERE c.estado NOT IN ('anulado', 'rechazado')
       AND c.tipo_documento IN ('01', '03')
-      AND ${SALDO} > 0
+      AND ${SALDO_POR_COBRAR} > 0
     GROUP BY t.id
-    ORDER BY sum(${SALDO}) DESC`)) as unknown as {
+    ORDER BY sum(${SALDO_POR_COBRAR}) DESC`)) as unknown as {
     id: string;
     razon_social: string;
     numero_documento: string;

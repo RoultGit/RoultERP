@@ -13,8 +13,10 @@ import { conectar, enEmpresa, migrar, type Conexion, type Db } from "@roulterp/d
 import { money } from "@roulterp/core";
 import {
   crearEmpresa, crearCuenta, cuentasConSaldo, registrarMovimientoEfectivo,
-  movimientosDe, importarExtracto, proponerConciliacion, confirmarConciliacion,
+  movimientosDe, libroBancos, importarExtracto, proponerConciliacion, confirmarConciliacion,
   estadoConciliacion, registrarArqueo, listarArqueos,
+  registrarCompra, emitirVenta, registrarCobranza, registrarPago,
+  documentosPorPagar,
   balanceComprobacion, TesoreriaInvalida,
 } from "../src/index.ts";
 
@@ -26,6 +28,10 @@ let empresaId = "";
 let usuarioId = "";
 let banco = "";
 let cajaChica = "";
+let cliente = "";
+let proveedor = "";
+let producto = "";
+let almacenId = "";
 
 before(async () => {
   await migrar(URL, { silencioso: true });
@@ -70,7 +76,73 @@ beforeEach(async () => {
       fondoFijo: "1000",
     }),
   );
+
+  // Un cliente, un proveedor y algo que vender: lo mínimo para comprobar que
+  // una cobranza y un pago llegan a la tesorería.
+  const [alm] = await raw<{ id: string }[]>`
+    SELECT id FROM almacenes WHERE empresa_id = ${empresaId} AND codigo = '001'`;
+  almacenId = alm!.id;
+
+  const [c] = await raw<{ id: string }[]>`
+    INSERT INTO terceros (empresa_id, tipo_documento, numero_documento, razon_social, es_cliente)
+    VALUES (${empresaId}, '6', '20522633721', 'HIDRAULICA DEL SUR S.A.C.', true) RETURNING id`;
+  cliente = c!.id;
+
+  const [pr] = await raw<{ id: string }[]>`
+    INSERT INTO terceros (empresa_id, tipo_documento, numero_documento, razon_social, es_proveedor)
+    VALUES (${empresaId}, '6', '20100047218', 'FERRETERIA SA', true) RETURNING id`;
+  proveedor = pr!.id;
+
+  const [u] = await raw<{ id: string }[]>`
+    SELECT id FROM unidades_medida WHERE empresa_id = ${empresaId} AND codigo = 'NIU'`;
+  const [p] = await raw<{ id: string }[]>`
+    INSERT INTO productos (empresa_id, codigo, descripcion, unidad_id)
+    VALUES (${empresaId}, 'P001', 'Bomba', ${u!.id}) RETURNING id`;
+  producto = p!.id;
+
+  await raw`
+    INSERT INTO series_documento (empresa_id, tipo_documento, serie, correlativo)
+    VALUES (${empresaId}, '01', 'F001', 0)`;
 });
+
+/** Una compra al crédito, que deja un documento por pagar. */
+async function compraAlCredito() {
+  await con((db) =>
+    registrarCompra(db, empresaId, usuarioId, {
+      proveedorId: proveedor,
+      tipoDocumento: "01",
+      serie: "F001",
+      numero: String(Date.now()).slice(-7),
+      fechaEmision: "2026-09-02",
+      moneda: "PEN",
+      tipoCambio: "1",
+      almacenId,
+      lineas: [
+        { productoId: producto, descripcion: "Bomba", cantidad: "10", valorUnitario: "300" },
+      ],
+    }),
+  );
+  const docs = await con((db) => documentosPorPagar(db, proveedor));
+  return docs.at(-1)!;
+}
+
+/** Una venta al crédito, que deja un comprobante por cobrar. */
+async function ventaAlCredito() {
+  await compraAlCredito();
+  const r = await con((db) =>
+    emitirVenta(db, empresaId, usuarioId, {
+      clienteId: cliente,
+      tipoDocumento: "01",
+      serie: "F001",
+      fechaEmision: "2026-09-10",
+      moneda: "PEN",
+      tipoCambio: "1",
+      almacenId,
+      lineas: [{ productoId: producto, cantidad: "5", valorUnitario: "500" }],
+    }),
+  );
+  return { comprobanteId: r.comprobanteId, total: r.total };
+}
 
 const con = <T>(t: (db: Db) => Promise<T>) => enEmpresa(app, { empresaId, usuarioId }, t);
 const s2 = (v: string) => money.toString(money.dec(v), 2);
@@ -178,6 +250,94 @@ describe("movimientos", () => {
     );
     assert.equal((await con((db) => movimientosDe(db, banco))).length, 1);
     assert.equal((await con((db) => movimientosDe(db, cajaChica))).length, 1);
+  });
+});
+
+// ─── Libro de bancos ──────────────────────────────────────────────────────
+
+describe("libro de bancos", () => {
+  test("arrastra el saldo anterior y cierra con el del periodo", async () => {
+    await con((db) =>
+      registrarMovimientoEfectivo(db, empresaId, usuarioId, {
+        ...movimiento(), fecha: "2026-08-20", sentido: "ingreso",
+        concepto: "Aporte", importe: "1000.00", cuentaContrapartida: "5011",
+      }),
+    );
+    await con((db) => registrarMovimientoEfectivo(db, empresaId, usuarioId, movimiento()));
+
+    const l = (await con((db) =>
+      libroBancos(db, banco, { desde: "2026-09-01", hasta: "2026-09-30" }),
+    ))!;
+
+    assert.equal(l.saldoInicial, "1000.00", "el aporte de agosto no es movimiento de septiembre");
+    assert.equal(l.egresos, "15.00");
+    assert.equal(l.ingresos, "0.00");
+    assert.equal(l.saldoFinal, "985.00");
+    assert.equal(l.lineas.length, 1);
+  });
+
+  /**
+   * La razón de ser del cuadro: el libro sale de los movimientos y el mayor de
+   * los asientos. Sólo coinciden si todos los módulos anotan las dos cosas.
+   */
+  test("cuadra contra la cuenta contable", async () => {
+    await con((db) => registrarMovimientoEfectivo(db, empresaId, usuarioId, movimiento()));
+    const l = (await con((db) =>
+      libroBancos(db, banco, { desde: "2026-09-01", hasta: "2026-09-30" }),
+    ))!;
+    assert.equal(l.saldoContable, l.saldoFinal);
+    assert.equal(l.cuadra, true);
+    assert.ok(!l.avisos.some((a) => /difieren/.test(a)), l.avisos.join(" | "));
+  });
+
+  test("denuncia un movimiento que no llegó a la contabilidad", async () => {
+    // Un movimiento anotado a mano, sin su asiento: es lo que pasaría si un
+    // módulo apuntara el movimiento y se olvidara de contabilizarlo. El asiento
+    // contabilizado no se puede borrar —eso está bien—, así que la divergencia
+    // se provoca por el otro lado.
+    await raw`
+      INSERT INTO movimientos_efectivo
+        (empresa_id, cuenta_id, fecha, sentido, concepto, importe, moneda)
+      VALUES (${empresaId}, ${banco}, '2026-09-05', 'egreso', 'Comisión sin asiento', '15.00', 'PEN')`;
+
+    const l = (await con((db) =>
+      libroBancos(db, banco, { desde: "2026-09-01", hasta: "2026-09-30" }),
+    ))!;
+    assert.equal(l.cuadra, false);
+    assert.equal(l.diferencia, "-15.00");
+    assert.ok(l.avisos.some((a) => /difieren/.test(a)), l.avisos.join(" | "));
+  });
+
+  /**
+   * Dos cuentas corrientes en la 1041 es lo normal. Comparar una sola contra el
+   * total daría una diferencia falsa, así que se dice y no se afirma nada.
+   */
+  test("con la cuenta contable compartida avisa en vez de inventar una diferencia", async () => {
+    await con((db) =>
+      crearCuenta(db, empresaId, usuarioId, {
+        codigo: "BCO-002",
+        nombre: "Segunda cuenta corriente",
+        tipo: "banco",
+        moneda: "PEN",
+        cuentaContable: "1041",
+        banco: "BCP",
+        numeroCuenta: "0011-0234-0100056789",
+      }),
+    );
+    const l = (await con((db) =>
+      libroBancos(db, banco, { desde: "2026-09-01", hasta: "2026-09-30" }),
+    ))!;
+    assert.ok(l.avisos.some((a) => /la comparten 2 cuentas/.test(a)), l.avisos.join(" | "));
+    assert.equal(l.cuadra, true, "no se puede afirmar que no cuadre");
+  });
+
+  test("una cuenta que no existe devuelve nulo en vez de un libro vacío", async () => {
+    const l = await con((db) =>
+      libroBancos(db, "00000000-0000-0000-0000-000000000000", {
+        desde: "2026-09-01", hasta: "2026-09-30",
+      }),
+    );
+    assert.equal(l, null);
   });
 });
 
@@ -440,5 +600,151 @@ describe("aislamiento", () => {
       (db) => cuentasConSaldo(db),
     );
     assert.deepEqual(desdeOtra, []);
+  });
+});
+
+// ─── Tesorería y contabilidad cuentan lo mismo ────────────────────────────
+
+describe("cobranzas y pagos llegan a la tesorería", () => {
+  /**
+   * El fallo que motivó estas pruebas: la contabilidad decía que el banco se
+   * había movido y la pantalla de Caja y Bancos seguía marcando cero. Con dos
+   * verdades sobre el mismo dinero la conciliación bancaria no sirve de nada.
+   */
+  async function cuentaBanco() {
+    return con((db) =>
+      crearCuenta(db, empresaId, usuarioId, {
+        codigo: `BCO-${Date.now().toString().slice(-5)}`,
+        nombre: "Banco de pruebas",
+        tipo: "banco",
+        moneda: "PEN",
+        cuentaContable: "1041",
+        banco: "BBVA",
+        numeroCuenta: `0011-${Date.now().toString().slice(-10)}`,
+      }),
+    );
+  }
+
+  test("una cobranza con cuenta de efectivo mueve el saldo del banco", async () => {
+    const cuentaId = await cuentaBanco();
+    const { comprobanteId, total } = await ventaAlCredito();
+
+    await con((db) =>
+      registrarCobranza(db, empresaId, usuarioId, {
+        numero: `CB-${Date.now().toString().slice(-6)}`,
+        clienteId: cliente,
+        fecha: "2026-09-20",
+        moneda: "PEN",
+        tipoCambio: "1",
+        medioCobro: "transferencia",
+        cuentaDestino: "1041",
+        cuentaEfectivoId: cuentaId,
+        aplicaciones: [{ comprobanteId, importe: total }],
+      }),
+    );
+
+    const cuentas = await con((db) => cuentasConSaldo(db));
+    const banco = cuentas.find((c) => c.id === cuentaId)!;
+    assert.equal(
+      money.toString(money.dec(banco.saldo), 2),
+      money.toString(money.dec(total), 2),
+      "el tesorero tiene que ver el ingreso que la contabilidad ya registró",
+    );
+  });
+
+  test("un pago sale del banco por el neto, no por el bruto", async () => {
+    const cuentaId = await cuentaBanco();
+    const doc = await compraAlCredito();
+
+    const pago = await con((db) =>
+      registrarPago(db, empresaId, usuarioId, {
+        numero: `PG-${Date.now().toString().slice(-6)}`,
+        proveedorId: proveedor,
+        fecha: "2026-09-21",
+        moneda: "PEN",
+        tipoCambio: "1",
+        medioPago: "transferencia",
+        cuentaOrigen: "1041",
+        cuentaEfectivoId: cuentaId,
+        aplicaciones: [{ documentoId: doc.id, importe: doc.saldo }],
+      }),
+    );
+
+    const cuentas = await con((db) => cuentasConSaldo(db));
+    const banco = cuentas.find((c) => c.id === cuentaId)!;
+    // La retención no cruza la cuenta del banco: se entrega al fisco aparte.
+    assert.equal(
+      money.toString(money.dec(banco.saldo), 2),
+      `-${money.toString(money.dec(pago.importeNeto), 2)}`,
+    );
+  });
+
+  test("sin cuenta de efectivo la operación se registra igual", async () => {
+    // Es el estado de una empresa que todavía no dio de alta sus cuentas: la
+    // contabilidad no puede quedarse esperando a que configure la tesorería.
+    const { comprobanteId, total } = await ventaAlCredito();
+    await con((db) =>
+      registrarCobranza(db, empresaId, usuarioId, {
+        numero: `CB-SIN-${Date.now().toString().slice(-6)}`,
+        clienteId: cliente,
+        fecha: "2026-09-20",
+        moneda: "PEN",
+        tipoCambio: "1",
+        medioCobro: "efectivo",
+        cuentaDestino: "1011",
+        aplicaciones: [{ comprobanteId, importe: total }],
+      }),
+    );
+    const balance = await con((db) => balanceComprobacion(db, "202609"));
+    const suma = balance.reduce((a, b) => money.add(a, money.dec(b.saldo)), money.ZERO);
+    assert.equal(money.toString(suma, 2), "0.00");
+  });
+
+  test("el movimiento anotado queda ligado a su origen y a su asiento", async () => {
+    const cuentaId = await cuentaBanco();
+    const { comprobanteId, total } = await ventaAlCredito();
+    const cob = await con((db) =>
+      registrarCobranza(db, empresaId, usuarioId, {
+        numero: `CB-LIG-${Date.now().toString().slice(-6)}`,
+        clienteId: cliente,
+        fecha: "2026-09-20",
+        moneda: "PEN",
+        tipoCambio: "1",
+        medioCobro: "transferencia",
+        cuentaDestino: "1041",
+        cuentaEfectivoId: cuentaId,
+        aplicaciones: [{ comprobanteId, importe: total }],
+      }),
+    );
+
+    const movs = await con((db) => movimientosDe(db, cuentaId));
+    const mov = movs.find((m) => m.origenId === cob.cobranzaId)!;
+    assert.ok(mov, "el movimiento debe poder rastrearse hasta la cobranza");
+    assert.equal(mov.origenModulo, "cobranzas");
+    assert.equal(mov.asientoId, cob.asientoId, "y hasta el asiento que lo contabilizó");
+  });
+
+  test("el asiento no se duplica: la cobranza contabiliza una sola vez", async () => {
+    const cuentaId = await cuentaBanco();
+    const { comprobanteId, total } = await ventaAlCredito();
+    const antes = (await con((db) => balanceComprobacion(db, "202609"))).length;
+    await con((db) =>
+      registrarCobranza(db, empresaId, usuarioId, {
+        numero: `CB-DUP-${Date.now().toString().slice(-6)}`,
+        clienteId: cliente,
+        fecha: "2026-09-20",
+        moneda: "PEN",
+        tipoCambio: "1",
+        medioCobro: "transferencia",
+        cuentaDestino: "1041",
+        cuentaEfectivoId: cuentaId,
+        aplicaciones: [{ comprobanteId, importe: total }],
+      }),
+    );
+    void antes;
+    const [fila] = (await raw`
+      SELECT count(*)::int AS n FROM asientos
+      WHERE empresa_id = ${empresaId} AND origen_modulo = 'tesoreria'`) as [{ n: number }];
+    assert.equal(fila.n, 0, "la cobranza no debe generar además un asiento de tesorería");
   });
 });

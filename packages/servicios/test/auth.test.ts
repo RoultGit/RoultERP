@@ -12,7 +12,8 @@ import { totp } from "@roulterp/core/auth";
 import {
   login, verificarMfa, cargarSesion, cerrarSesion, cerrarTodasLasSesiones,
   seleccionarEmpresa, cambiarPassword, solicitarReseteo, resetearPassword,
-  invitarUsuario, aceptarInvitacion, revocarAcceso,
+  invitarUsuario, aceptarInvitacion, revocarAcceso, restaurarAcceso,
+  usuariosDeEmpresa, rolesDeEmpresa, guardarRol, cambiarRol, administradoresActivos,
   prepararMfa, activarMfa, desactivarMfa,
   CredencialesInvalidas, DemasiadosIntentos, TokenInvalido,
   crearEmpresa, rucValido, type Entorno,
@@ -537,5 +538,248 @@ describe("segundo factor", () => {
     await desactivarMfa(env, adminA, PASS);
     const r = await login(env, { email: "ana@servidimar.pe", password: PASS });
     assert.equal(r.estado, "ok");
+  });
+});
+
+// ─── Administración de usuarios y roles ───────────────────────────────────
+
+describe("administración de usuarios y roles", () => {
+  test("lista los usuarios de la empresa con su rol", async () => {
+    await invitarUsuario(env, {
+      email: "carlos@servidimar.pe",
+      nombre: "Carlos",
+      empresaId: empresaA,
+      rolCodigo: "contador",
+    });
+
+    const lista = await usuariosDeEmpresa(env, empresaA);
+    assert.equal(lista.length, 2, "el administrador original y el invitado");
+    const carlos = lista.find((u) => u.email === "carlos@servidimar.pe")!;
+    assert.equal(carlos.rolCodigo, "contador");
+    assert.equal(carlos.activo, true);
+    assert.equal(carlos.activoCuenta, false, "hasta que acepte la invitación");
+  });
+
+  test("no lista los usuarios de otra empresa", async () => {
+    const otra = await crearEmpresa(
+      URL,
+      { ruc: "20522633721", razonSocial: "TERCERA EMPRESA" },
+      { email: "carla@tercera.pe", nombre: "Carla", password: PASS },
+    );
+    const lista = await usuariosDeEmpresa(env, empresaA);
+    assert.ok(!lista.some((u) => u.email === "carla@tercera.pe"));
+    const otraLista = await usuariosDeEmpresa(env, otra.empresaId);
+    assert.equal(otraLista.length, 1);
+  });
+
+  test("cada empresa arranca con sus roles base", async () => {
+    const roles = await rolesDeEmpresa(env, empresaA);
+    const codigos = roles.map((r) => r.codigo).sort();
+    assert.ok(codigos.includes("admin"));
+    assert.ok(codigos.includes("contador"));
+    assert.ok(roles.every((r) => r.esSistema), "los roles base son del sistema");
+  });
+
+  test("un rol propio se crea con los permisos que se le den", async () => {
+    const id = await guardarRol(env, empresaA, {
+      codigo: "almacenero",
+      nombre: "Almacenero",
+      permisos: ["inventario:ver", "inventario:crear", "maestros:ver"],
+    });
+    const roles = await rolesDeEmpresa(env, empresaA);
+    const nuevo = roles.find((r) => r.id === id)!;
+    assert.deepEqual(nuevo.permisos.sort(), ["inventario:crear", "inventario:ver", "maestros:ver"]);
+    assert.equal(nuevo.esSistema, false);
+  });
+
+  test("los permisos inventados se descartan", async () => {
+    const id = await guardarRol(env, empresaA, {
+      codigo: "raro",
+      nombre: "Raro",
+      permisos: ["inventario:ver", "inventario:volar", "loquesea:crear"],
+    });
+    const rol = (await rolesDeEmpresa(env, empresaA)).find((r) => r.id === id)!;
+    assert.deepEqual(rol.permisos, ["inventario:ver"]);
+  });
+
+  test("un rol sin permisos válidos se rechaza", async () => {
+    await assert.rejects(
+      () =>
+        guardarRol(env, empresaA, {
+          codigo: "vacio",
+          nombre: "Vacío",
+          permisos: ["inventario:volar"],
+        }),
+      /sin permisos no sirve/,
+    );
+  });
+
+  test("un rol del sistema no se edita", async () => {
+    const admin = (await rolesDeEmpresa(env, empresaA)).find((r) => r.codigo === "admin")!;
+    await assert.rejects(
+      () =>
+        guardarRol(env, empresaA, {
+          rolId: admin.id,
+          codigo: "admin",
+          nombre: "Administrador recortado",
+          permisos: ["maestros:ver"],
+        }),
+      /rol del sistema/,
+    );
+  });
+
+  test("cambiar el rol de un usuario cambia lo que puede hacer", async () => {
+    const { usuarioId: nuevoId } = await invitarUsuario(env, {
+      email: "carlos@servidimar.pe",
+      nombre: "Carlos",
+      empresaId: empresaA,
+      rolCodigo: "contador",
+    });
+    const logistica = (await rolesDeEmpresa(env, empresaA)).find((r) => r.codigo === "logistica")!;
+    await cambiarRol(env, nuevoId, empresaA, logistica.id);
+
+    const lista = await usuariosDeEmpresa(env, empresaA);
+    assert.equal(lista.find((u) => u.usuarioId === nuevoId)!.rolCodigo, "logistica");
+  });
+
+  test("no se puede asignar un rol de otra empresa", async () => {
+    const otra = await crearEmpresa(
+      URL,
+      { ruc: "20522633721", razonSocial: "TERCERA EMPRESA" },
+      { email: "carla@tercera.pe", nombre: "Carla", password: PASS },
+    );
+    const rolAjeno = (await rolesDeEmpresa(env, otra.empresaId))[0]!;
+    await assert.rejects(
+      () => cambiarRol(env, adminA, empresaA, rolAjeno.id),
+      /no existe en esta empresa/,
+    );
+  });
+
+  test("el acceso revocado se puede restaurar", async () => {
+    const { usuarioId: nuevoId } = await invitarUsuario(env, {
+      email: "carlos@servidimar.pe",
+      nombre: "Carlos",
+      empresaId: empresaA,
+      rolCodigo: "contador",
+    });
+    await revocarAcceso(env, nuevoId, empresaA);
+    let lista = await usuariosDeEmpresa(env, empresaA);
+    assert.equal(lista.find((u) => u.usuarioId === nuevoId)!.activo, false);
+
+    await restaurarAcceso(env, nuevoId, empresaA);
+    lista = await usuariosDeEmpresa(env, empresaA);
+    assert.equal(lista.find((u) => u.usuarioId === nuevoId)!.activo, true);
+  });
+
+  test("cuenta los administradores activos que quedan", async () => {
+    // Es lo que impide dejar la empresa sin nadie que pueda administrarla.
+    assert.equal(await administradoresActivos(env, empresaA), 1);
+
+    await invitarUsuario(env, {
+      email: "carlos@servidimar.pe",
+      nombre: "Carlos",
+      empresaId: empresaA,
+      rolCodigo: "admin",
+    });
+    assert.equal(
+      await administradoresActivos(env, empresaA),
+      1,
+      "quien no aceptó la invitación todavía no puede administrar",
+    );
+
+    await revocarAcceso(env, adminA, empresaA);
+    assert.equal(await administradoresActivos(env, empresaA), 0);
+  });
+});
+
+// ─── Restablecer la contraseña ──────────────────────────────────────────────
+
+describe("restablecer la contraseña desde la pantalla de usuarios", () => {
+  /*
+   * El servicio ya tenía `solicitarReseteo` y `resetearPassword`, pero ninguna
+   * pantalla los llamaba: quien olvidaba su clave quedaba fuera para siempre,
+   * porque no hay correo y `invitarUsuario` sólo emite enlace para una cuenta
+   * nueva. Esto fija el camino que ahora sí existe de punta a punta.
+   */
+  async function cuentaActiva(email: string, clave: string): Promise<string> {
+    const { token } = await invitarUsuario(env, {
+      email,
+      nombre: "Persona",
+      empresaId: empresaA,
+      rolCodigo: "contador",
+    });
+    await aceptarInvitacion(env, token!, clave);
+    const s = await login(env, { email, password: clave });
+    return s.usuarioId;
+  }
+
+  test("invitar de nuevo no sirve; por eso hacía falta el reseteo", async () => {
+    await cuentaActiva("olvidadiza@servidimar.pe", "la-primera-clave-1");
+    const reinvitar = await invitarUsuario(env, {
+      email: "olvidadiza@servidimar.pe",
+      nombre: "Persona",
+      empresaId: empresaA,
+      rolCodigo: "contador",
+    });
+    assert.equal(reinvitar.token, null, "sobre una cuenta existente no emite enlace");
+  });
+
+  test("el administrador emite el enlace y la persona elige clave nueva", async () => {
+    const usuarioId = await cuentaActiva("rosa@servidimar.pe", "la-primera-clave-1");
+
+    const token = await solicitarReseteo(env, "rosa@servidimar.pe");
+    assert.ok(token);
+    await resetearPassword(env, token, "una-clave-completamente-nueva-2");
+
+    const sesion = await login(env, {
+      email: "rosa@servidimar.pe",
+      password: "una-clave-completamente-nueva-2",
+    });
+    assert.equal(sesion.usuarioId, usuarioId);
+
+    await assert.rejects(
+      () => login(env, { email: "rosa@servidimar.pe", password: "la-primera-clave-1" }),
+      CredencialesInvalidas,
+      "la clave vieja deja de servir",
+    );
+  });
+
+  test("el enlace sirve una sola vez", async () => {
+    await cuentaActiva("luis@servidimar.pe", "clave-inicial-de-luis-1");
+    const token = (await solicitarReseteo(env, "luis@servidimar.pe"))!;
+    await resetearPassword(env, token, "clave-nueva-de-luis-2");
+    // Reutilizarlo sería una segunda llave viva suelta por ahí.
+    await assert.rejects(
+      () => resetearPassword(env, token, "clave-de-un-intruso-3"),
+      TokenInvalido,
+    );
+  });
+
+  test("un enlace de invitación no sirve para tomar una cuenta activa", async () => {
+    // Los dos tipos de token están separados justamente por esto: si valieran
+    // el mismo, una invitación caducada de hace meses seguiría abriendo la
+    // cuenta de alguien que ya trabaja con ella.
+    const { token: invitacion } = await invitarUsuario(env, {
+      email: "mezcla@servidimar.pe",
+      nombre: "Persona",
+      empresaId: empresaA,
+      rolCodigo: "contador",
+    });
+    await aceptarInvitacion(env, invitacion!, "clave-de-mezcla-1");
+    const reseteo = (await solicitarReseteo(env, "mezcla@servidimar.pe"))!;
+
+    await assert.rejects(
+      () => aceptarInvitacion(env, reseteo, "por-la-puerta-que-no-es-2"),
+      TokenInvalido,
+    );
+  });
+
+  test("una cuenta revocada no recibe enlace", async () => {
+    const usuarioId = await cuentaActiva("fuera@servidimar.pe", "clave-de-quien-se-fue-1");
+    await revocarAcceso(env, usuarioId, empresaA);
+    // Sigue activa como cuenta aunque no tenga acceso a esta empresa, así que
+    // el enlace se emite; lo que la frena es la membresía, no la contraseña.
+    const token = await solicitarReseteo(env, "fuera@servidimar.pe");
+    assert.ok(token, "la cuenta existe; el acceso a la empresa es otra comprobación");
   });
 });

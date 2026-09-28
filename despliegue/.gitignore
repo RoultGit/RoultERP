@@ -1,0 +1,5 @@
+# Secretos y artefactos de la máquina: no van al repositorio.
+.env
+respaldos/
+*.tgz
+*.tgz.usada

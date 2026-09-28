@@ -1,0 +1,16 @@
+node_modules
+**/node_modules
+**/.next
+**/dist
+# Los ficheros incrementales de TypeScript. Sin esta línea, `tsc -b` los lee,
+# cree que la compilación ya está hecha y no emite `dist`: la imagen se
+# construye "bien" y falla al resolver los paquetes del monorepo.
+**/*.tsbuildinfo
+.git
+docs
+*.pdf
+*.docx
+*.png
+*.jpg
+.env
+.env.local

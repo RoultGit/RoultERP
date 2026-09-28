@@ -15,6 +15,7 @@ import {
   crearEmpresa, crearImportacion, agregarItem, agregarGasto, cambiarEstado,
   confirmarLiquidacion, registrarCompra, crearOrden,
   emitirVenta, cargarCertificado, guardarCredencialesSol,
+  documentosPorPagar, canjearPorLetra,
   crearCuenta, registrarMovimientoEfectivo, importarExtracto,
 } from "@roulterp/servicios";
 import { certificadoDePrueba, pfxDePrueba } from "@roulterp/core/cpe";
@@ -42,7 +43,8 @@ async function main() {
       ruc: "20303051831",
       razonSocial: "SERVIDIVERSOS MARINA S.R.LTDA.",
       nombreComercial: "SERVIDIMAR",
-      direccion: "Av. Prolong. Mariscal Nieto 108, Urb. Los Sauces, Ate - Lima",
+      direccion: "Urb. Los Sauces, Av. Prolongación Mariscal Nieto 263",
+      // Respondido por el cliente en el cuestionario: valorizan a promedio.
       metodoValorizacion: "promedio",
     },
     { email: "admin@servidimar.pe", nombre: "Administrador", password: CLAVE },
@@ -52,6 +54,75 @@ async function main() {
 
   const [unidad] = await raw<{ id: string }[]>`
     SELECT id FROM unidades_medida WHERE empresa_id = ${empresa.empresaId} AND codigo = 'NIU'`;
+  /*
+   * Datos reales que respondió SERVIDIMAR en el cuestionario.
+   *
+   * Los establecimientos van con su código ante SUNAT porque es lo que la guía
+   * de remisión electrónica exige como punto de partida; sin él, cada guía
+   * obliga a teclear la dirección a mano y el rechazo llega después.
+   */
+  await raw`UPDATE empresas SET cuenta_detracciones = '00-000-000000'
+             WHERE id = ${empresa.empresaId}`;
+
+  /*
+   * El UBIGEO es un dato PENDIENTE del cliente.
+   *
+   * Respondió las direcciones y los códigos de establecimiento, pero no el
+   * ubigeo de cada local, y es obligatorio: viaja en cada guía de remisión como
+   * punto de partida y la GRE la rechaza sin él. Lo que va abajo son los
+   * distritos que se deducen de la dirección —Moquegua para Mariscal Nieto,
+   * Ate para Separadora Industrial— y hay que confirmarlos antes de emitir de
+   * verdad. Sin ningún valor, el módulo de guías no se puede ni enseñar.
+   */
+  const ESTABLECIMIENTOS = [
+    ["0003", "Prolongación Mariscal Nieto", "URB. LOS SAUCES AV. PROLONGACION MARISCAL NIETO 263", "180101"],
+    ["0001", "Santa María", "URB. INDUSTRIAL LA AURORA AV. SANTA MARIA 165", "150103"],
+    ["0002", "Mariscal Nieto 108", "URB. LOS SAUCES AV. MARISCAL NIETO 108", "180101"],
+    ["0008", "Separadora Industrial", "URB. MIGUEL GRAU AV. SEPARADORA INDUSTRIAL 719", "150103"],
+  ] as const;
+  for (const [codigo, nombre, direccion, ubigeo] of ESTABLECIMIENTOS) {
+    await raw`
+      INSERT INTO sucursales (empresa_id, codigo, nombre, direccion, ubigeo, codigo_sunat)
+      VALUES (${empresa.empresaId}, ${codigo}, ${nombre}, ${direccion}, ${ubigeo}, ${codigo})
+      ON CONFLICT (empresa_id, codigo) DO UPDATE
+        SET nombre = excluded.nombre, direccion = excluded.direccion,
+            ubigeo = excluded.ubigeo, codigo_sunat = excluded.codigo_sunat`;
+  }
+
+  // Los tres almacenes que maneja la empresa. El 001 nace con la empresa y se
+  // renombra; los otros dos se crean contra su establecimiento.
+  await raw`
+    UPDATE almacenes SET nombre = 'Almacén Principal',
+           sucursal_id = (SELECT id FROM sucursales
+                           WHERE empresa_id = ${empresa.empresaId} AND codigo = '0003')
+     WHERE empresa_id = ${empresa.empresaId} AND codigo = '001'`;
+  for (const [codigo, nombre, sucursal] of [
+    ["002", "Almacén Santa María", "0001"],
+    ["003", "Almacén Separadora", "0008"],
+  ] as const) {
+    await raw`
+      INSERT INTO almacenes (empresa_id, codigo, nombre, sucursal_id)
+      VALUES (${empresa.empresaId}, ${codigo}, ${nombre},
+              (SELECT id FROM sucursales
+                WHERE empresa_id = ${empresa.empresaId} AND codigo = ${sucursal}))
+      ON CONFLICT (empresa_id, codigo) DO NOTHING`;
+  }
+
+  /*
+   * La sucursal que nace con la empresa sobra: sus cuatro establecimientos
+   * reales ya están. Dejarla sería un quinto punto de partida vacío en el
+   * desplegable de cada guía de remisión, y el que se elige por descuido es el
+   * que SUNAT rechaza por no corresponder al establecimiento anexo.
+   */
+  await raw`
+    UPDATE almacenes SET sucursal_id = (SELECT id FROM sucursales
+                                         WHERE empresa_id = ${empresa.empresaId} AND codigo = '0003')
+     WHERE empresa_id = ${empresa.empresaId}
+       AND sucursal_id IN (SELECT id FROM sucursales
+                            WHERE empresa_id = ${empresa.empresaId} AND codigo = '001')`;
+  await raw`DELETE FROM sucursales
+             WHERE empresa_id = ${empresa.empresaId} AND codigo = '001'`;
+
   const [almacen] = await raw<{ id: string }[]>`
     SELECT id FROM almacenes WHERE empresa_id = ${empresa.empresaId} AND codigo = '001'`;
 
@@ -233,16 +304,19 @@ async function main() {
 
   // Compras nacionales: dejan cuentas por pagar con distintos vencimientos para
   // ver la antigüedad de saldos con contenido.
-  const [agencia] = await postgres(URL, { max: 1, onnotice: () => {} })
-    .unsafe<{ id: string }[]>(
-      `SELECT id FROM terceros WHERE empresa_id = '${empresa.empresaId}' AND numero_documento = '20100047218'`,
-    );
+  // La conexión se cierra: dejarla abierta impedía que el proceso terminara y
+  // había que matar el script a mano después de sembrar.
+  const rawAgencia = postgres(URL, { max: 1, onnotice: () => {} });
+  const [agencia] = await rawAgencia<{ id: string }[]>`
+    SELECT id FROM terceros
+    WHERE empresa_id = ${empresa.empresaId} AND numero_documento = '20100047218'`;
+  await rawAgencia.end();
 
   await enEmpresa(app, ctx, async (db) => {
     await registrarCompra(db, ctx.empresaId, ctx.usuarioId, {
       proveedorId: agencia!.id,
       tipoDocumento: "01",
-      serie: "F001",
+      serie: "FA01",
       numero: "0004417",
       fechaEmision: "2026-06-18",
       moneda: "PEN",
@@ -262,7 +336,7 @@ async function main() {
     await registrarCompra(db, ctx.empresaId, ctx.usuarioId, {
       proveedorId: agencia!.id,
       tipoDocumento: "01",
-      serie: "F001",
+      serie: "FA01",
       numero: "0004602",
       fechaEmision: "2026-09-02",
       moneda: "PEN",
@@ -316,10 +390,29 @@ async function main() {
   });
 
   const raw2 = postgres(URL, { max: 1, onnotice: () => {} });
+  /*
+   * Las series con las que la empresa emite hoy, tal como las respondió.
+   *
+   * Continuar sus correlativos —y no empezar de cero— es lo que evita que SUNAT
+   * rechace el primer comprobante por número repetido. El correlativo real hay
+   * que tomarlo del último emitido en Starsoft el día del cambio; aquí quedan en
+   * cero porque esto es la base de desarrollo.
+   */
   await raw2`
     INSERT INTO series_documento (empresa_id, tipo_documento, serie, correlativo)
-    VALUES (${empresa.empresaId}, '01', 'F001', 0),
-           (${empresa.empresaId}, '03', 'B001', 0)`;
+    VALUES (${empresa.empresaId}, '01', 'FA01', 0),
+           (${empresa.empresaId}, '01', 'FA02', 0),
+           (${empresa.empresaId}, '03', 'BA01', 0),
+           -- Las notas van con la serie de la factura que modifican, que es como
+           -- las lleva la empresa: la 07 y la 08 se distinguen por el tipo.
+           (${empresa.empresaId}, '07', 'FA01', 0),
+           (${empresa.empresaId}, '08', 'FA01', 0),
+           (${empresa.empresaId}, '09', 'TA01', 0),
+           (${empresa.empresaId}, '09', 'TA02', 0),
+           -- No son agentes de retención ni de percepción; las series quedan
+           -- para el día que SUNAT los designe.
+           (${empresa.empresaId}, '20', 'R001', 0),
+           (${empresa.empresaId}, '40', 'P001', 0)`;
   const [clienteVentas] = await raw2<{ id: string }[]>`
     SELECT id FROM terceros WHERE empresa_id = ${empresa.empresaId} AND numero_documento = '20522633721'`;
   await raw2.end();
@@ -330,7 +423,7 @@ async function main() {
     emitirVenta(db, ctx.empresaId, ctx.usuarioId, {
       clienteId: clienteVentas!.id,
       tipoDocumento: "01",
-      serie: "F001",
+      serie: "FA01",
       fechaEmision: "2026-08-22",
       moneda: "PEN",
       tipoCambio: "1",
@@ -341,6 +434,50 @@ async function main() {
       ],
     }),
   );
+
+  // Dos boletas del mismo día, que es lo que alimenta el resumen diario: las
+  // boletas no se envían de una en una.
+  for (const importe of ["120.00", "260.00"]) {
+    await enEmpresa(app, ctx, (db) =>
+      emitirVenta(db, ctx.empresaId, ctx.usuarioId, {
+        clienteId: clienteVentas!.id,
+        tipoDocumento: "03",
+        serie: "BA01",
+        fechaEmision: "2026-08-23",
+        moneda: "PEN",
+        tipoCambio: "1",
+        // Sin almacén: son servicios de mostrador y no descargan inventario.
+        lineas: [{ descripcion: "Servicio de mantenimiento", cantidad: "1", valorUnitario: importe }],
+      }),
+    );
+  }
+
+  // Una factura de compra canjeada por letra, para que la cartera y la
+  // programación de egresos tengan algo que mostrar.
+  await enEmpresa(app, ctx, async (db) => {
+    const pendientes = await documentosPorPagar(db, agencia!.id);
+    const doc = pendientes.at(-1);
+    if (doc) {
+      await canjearPorLetra(db, ctx.empresaId, ctx.usuarioId, {
+        numero: "LT-2026-001",
+        cartera: "pagar",
+        terceroId: agencia!.id,
+        fechaGiro: "2026-09-05",
+        fechaVencimiento: "2026-10-20",
+        moneda: "PEN",
+        documentos: [{ documentoId: doc.id, importe: doc.saldo }],
+      });
+    }
+  });
+
+  // La factura de venta queda aceptada por SUNAT: es lo único que se puede dar
+  // de baja, y sin ella esa pantalla se ve siempre vacía.
+  const raw3 = postgres(URL, { max: 1, onnotice: () => {} });
+  await raw3`
+    UPDATE comprobantes SET estado = 'aceptado', codigo_sunat = 0,
+                            mensaje_sunat = 'La Factura numero FA01-00000001, ha sido aceptada'
+    WHERE empresa_id = ${empresa.empresaId} AND tipo_documento = '01'`;
+  await raw3.end();
 
   // Caja y bancos, con un extracto que deja parejas por conciliar y una línea
   // que el banco cobró sin que nadie la registrara.

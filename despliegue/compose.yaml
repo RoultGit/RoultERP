@@ -1,0 +1,77 @@
+# Una sola máquina: aplicación, base y HTTPS.
+#
+# Es el escalón 1 de `docs/INFRAESTRUCTURA.md`, para uno o dos clientes. Al
+# tercero, la base sale de aquí y se va a RDS: basta con borrar el servicio
+# `base` y apuntar `DATABASE_URL` al de allá. Nada más cambia.
+
+name: roulterp
+
+services:
+  app:
+    image: roulterp:actual
+    restart: always
+    depends_on:
+      base:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://roulterp:${POSTGRES_PASSWORD}@base:5432/roulterp
+      ROULTERP_KEK: ${ROULTERP_KEK}
+      ROULTERP_KEK_ID: ${ROULTERP_KEK_ID:-env-1}
+      ROULTERP_COLA_SECRETO: ${ROULTERP_COLA_SECRETO}
+    # No se publica al exterior: sólo Caddy habla con ella. Así el puerto 3000
+    # no queda expuesto en internet aunque el grupo de seguridad se configure
+    # mal alguna vez.
+    expose:
+      - "3000"
+    logging:
+      driver: json-file
+      # Sin tope, los registros llenan el disco de 20 GB en unos meses y la
+      # máquina deja de arrancar. Es la forma más tonta de perder un servidor.
+      options: { max-size: "10m", max-file: "5" }
+
+  base:
+    image: postgres:17-alpine
+    restart: always
+    environment:
+      POSTGRES_DB: roulterp
+      POSTGRES_USER: roulterp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # La base guarda fechas propias; la zona la fija igual la aplicación en
+      # cada conexión, pero así los registros del motor salen en hora local.
+      TZ: America/Lima
+    volumes:
+      - datos:/var/lib/postgresql/data
+    healthcheck:
+      # La aplicación migra al arrancar: si sale antes de que la base acepte
+      # conexiones, falla y el contenedor se reinicia en bucle.
+      test: ["CMD-SHELL", "pg_isready -U roulterp -d roulterp"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+  # Caddy saca el certificado de Let's Encrypt solo y lo renueva solo. Es la
+  # razón por la que montar HTTPS en EC2 deja de ser trabajo.
+  proxy:
+    image: caddy:2-alpine
+    restart: always
+    depends_on: [app]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMINIO: ${DOMINIO}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-datos:/data
+      - caddy-config:/config
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+volumes:
+  datos:
+  caddy-datos:
+  caddy-config:

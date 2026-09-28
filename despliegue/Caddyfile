@@ -1,0 +1,39 @@
+# HTTPS automático.
+#
+# Caddy pide el certificado a Let's Encrypt la primera vez que alguien entra
+# por el dominio, y lo renueva solo antes de que venza. No hay nada que
+# recordar hacer cada tres meses.
+#
+# Requisito: el dominio tiene que apuntar ya a la IP de la máquina, y los
+# puertos 80 y 443 estar abiertos. Sin el 80 no se puede validar el dominio.
+
+{$DOMINIO} {
+	# Se reenvía tal cual a la aplicación. El tiempo de espera es generoso
+	# porque el botón de «enviar ahora» a SUNAT puede tardar un minuto; la
+	# cola automática no pasa por aquí.
+	reverse_proxy app:3000 {
+		transport http {
+			response_header_timeout 180s
+		}
+	}
+
+	encode gzip
+
+	header {
+		# HSTS: una vez visto por HTTPS, el navegador no vuelve a intentar
+		# por HTTP aunque alguien manipule el enlace.
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# La cabecera que anuncia el servidor sólo le sirve a quien busca
+		# vulnerabilidades conocidas de esa versión.
+		-Server
+	}
+
+	log {
+		output file /data/acceso.log {
+			roll_size 10mb
+			roll_keep 5
+		}
+	}
+}

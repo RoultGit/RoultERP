@@ -17,20 +17,27 @@ export function Encabezado({
   descripcion?: string;
   acciones?: React.ReactNode;
 }) {
+  /*
+   * El título de pantalla, grande y con tracking cerrado.
+   *
+   * Ya no va sobre una banda blanca con borde inferior: se apoya directo sobre
+   * el gris de la página, como el contenido. La banda separaba el título del
+   * cuerpo con una raya y hacía que cada pantalla arrancara con dos cajas
+   * apiladas antes del primer dato.
+   */
   return (
-    <header
-      className="flex items-start justify-between gap-4 border-b px-6 py-4"
-      style={{ borderColor: "var(--borde)", background: "var(--superficie)" }}
-    >
+    <header className="mx-auto flex max-w-[1180px] flex-wrap items-start justify-between gap-4 px-6 pb-4 pt-7">
       <div className="min-w-0">
-        <h1 className="text-lg font-semibold tracking-tight">{titulo}</h1>
+        <h1 className="text-[clamp(24px,3.2vw,32px)] font-semibold leading-[1.1] tracking-[-0.035em]">
+          {titulo}
+        </h1>
         {descripcion && (
-          <p className="mt-0.5 text-sm" style={{ color: "var(--texto-suave)" }}>
+          <p className="mt-2 max-w-3xl text-[13.5px]" style={{ color: "var(--texto-suave)" }}>
             {descripcion}
           </p>
         )}
       </div>
-      {acciones && <div className="flex shrink-0 gap-2">{acciones}</div>}
+      {acciones && <div className="flex shrink-0 flex-wrap gap-2">{acciones}</div>}
     </header>
   );
 }
@@ -46,8 +53,8 @@ export function Vacio({
 }) {
   return (
     <div
-      className="rounded-md border border-dashed px-6 py-12 text-center"
-      style={{ borderColor: "var(--borde-fuerte)" }}
+      className="border border-dashed px-6 py-12 text-center"
+      style={{ borderColor: "var(--borde-fuerte)", borderRadius: "var(--radio-panel)" }}
     >
       <p className="font-medium">{titulo}</p>
       {descripcion && (
@@ -118,21 +125,80 @@ export function Insignia({
   );
 }
 
-/** Estados de documento, con el tono que le corresponde a cada uno. */
+/**
+ * Estados de documento, con el tono que le corresponde a cada uno.
+ *
+ * Los estados llegan en masculino o en femenino según el documento —una guía
+ * está «aceptada», un comprobante «aceptado»— y el tono es el mismo. Se listan
+ * los dos géneros en vez de recortar la última letra: hay estados que no se
+ * distinguen por ella y adivinar produciría el color equivocado, que en esta
+ * pantalla es peor que no dar ninguno.
+ */
+const TONO_ESTADO: Record<string, "exito" | "alerta" | "peligro" | "neutro"> = {
+  // Terminó bien.
+  aceptado: "exito",
+  aceptada: "exito",
+  aceptado_con_observaciones: "exito",
+  contabilizado: "exito",
+  liquidada: "exito",
+  atendido: "exito",
+  atendida: "exito",
+  pagado: "exito",
+  pagada: "exito",
+  cobrada: "exito",
+  conciliado: "exito",
+  activo: "exito",
+  activa: "exito",
+
+  // Todavía no terminó, o alguien tiene que hacer algo.
+  borrador: "alerta",
+  pendiente: "alerta",
+  parcial: "alerta",
+  firmado: "alerta",
+  enviado: "alerta",
+  enviada: "alerta",
+  girada: "alerta",
+  aceptada_letra: "alerta",
+  en_cartera: "alerta",
+  baja_solicitada: "alerta",
+  registrado: "alerta",
+  registrada: "alerta",
+
+  // Terminó mal, o ya no vale.
+  rechazado: "peligro",
+  rechazada: "peligro",
+  anulado: "peligro",
+  anulada: "peligro",
+  protestada: "peligro",
+  vencido: "peligro",
+  vencida: "peligro",
+
+  // Cerrado sin más: ni bueno ni malo.
+  dado_de_baja: "neutro",
+  extornado: "neutro",
+  renovada: "neutro",
+  canjeado: "neutro",
+  convertida: "neutro",
+  cerrado: "neutro",
+  descontada: "neutro",
+};
+
 export function EstadoDoc({ estado }: { estado: string }) {
-  const tono =
-    estado === "anulada" || estado === "anulado" || estado === "protestada"
-      ? "peligro"
-      : estado === "borrador" || estado === "pendiente"
-        ? "alerta"
-        : estado === "liquidada" || estado === "contabilizado" || estado === "pagado"
-          ? "exito"
-          : "neutro";
-  return <Insignia tono={tono}>{estado.replace(/_/g, " ")}</Insignia>;
+  return (
+    <Insignia tono={TONO_ESTADO[estado] ?? "neutro"}>{estado.replace(/_/g, " ")}</Insignia>
+  );
 }
 
+/*
+ * El cuerpo de la pantalla.
+ *
+ * Con el mismo ancho máximo y el mismo margen lateral que el encabezado, para
+ * que el título y la primera tabla arranquen en la misma vertical. Sin el tope
+ * de ancho, en un monitor de 27 pulgadas una tabla de seis columnas se estira
+ * hasta que el ojo pierde la fila entre la primera celda y la última.
+ */
 export function Contenido({ children }: { children: React.ReactNode }) {
-  return <div className="p-6">{children}</div>;
+  return <div className="mx-auto max-w-[1180px] px-6 pb-10">{children}</div>;
 }
 
 export function BotonEnlace({
@@ -162,3 +228,4 @@ export function SinPermiso() {
     </Contenido>
   );
 }
+

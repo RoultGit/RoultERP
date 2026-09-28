@@ -5,9 +5,15 @@ import { kardexDe } from "@roulterp/servicios";
 import { money } from "@roulterp/core";
 import { conEmpresa } from "@/lib/sesion";
 import { Contenido, Encabezado, Importe, Insignia, Vacio } from "@/components/ui";
+import { Imprimir } from "@/components/imprimir";
 
 export const metadata = { title: "Kardex · RoultERP" };
 export const dynamic = "force-dynamic";
+
+/** Catálogo 1 de SUNAT, abreviado: la columna es estrecha. */
+const DOCUMENTO: Record<string, string> = {
+  "01": "FAC", "03": "BOL", "04": "LC", "07": "NC", "08": "ND", "09": "GR",
+};
 
 /** Catálogo 12 de SUNAT, con el nombre que entiende el usuario. */
 const OPERACION: Record<string, string> = {
@@ -84,9 +90,12 @@ export default async function Kardex({
         titulo={`Kardex · ${cabecera.codigo}`}
         descripcion={`${cabecera.descripcion} · ${cabecera.almacen} · unidad ${cabecera.unidad}`}
         acciones={
-          <Link href="/inventario" className="boton boton-secundario">
-            Volver
-          </Link>
+          <>
+            <Imprimir />
+            <Link href="/inventario" className="boton boton-secundario">
+              Volver
+            </Link>
+          </>
         }
       />
       <Contenido>
@@ -102,7 +111,7 @@ export default async function Kardex({
                 <tr>
                   <th rowSpan={2}>Fecha</th>
                   <th rowSpan={2}>Operación</th>
-                  <th rowSpan={2}>Origen</th>
+                  <th rowSpan={2}>Referencia</th>
                   <th colSpan={3} className="!text-center">
                     Entradas
                   </th>
@@ -142,7 +151,23 @@ export default async function Kardex({
                           </span>
                         )}
                       </td>
-                      <td style={{ color: "var(--texto-suave)" }}>{l.origenModulo ?? "—"}</td>
+                      <td style={{ color: "var(--texto-suave)" }}>
+                        {l.refDocumento ? (
+                          <>
+                            <span className="cifra">
+                              {l.refTipo ? `${DOCUMENTO[l.refTipo] ?? l.refTipo} ` : ""}
+                              {l.refDocumento}
+                            </span>
+                            {l.tercero && (
+                              <div className="truncate text-xs" title={l.tercero}>
+                                {l.tercero}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          (l.origenModulo ?? "—")
+                        )}
+                      </td>
 
                       <td>{entrada ? <Importe valor={l.cantidad} /> : null}</td>
                       <td>{entrada ? <Importe valor={l.costoUnitario} decimales={4} /> : null}</td>

@@ -1,17 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import {
-  cargarCertificado, guardarCredencialesSol, ConfiguracionInvalida,
-} from "@roulterp/servicios";
-import { CertificadoInvalido } from "@roulterp/core/cpe";
+import { cargarCertificado, guardarCredencialesSol } from "@roulterp/servicios";
+
 import { schema } from "@roulterp/db";
-import { conEmpresa, NoAutorizado } from "@/lib/sesion";
+import { conEmpresa } from "@/lib/sesion";
 import { kekMaestra, kekMaestraId } from "@/lib/entorno";
+import { type EstadoForm, texto } from "@/lib/formulario";
+import { traducirError } from "@/lib/errores";
 
-export type EstadoForm = { error?: string; exito?: string };
-
-const texto = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
+export type { EstadoForm };
 
 /** Un certificado tributario pesa unos pocos kilobytes; medio mega es de sobra. */
 const MAXIMO_PFX = 512 * 1024;
@@ -122,13 +120,4 @@ export async function crearSerieAccion(
   }
 }
 
-function mensaje(e: unknown): EstadoForm {
-  if (e instanceof NoAutorizado) return { error: "No tiene permiso para esta operación." };
-  if (e instanceof ConfiguracionInvalida || e instanceof CertificadoInvalido) {
-    return { error: e.message };
-  }
-  // El error de un certificado puede arrastrar la contraseña o material de la
-  // clave en su traza; se registra en el servidor y nunca se devuelve entero.
-  console.error("error configurando la emisión electrónica", e);
-  return { error: "No se pudo guardar. Revise los datos e intente de nuevo." };
-}
+const mensaje = (e: unknown) => traducirError(e, { contexto: "la configuración de emisión electrónica" });

@@ -4,14 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Route } from "next";
 import {
-  registrarPago, canjearPorLetra, renovarLetra,
-  PagoInvalido, ContabilizacionInvalida, type AplicacionPago,
+  registrarPago, canjearPorLetra, renovarLetra, pagarLetra, protestarLetra, type AplicacionPago,
 } from "@roulterp/servicios";
-import { conEmpresa, NoAutorizado } from "@/lib/sesion";
+import { conEmpresa } from "@/lib/sesion";
+import { type EstadoForm, texto } from "@/lib/formulario";
+import { traducirError } from "@/lib/errores";
 
-export type EstadoForm = { error?: string; exito?: string };
-
-const texto = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
+export type { EstadoForm };
 
 /**
  * Lee las aplicaciones del formulario.
@@ -52,6 +51,9 @@ export async function registrarPagoAccion(
           tipoCambio: texto(form, "tipoCambio") || "1",
           medioPago: texto(form, "medioPago") || "transferencia",
           cuentaOrigen: texto(form, "cuentaOrigen") || "1041",
+          ...(texto(form, "cuentaEfectivoId")
+            ? { cuentaEfectivoId: texto(form, "cuentaEfectivoId") }
+            : {}),
           aplicaciones,
           retenerIgv: form.get("retenerIgv") === "on",
           ...(texto(form, "referencia") ? { referencia: texto(form, "referencia") } : {}),
@@ -122,17 +124,81 @@ export async function renovarLetraAccion(
   }
 }
 
-function mensaje(e: unknown): EstadoForm {
-  if (e instanceof NoAutorizado) return { error: "No tiene permiso para esta operación." };
-  if (e instanceof PagoInvalido || e instanceof ContabilizacionInvalida) {
-    return { error: e.message };
+/**
+ * Paga la letra al vencimiento.
+ *
+ * Sin importe se cancela entera, que es lo normal; con importe se amortiza. El
+ * servicio rechaza lo que exceda el saldo.
+ */
+export async function pagarLetraAccion(
+  _previo: EstadoForm,
+  form: FormData,
+): Promise<EstadoForm> {
+  let hecho: string;
+  try {
+    const r = await conEmpresa(
+      (db, sesion) =>
+        pagarLetra(db, sesion.empresaId, sesion.usuarioId, {
+          letraId: texto(form, "letraId"),
+          fecha: texto(form, "fecha"),
+          ...(texto(form, "importe") ? { importe: texto(form, "importe") } : {}),
+          ...(texto(form, "cuentaOrigen") ? { cuentaOrigen: texto(form, "cuentaOrigen") } : {}),
+          ...(texto(form, "cuentaEfectivoId")
+            ? { cuentaEfectivoId: texto(form, "cuentaEfectivoId") }
+            : {}),
+          ...(form.get("retenerIgv") !== null ? { retenerIgv: true } : {}),
+        }),
+      "cxp:crear",
+    );
+    revalidatePath("/cxp/letras");
+    revalidatePath("/cxp/egresos");
+    /*
+     * Se redirige con el resultado en la dirección en vez de devolverlo.
+     *
+     * Pagada la letra, su fila deja de tener botones de acción y el componente
+     * que mostraba el aviso desaparece con ellos: el usuario pulsaba y no
+     * recibía confirmación de nada. Un aviso que vive en la página sobrevive a
+     * que la fila cambie.
+     */
+    hecho =
+      `Letra ${r.numero}: pagado ${r.importe}.` +
+      (r.retencion === "0.00" ? "" : ` Se retuvo ${r.retencion} y salieron ${r.importeNeto}.`) +
+      (r.saldo === "0.00" ? " Queda cancelada." : ` Queda un saldo de ${r.saldo}.`);
+  } catch (e) {
+    return mensaje(e);
   }
-  if (e instanceof Error && /pagos_uk|duplicate key/.test(e.message)) {
-    return { error: "Ya existe un pago con ese número." };
-  }
-  if (e instanceof Error && /letras_uk/.test(e.message)) {
-    return { error: "Ya existe una letra con ese número." };
-  }
-  console.error("error en cuentas por pagar", e);
-  return { error: "No se pudo completar la operación. Revise los datos e intente de nuevo." };
+  redirect(`/cxp/letras?hecho=${encodeURIComponent(hecho)}` as Route);
 }
+
+/** Protesta la letra vencida. No cancela la deuda: la reclasifica. */
+export async function protestarLetraAccion(
+  _previo: EstadoForm,
+  form: FormData,
+): Promise<EstadoForm> {
+  let hecho: string;
+  try {
+    const r = await conEmpresa(
+      (db, sesion) =>
+        protestarLetra(db, sesion.empresaId, sesion.usuarioId, {
+          letraId: texto(form, "letraId"),
+          fecha: texto(form, "fecha"),
+          ...(texto(form, "gastos") ? { gastos: texto(form, "gastos") } : {}),
+          ...(texto(form, "motivo") ? { motivo: texto(form, "motivo") } : {}),
+        }),
+      "cxp:anular",
+    );
+    revalidatePath("/cxp/letras");
+    hecho = `Letra ${r.numero} protestada. La deuda sigue viva, ahora como vencida.`;
+  } catch (e) {
+    return mensaje(e);
+  }
+  redirect(`/cxp/letras?hecho=${encodeURIComponent(hecho)}` as Route);
+}
+
+const mensaje = (e: unknown) => traducirError(e, {
+  contexto: "cuentas por pagar",
+  choques: [
+    [/letras_uk/, "Ya existe una letra con ese número."],
+    [/pagos_uk|duplicate key/, "Ya existe un pago con ese número."],
+  ],
+});

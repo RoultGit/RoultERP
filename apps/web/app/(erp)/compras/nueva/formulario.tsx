@@ -5,6 +5,8 @@ import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { registrarCompraAccion, type EstadoForm } from "../acciones";
 import { formatearImporte } from "@/components/ui";
+import { hoyEnPeru } from "@roulterp/core/fecha";
+import { useLineas } from "@/lib/lineas";
 
 export type Opcion = { id: string; etiqueta: string };
 export type ProductoOpcion = Opcion & { descripcion: string };
@@ -35,9 +37,7 @@ const AFECTACIONES = [
   ["30", "Inafecto"],
 ] as const;
 
-let siguienteClave = 0;
-const lineaVacia = (): Linea => ({
-  clave: siguienteClave++,
+const lineaVacia = (): Omit<Linea, "clave"> => ({
   productoId: "",
   descripcion: "",
   cantidad: "1",
@@ -80,12 +80,10 @@ export function FormularioCompra({
   reglas: ReglaOpcion[];
 }) {
   const [estado, accion] = useActionState<EstadoForm, FormData>(registrarCompraAccion, {});
-  const [lineas, setLineas] = useState<Linea[]>([lineaVacia()]);
+  const { lineas, actualizar, agregar, quitar } = useLineas<Linea>(lineaVacia);
   const [moneda, setMoneda] = useState("PEN");
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyEnPeru();
 
-  const actualizar = (clave: number, cambio: Partial<Linea>) =>
-    setLineas((ls) => ls.map((l) => (l.clave === clave ? { ...l, ...cambio } : l)));
 
   const elegirProducto = (clave: number, productoId: string) => {
     const p = productos.find((x) => x.id === productoId);
@@ -175,7 +173,7 @@ export function FormularioCompra({
           <h2 className="text-sm font-semibold">Detalle</h2>
           <button
             type="button" className="boton boton-secundario !py-1 !text-xs"
-            onClick={() => setLineas((ls) => [...ls, lineaVacia()])}
+            onClick={() => agregar()}
           >
             Agregar línea
           </button>
@@ -281,7 +279,7 @@ export function FormularioCompra({
                     <button
                       type="button" aria-label={`Quitar línea ${i + 1}`}
                       className="text-xs" style={{ color: "var(--peligro)" }}
-                      onClick={() => setLineas((ls) => ls.filter((x) => x.clave !== l.clave))}
+                      onClick={() => quitar(l.clave)}
                     >
                       ✕
                     </button>

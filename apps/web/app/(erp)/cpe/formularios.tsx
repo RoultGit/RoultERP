@@ -6,6 +6,10 @@ import {
   subirCertificadoAccion, guardarCredencialesAccion, crearSerieAccion,
   type EstadoForm,
 } from "./acciones";
+import {
+  guardarCredencialesGreAccion,
+  type EstadoForm as EstadoFormGuia,
+} from "../guias/acciones";
 
 function Boton({ texto, cargando }: { texto: string; cargando: string }) {
   const { pending } = useFormStatus();
@@ -97,6 +101,9 @@ export function FormularioCredenciales({
       <div>
         <label className="etiqueta" htmlFor="usuarioSol">Usuario SOL</label>
         <input
+          // Ver la nota del selector de rol en usuarios/formularios.tsx: sin
+          // `key` el campo vuelve al valor que tenía al montarse, no al guardado.
+          key={usuarioActual}
           id="usuarioSol" name="usuarioSol" required defaultValue={usuarioActual}
           className="campo uppercase" placeholder="MODDATOS" autoComplete="off" />
       </div>
@@ -149,6 +156,9 @@ export function FormularioSerie() {
             <option value="03">Boleta de venta</option>
             <option value="07">Nota de crédito</option>
             <option value="08">Nota de débito</option>
+            <option value="09">Guía de remisión</option>
+            <option value="20">Comprobante de retención</option>
+            <option value="40">Comprobante de percepción</option>
           </select>
         </div>
         <div>
@@ -162,5 +172,55 @@ export function FormularioSerie() {
         <Boton texto="Agregar serie" cargando="Agregando…" />
       </div>
     </form>
+  );
+}
+
+/**
+ * Credenciales de la API de guías de remisión.
+ *
+ * Van aparte de las SOL porque son otras: un `client_id` y un `client_secret`
+ * que se generan en el menú SOL, en la opción de la GRE. Usar las SOL aquí
+ * devuelve un 401 sin más explicación, que es donde se atasca casi todo el
+ * mundo la primera vez.
+ */
+export function FormularioCredencialesGre({ clientIdActual }: { clientIdActual: string }) {
+  const [estado, accion] = useActionState<EstadoFormGuia, FormData>(
+    guardarCredencialesGreAccion,
+    {},
+  );
+
+  return (
+    <form action={accion} className="space-y-3">
+      {estado.error && <p className="aviso" role="alert">{estado.error}</p>}
+      {estado.exito && (
+        <p className="text-sm" style={{ color: "var(--exito)" }}>{estado.exito}</p>
+      )}
+      <div>
+        <label className="etiqueta" htmlFor="clientId">client_id *</label>
+        <input
+          id="clientId" name="clientId" required className="campo cifra"
+          key={clientIdActual}
+          style={{ textAlign: "left" }} defaultValue={clientIdActual}
+          autoComplete="off"
+        />
+      </div>
+      <div>
+        <label className="etiqueta" htmlFor="clientSecret">client_secret *</label>
+        <input
+          id="clientSecret" name="clientSecret" type="password" required className="campo"
+          autoComplete="new-password" placeholder="Se guarda cifrado; no vuelve a mostrarse"
+        />
+      </div>
+      <BotonGuardarGre />
+    </form>
+  );
+}
+
+function BotonGuardarGre() {
+  const { pending } = useFormStatus();
+  return (
+    <button type="submit" className="boton boton-secundario" disabled={pending}>
+      {pending ? "Guardando…" : "Guardar credenciales de la GRE"}
+    </button>
   );
 }

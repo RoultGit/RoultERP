@@ -27,6 +27,12 @@ const FICHAS = [
     tabla: "plan_cuentas",
   },
   {
+    href: "/maestros/centros-costo",
+    titulo: "Centros de costo",
+    descripcion: "A dónde se imputa cada gasto. Varias cuentas del plan lo exigen al contabilizar.",
+    tabla: "centros_costo",
+  },
+  {
     href: "/maestros/almacenes",
     titulo: "Almacenes y sucursales",
     descripcion: "Establecimientos donde se guarda existencia; el kardex se lleva por almacén.",
@@ -41,6 +47,7 @@ export default async function Maestros() {
       UNION ALL SELECT 'terceros',    count(*)::int FROM terceros WHERE activo
       UNION ALL SELECT 'plan_cuentas', count(*)::int FROM plan_cuentas WHERE activa
       UNION ALL SELECT 'almacenes',   count(*)::int FROM almacenes WHERE activo
+      UNION ALL SELECT 'centros_costo', count(*)::int FROM centros_costo WHERE activo
     `)) as unknown as { tabla: string; n: number }[];
     return new Map(filas.map((f) => [f.tabla, f.n]));
   }, "maestros:ver");

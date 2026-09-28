@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { renovarLetraAccion, type EstadoForm } from "../acciones";
+import { hoyEnPeru } from "@roulterp/core/fecha";
 
 function Boton() {
   const { pending } = useFormStatus();
@@ -32,7 +33,7 @@ export function RenovarLetra({
 }) {
   const [estado, accion] = useActionState<EstadoForm, FormData>(renovarLetraAccion, {});
   const [abierto, setAbierto] = useState(false);
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyEnPeru();
 
   if (!abierto) {
     return (

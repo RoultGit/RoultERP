@@ -4,13 +4,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Route } from "next";
 import { ZodError } from "zod";
-import { guardarProducto, guardarTercero, desactivarProducto, MaestroInvalido } from "@roulterp/servicios";
-import { conEmpresa, NoAutorizado } from "@/lib/sesion";
+import {
+  guardarProducto, guardarTercero, desactivarProducto, guardarSucursal,
+} from "@roulterp/servicios";
+import { conEmpresa } from "@/lib/sesion";
+import { type EstadoForm, texto, marcado } from "@/lib/formulario";
+import { traducirError } from "@/lib/errores";
 
-export type EstadoForm = { error?: string; campo?: string; exito?: string };
-
-const texto = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
-const marcado = (f: FormData, k: string) => f.get(k) === "on" || f.get(k) === "true";
+export type { EstadoForm };
 
 export async function guardarProductoAccion(
   _previo: EstadoForm,
@@ -99,16 +100,36 @@ export async function desactivarProductoAccion(form: FormData): Promise<void> {
  * poder resaltarlo en el formulario. Los errores inesperados van al registro
  * del servidor: el navegador sólo ve una frase genérica.
  */
-function mensaje(e: unknown): EstadoForm {
-  if (e instanceof NoAutorizado) return { error: "No tiene permiso para esta operación." };
-  if (e instanceof MaestroInvalido) return { error: e.message };
-  if (e instanceof ZodError) {
-    const primero = e.issues[0];
-    return {
-      error: primero?.message ?? "Revise los datos ingresados.",
-      ...(primero?.path[0] ? { campo: String(primero.path[0]) } : {}),
-    };
+const mensaje = (e: unknown) => traducirError(e, { contexto: "el alta de maestros" });
+
+/**
+ * Alta y edición de una sucursal.
+ *
+ * Sin esta pantalla la sucursal se creaba junto con la empresa y ya no había
+ * forma de completarla: el ubigeo quedaba vacío para siempre y cada guía de
+ * remisión obligaba a teclear el punto de partida a mano.
+ */
+export async function guardarSucursalAccion(
+  _previo: EstadoForm,
+  form: FormData,
+): Promise<EstadoForm> {
+  const id = texto(form, "id") || undefined;
+  try {
+    await conEmpresa(
+      (db, sesion) =>
+        guardarSucursal(db, sesion.empresaId, sesion.usuarioId, {
+          ...(id ? { id } : {}),
+          codigo: texto(form, "codigo"),
+          nombre: texto(form, "nombre"),
+          direccion: texto(form, "direccion"),
+          ubigeo: texto(form, "ubigeo"),
+          codigoSunat: texto(form, "codigoSunat"),
+        }),
+      id ? "maestros:editar" : "maestros:crear",
+    );
+  } catch (e) {
+    return mensaje(e);
   }
-  console.error("error al guardar el maestro", e);
-  return { error: "No se pudo guardar. Revise los datos e intente de nuevo." };
+  revalidatePath("/maestros/almacenes");
+  redirect("/maestros/almacenes?hecho=sucursal" as Route);
 }

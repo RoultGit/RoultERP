@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Route } from "next";
+import { sql } from "drizzle-orm";
 import { cargarComprobante, VentaInvalida } from "@roulterp/servicios";
 import { money } from "@roulterp/core";
 import { conEmpresa, tienePermiso } from "@/lib/sesion";
@@ -27,7 +28,23 @@ export default async function DetalleVenta({
 
   const datos = await conEmpresa(async (db) => {
     try {
-      return await cargarComprobante(db, id);
+      const doc = await cargarComprobante(db, id);
+      // Las notas que modifican este comprobante, y el que esta nota modifica:
+      // sin ambos enlaces el documento se lee fuera de contexto.
+      const relacionadas = (await db.execute(sql`
+        SELECT id, tipo_documento, serie, numero, total::text AS total, estado,
+               'nota' AS vinculo
+        FROM comprobantes WHERE modifica_a = ${id}
+        UNION ALL
+        SELECT o.id, o.tipo_documento, o.serie, o.numero, o.total::text, o.estado,
+               'original' AS vinculo
+        FROM comprobantes c JOIN comprobantes o ON o.id = c.modifica_a
+        WHERE c.id = ${id}
+        ORDER BY 2, 3, 4`)) as unknown as {
+        id: string; tipo_documento: string; serie: string; numero: string;
+        total: string; estado: string; vinculo: string;
+      }[];
+      return { ...doc, relacionadas: [...relacionadas] };
     } catch (e) {
       if (e instanceof VentaInvalida) return null;
       throw e;
@@ -35,15 +52,41 @@ export default async function DetalleVenta({
   }, "ventas:ver");
 
   if (!datos) notFound();
-  const { cabecera, items, cliente } = datos;
-  const puedeEnviar = await tienePermiso("cpe:crear");
+  const { cabecera, items, cliente, relacionadas } = datos;
+  const [puedeEnviar, puedeCrear] = await Promise.all([
+    tienePermiso("cpe:crear"),
+    tienePermiso("ventas:crear"),
+  ]);
+  const admiteNota =
+    puedeCrear &&
+    cabecera.tipoDocumento !== "07" &&
+    cabecera.tipoDocumento !== "08" &&
+    cabecera.estado !== "borrador" &&
+    cabecera.estado !== "anulado";
 
   return (
     <>
       <Encabezado
         titulo={`${DOCUMENTO[cabecera.tipoDocumento] ?? cabecera.tipoDocumento} ${cabecera.serie}-${cabecera.numero}`}
         descripcion={`${cliente?.razonSocial ?? ""} · ${cliente?.numeroDocumento ?? ""} · ${cabecera.fechaEmision}`}
-        acciones={<Link href="/ventas" className="boton boton-secundario">Volver</Link>}
+        acciones={
+          <div className="flex flex-wrap gap-2">
+            {admiteNota && (
+              <Link href={`/ventas/${cabecera.id}/nota` as Route} className="boton boton-primario">
+                Emitir nota
+              </Link>
+            )}
+            {/* La representación impresa es lo que se le entrega al cliente:
+                lleva el resumen del XML y el QR que exige la norma. */}
+            <Link
+              href={`/ventas/${cabecera.id}/impresion` as Route}
+              className="boton boton-secundario"
+            >
+              Imprimir
+            </Link>
+            <Link href="/ventas" className="boton boton-secundario">Volver</Link>
+          </div>
+        }
       />
       <Contenido>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
@@ -119,7 +162,34 @@ export default async function DetalleVenta({
             )}
           </section>
 
-          <PanelSunat
+          <div className="space-y-5">
+            {relacionadas.length > 0 && (
+              <section className="tarjeta overflow-x-auto">
+                <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
+                  Documentos relacionados
+                </h2>
+                <table className="tabla">
+                  <tbody>
+                    {relacionadas.map((r) => (
+                      <tr key={r.id}>
+                        <td>
+                          <Link href={`/ventas/${r.id}` as Route} className="underline cifra">
+                            {r.serie}-{r.numero}
+                          </Link>
+                          <span className="ml-1.5 text-xs" style={{ color: "var(--texto-suave)" }}>
+                            {r.vinculo === "original" ? "modifica a este" : DOCUMENTO[r.tipo_documento] ?? r.tipo_documento}
+                          </span>
+                        </td>
+                        <td><Importe valor={r.total} moneda={cabecera.moneda} /></td>
+                        <td><Insignia>{r.estado}</Insignia></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            )}
+
+            <PanelSunat
             comprobanteId={cabecera.id}
             estado={cabecera.estado}
             codigo={cabecera.codigoSunat}
@@ -129,7 +199,8 @@ export default async function DetalleVenta({
             enviadoEn={cabecera.enviadoEn?.toISOString() ?? null}
             tieneCdr={!!cabecera.cdrBase64}
             puedeEnviar={puedeEnviar}
-          />
+            />
+          </div>
         </div>
       </Contenido>
     </>

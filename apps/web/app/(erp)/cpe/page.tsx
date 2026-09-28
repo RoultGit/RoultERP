@@ -1,3 +1,5 @@
+import Link from "next/link";
+import type { Route } from "next";
 import { asc, eq } from "drizzle-orm";
 import {
   certificadoActivo, credencialesActuales, listaParaEmitir, verificarCertificado,
@@ -6,14 +8,17 @@ import { schema } from "@roulterp/db";
 import { conEmpresa, tienePermiso } from "@/lib/sesion";
 import { kekMaestra } from "@/lib/entorno";
 import { Contenido, Encabezado, Insignia, Vacio } from "@/components/ui";
-import { FormularioCertificado, FormularioCredenciales, FormularioSerie } from "./formularios";
+import {
+  FormularioCertificado, FormularioCredenciales, FormularioCredencialesGre, FormularioSerie,
+} from "./formularios";
 
 export const metadata = { title: "Facturación electrónica · RoultERP" };
 export const dynamic = "force-dynamic";
 
 const TIPO: Record<string, string> = {
   "01": "Factura", "03": "Boleta", "07": "Nota de crédito", "08": "Nota de débito",
-  "09": "Guía de remisión",
+  "09": "Guía de remisión", "20": "Comprobante de retención",
+  "40": "Comprobante de percepción",
 };
 
 export default async function ConfiguracionCpe() {
@@ -42,19 +47,33 @@ export default async function ConfiguracionCpe() {
         titulo="Facturación electrónica"
         descripcion="Certificado digital, credenciales SOL y series de emisión."
         acciones={
-          datos.preparacion.lista ? (
-            <Insignia tono="exito">Lista para emitir</Insignia>
-          ) : (
-            <Insignia tono="alerta">Configuración incompleta</Insignia>
-          )
+          <div className="flex flex-wrap items-center gap-3">
+            {datos.preparacion.puedeEnviar ? (
+              <Insignia tono="exito">Lista para emitir y enviar</Insignia>
+            ) : datos.preparacion.puedeEmitir ? (
+              <Insignia tono="alerta">Puede emitir, no enviar</Insignia>
+            ) : (
+              <Insignia tono="alerta">Configuración incompleta</Insignia>
+            )}
+            <Link href={"/cpe/resumenes" as Route} className="boton boton-secundario">
+              Resúmenes y bajas
+            </Link>
+            <Link href={"/cpe/retenciones" as Route} className="boton boton-secundario">
+              Retenciones y percepciones
+            </Link>
+          </div>
         }
       />
       <Contenido>
-        {!datos.preparacion.lista && (
+        {!datos.preparacion.puedeEnviar && (
           <div className="mb-5 aviso">
-            <p className="font-medium">Falta lo siguiente antes de poder emitir:</p>
+            <p className="font-medium">
+              {datos.preparacion.puedeEmitir
+                ? "Ya puede facturar. Falta esto para poder enviar a SUNAT:"
+                : "Falta lo siguiente:"}
+            </p>
             <ul className="mt-1.5 space-y-0.5">
-              {datos.preparacion.faltantes.map((f) => (
+              {[...datos.preparacion.faltantesEmision, ...datos.preparacion.faltantesEnvio].map((f) => (
                 <li key={f}>· {f}</li>
               ))}
             </ul>
@@ -132,6 +151,31 @@ export default async function ConfiguracionCpe() {
               <FormularioCredenciales
                 usuarioActual={datos.credenciales?.usuarioSol ?? ""}
                 entornoActual={datos.credenciales?.entorno ?? "beta"}
+              />
+            )}
+          </section>
+
+          <section className="tarjeta p-4">
+            <h2 className="mb-1 text-sm font-semibold">Credenciales de la GRE</h2>
+            <p className="mb-4 text-xs" style={{ color: "var(--texto-suave)" }}>
+              Las guías de remisión van por una API distinta, con un client_id y un client_secret
+              propios que se generan aparte en el menú SOL. Las credenciales SOL no sirven aquí.
+            </p>
+
+            {datos.credenciales?.greClientId ? (
+              <dl className="mb-4 space-y-1.5 text-sm">
+                <Dato etiqueta="client_id" valor={datos.credenciales.greClientId} />
+                <Dato etiqueta="client_secret" valor={<Insignia tono="exito">guardado</Insignia>} />
+              </dl>
+            ) : (
+              <div className="mb-4">
+                <Vacio titulo="Sin credenciales de la GRE" />
+              </div>
+            )}
+
+            {puedeEditar && (
+              <FormularioCredencialesGre
+                clientIdActual={datos.credenciales?.greClientId ?? ""}
               />
             )}
           </section>

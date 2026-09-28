@@ -5,6 +5,7 @@ import { mayorDeCuenta } from "@roulterp/servicios";
 import { money } from "@roulterp/core";
 import { conEmpresa } from "@/lib/sesion";
 import { Contenido, Encabezado, Importe, Vacio } from "@/components/ui";
+import { Imprimir } from "@/components/imprimir";
 
 export const metadata = { title: "Mayor · RoultERP" };
 export const dynamic = "force-dynamic";
@@ -46,12 +47,15 @@ export default async function Mayor({
         titulo={`Mayor de la cuenta ${cuenta}`}
         descripcion={periodo ? `Periodo ${periodo}` : "Todos los periodos"}
         acciones={
-          <Link
-            href={(periodo ? `/contabilidad?periodo=${periodo}` : "/contabilidad") as Route}
-            className="boton boton-secundario"
-          >
-            Volver al balance
-          </Link>
+          <>
+            <Imprimir />
+            <Link
+              href={(periodo ? `/contabilidad?periodo=${periodo}` : "/contabilidad") as Route}
+              className="boton boton-secundario"
+            >
+              Volver al balance
+            </Link>
+          </>
         }
       />
       <Contenido>

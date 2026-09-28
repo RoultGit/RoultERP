@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { crearImportacionAccion, type EstadoForm } from "../acciones";
+import { hoyEnPeru } from "@roulterp/core/fecha";
 
 /** Incoterms más usados en importación marítima peruana. */
 const INCOTERMS = ["FOB", "CIF", "CFR", "EXW", "FCA", "DAP", "DDP"] as const;
@@ -25,7 +26,7 @@ export function FormularioImportacion({
   almacenes: { id: string; nombre: string; esTransito: boolean }[];
 }) {
   const [estado, accion] = useActionState<EstadoForm, FormData>(crearImportacionAccion, {});
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyEnPeru();
 
   // Los del exterior primero: son los que realmente emiten una factura de
   // importación. Los nacionales aparecen porque el agente de aduanas o el

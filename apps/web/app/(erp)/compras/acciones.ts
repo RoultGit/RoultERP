@@ -4,15 +4,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Route } from "next";
 import {
-  crearOrden, aprobarOrden, registrarCompra,
-  CompraInvalida, ContabilizacionInvalida, InventarioInvalido,
-  type LineaCompra, type LineaOrden,
+  crearOrden, aprobarOrden, registrarCompra, type LineaCompra, type LineaOrden,
 } from "@roulterp/servicios";
-import { conEmpresa, NoAutorizado } from "@/lib/sesion";
 
-export type EstadoForm = { error?: string; exito?: string };
+import { conEmpresa } from "@/lib/sesion";
+import { type EstadoForm, texto, filas } from "@/lib/formulario";
+import { traducirError } from "@/lib/errores";
 
-const texto = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
+export type { EstadoForm };
 
 /**
  * Reconstruye las líneas del formulario.
@@ -24,27 +23,25 @@ const texto = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
  */
 function leerLineas(form: FormData): LineaCompra[] {
   const lineas: LineaCompra[] = [];
-  for (let i = 0; ; i++) {
-    const descripcion = form.get(`lineas[${i}].descripcion`);
-    if (descripcion === null) break;
-    const d = String(descripcion).trim();
+  for (const campo of filas(form, "descripcion")) {
+    const d = campo("descripcion");
     // Una fila en blanco es una fila que el usuario dejó sin llenar, no un error.
     if (d === "") continue;
 
-    const productoId = texto(form, `lineas[${i}].productoId`);
-    const cuenta = texto(form, `lineas[${i}].cuenta`);
+    const productoId = campo("productoId");
+    const cuenta = campo("cuenta");
     lineas.push({
       descripcion: d,
-      cantidad: texto(form, `lineas[${i}].cantidad`) || "0",
-      valorUnitario: texto(form, `lineas[${i}].valorUnitario`) || "0",
-      afectacionIgv: texto(form, `lineas[${i}].afectacionIgv`) || "10",
+      cantidad: campo("cantidad") || "0",
+      valorUnitario: campo("valorUnitario") || "0",
+      afectacionIgv: campo("afectacionIgv") || "10",
       ...(productoId ? { productoId } : {}),
       ...(cuenta ? { cuenta } : {}),
-      ...(texto(form, `lineas[${i}].descuento`)
-        ? { descuento: texto(form, `lineas[${i}].descuento`) }
+      ...(campo("descuento")
+        ? { descuento: campo("descuento") }
         : {}),
-      ...(texto(form, `lineas[${i}].centroCostoId`)
-        ? { centroCostoId: texto(form, `lineas[${i}].centroCostoId`) }
+      ...(campo("centroCostoId")
+        ? { centroCostoId: campo("centroCostoId") }
         : {}),
     });
   }
@@ -140,21 +137,10 @@ export async function aprobarOrdenAccion(form: FormData): Promise<void> {
   revalidatePath("/compras");
 }
 
-function mensaje(e: unknown): EstadoForm {
-  if (e instanceof NoAutorizado) return { error: "No tiene permiso para esta operación." };
-  if (
-    e instanceof CompraInvalida ||
-    e instanceof ContabilizacionInvalida ||
-    e instanceof InventarioInvalido
-  ) {
-    return { error: e.message };
-  }
-  if (e instanceof Error && /compras_uk|duplicate key/.test(e.message)) {
-    return { error: "Ese documento ya está registrado para este proveedor." };
-  }
-  if (e instanceof Error && /ordenes_compra_uk/.test(e.message)) {
-    return { error: "Ya existe una orden con ese número." };
-  }
-  console.error("error en el módulo de compras", e);
-  return { error: "No se pudo completar la operación. Revise los datos e intente de nuevo." };
-}
+const mensaje = (e: unknown) => traducirError(e, {
+  contexto: "compras",
+  choques: [
+    [/ordenes_compra_uk/, "Ya existe una orden con ese número."],
+    [/compras_uk|duplicate key/, "Ese documento ya está registrado para este proveedor."],
+  ],
+});

@@ -2,10 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import {
-  confirmarLiquidacion, cambiarEstado, ImportacionInvalida,
-  ContabilizacionInvalida, InventarioInvalido, type EstadoImportacion,
+  confirmarLiquidacion, cambiarEstado, registrarDocumento, olvidarDocumento,
+  type EstadoImportacion,
 } from "@roulterp/servicios";
-import { conEmpresa, NoAutorizado } from "@/lib/sesion";
+
+import { conEmpresa } from "@/lib/sesion";
+import { marcado, texto } from "@/lib/formulario";
+import { fraseDeError } from "@/lib/errores";
 
 export type EstadoAccion = { error?: string; exito?: string };
 
@@ -79,6 +82,65 @@ export async function avanzar(_previo: EstadoAccion, form: FormData): Promise<Es
 }
 
 /**
+ * Anota o corrige un documento del expediente.
+ *
+ * No pide permiso de aprobación: registrar que llegó el packing list es trabajo
+ * de quien recibe los papeles, no de quien autoriza el embarque. Exigir
+ * `aprobar` acabaría en que el jefe de logística teclea lo que le dictan por
+ * teléfono, que es justo como se pierde el control documental.
+ */
+export async function guardarDocumento(
+  _previo: EstadoAccion,
+  form: FormData,
+): Promise<EstadoAccion> {
+  const importacionId = texto(form, "importacionId");
+  const tipo = texto(form, "tipo");
+  const noAplica = marcado(form, "noAplica");
+
+  try {
+    await conEmpresa(
+      (db, sesion) =>
+        registrarDocumento(db, sesion.empresaId, sesion.usuarioId, {
+          importacionId,
+          tipo,
+          noAplica,
+          // Marcar «no aplica» y dejar una fecha puesta es contradictorio y el
+          // servicio lo rechaza; aquí se limpia, que es lo que la persona quiso.
+          ...(noAplica ? {} : { recibidoEn: texto(form, "recibidoEn") }),
+          ...(texto(form, "referencia") ? { referencia: texto(form, "referencia") } : {}),
+          ...(texto(form, "observaciones")
+            ? { observaciones: texto(form, "observaciones") }
+            : {}),
+        }),
+      "importaciones:editar",
+    );
+  } catch (e) {
+    return { error: mensaje(e) };
+  }
+  revalidatePath(`/importaciones/${importacionId}`);
+  revalidatePath("/importaciones/pendientes");
+  return { exito: "Expediente actualizado." };
+}
+
+/** Borra la anotación. Distinto de marcarla «no aplica»: la deja invisible. */
+export async function borrarDocumento(
+  _previo: EstadoAccion,
+  form: FormData,
+): Promise<EstadoAccion> {
+  const importacionId = texto(form, "importacionId");
+  try {
+    await conEmpresa(
+      (db) => olvidarDocumento(db, importacionId, texto(form, "tipo")),
+      "importaciones:editar",
+    );
+  } catch (e) {
+    return { error: mensaje(e) };
+  }
+  revalidatePath(`/importaciones/${importacionId}`);
+  return { exito: "Anotación retirada." };
+}
+
+/**
  * Traduce el error a algo que le sirva a quien está en la pantalla.
  *
  * Los errores de negocio llevan un mensaje escrito para el usuario y se muestran
@@ -86,15 +148,4 @@ export async function avanzar(_previo: EstadoAccion, form: FormData): Promise<Es
  * sale una frase genérica: un rastro de pila en pantalla le dice a un atacante
  * más de lo que le dice al contador.
  */
-function mensaje(e: unknown): string {
-  if (e instanceof NoAutorizado) return "No tiene permiso para esta operación.";
-  if (
-    e instanceof ImportacionInvalida ||
-    e instanceof InventarioInvalido ||
-    e instanceof ContabilizacionInvalida
-  ) {
-    return e.message;
-  }
-  console.error("error al operar sobre la importación", e);
-  return "No se pudo completar la operación. Revise los datos e intente de nuevo.";
-}
+const mensaje = (e: unknown) => fraseDeError(e, { contexto: "la importación" });

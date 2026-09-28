@@ -126,11 +126,14 @@ export default async function Tablero() {
             ) : (
               <table className="tabla">
                 <thead>
+                  {/* Sin la columna de FOB: el panel es media pantalla y no
+                      caben cinco columnas sin recortar el estado, que es lo
+                      único que se mira aquí. El FOB total ya está en la
+                      tarjeta de arriba. */}
                   <tr>
                     <th>Número</th>
                     <th>Proveedor</th>
                     <th>Llegada</th>
-                    <th className="text-right">FOB</th>
                     <th>Estado</th>
                   </tr>
                 </thead>
@@ -142,11 +145,8 @@ export default async function Tablero() {
                           {e.numero}
                         </Link>
                       </td>
-                      <td className="max-w-[180px] truncate">{e.proveedor}</td>
+                      <td className="max-w-[150px] truncate">{e.proveedor}</td>
                       <td className="cifra">{e.fecha_llegada ?? "—"}</td>
-                      <td>
-                        <Importe valor={e.fob} />
-                      </td>
                       <td>
                         <EstadoDoc estado={e.estado} />
                       </td>

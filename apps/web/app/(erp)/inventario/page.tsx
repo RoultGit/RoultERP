@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Route } from "next";
 import { sql } from "drizzle-orm";
 import { existencias } from "@roulterp/servicios";
 import { money } from "@roulterp/core";
@@ -42,6 +43,11 @@ export default async function Inventario({
         descripcion={`Existencias valorizadas por ${
           metodo === "peps" ? "primeras entradas, primeras salidas (PEPS)" : "promedio ponderado móvil"
         }.`}
+        acciones={
+          <Link href={"/inventario/notas" as Route} className="boton boton-primario">
+            Notas de almacén
+          </Link>
+        }
       />
       <Contenido>
         <div className="mb-4 flex flex-wrap items-center gap-2">

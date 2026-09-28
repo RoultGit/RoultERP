@@ -1,9 +1,10 @@
 import { eq, sql } from "drizzle-orm";
-import { documentosPorPagar, listarCuentas } from "@roulterp/servicios";
+import { documentosPorPagar, listarCuentas, cuentasParaOperar } from "@roulterp/servicios";
 import { schema } from "@roulterp/db";
 import { conEmpresa } from "@/lib/sesion";
 import { Contenido, Encabezado, Vacio, BotonEnlace } from "@/components/ui";
 import { FormularioPago } from "./formulario";
+import { hoyEnPeru } from "@roulterp/core/fecha";
 
 export const metadata = { title: "Pagar a proveedor · RoultERP" };
 export const dynamic = "force-dynamic";
@@ -44,11 +45,12 @@ export default async function Pagar({
     );
 
     return {
-      hoy: hoyFila?.hoy ?? new Date().toISOString().slice(0, 10),
+      hoy: hoyFila?.hoy ?? hoyEnPeru(),
       esAgenteRetencion: empresa?.esAgenteRetencion ?? false,
       proveedores,
       documentos,
       cuentas,
+      cuentasEfectivo: await cuentasParaOperar(db),
     };
   }, "cxp:crear");
 
@@ -101,6 +103,7 @@ export default async function Pagar({
             cuenta: c.cuenta,
             etiqueta: `${c.cuenta} — ${c.descripcion}`,
           }))}
+          cuentasEfectivo={datos.cuentasEfectivo}
           documentos={datos.documentos.map((d) => ({
             id: d.id,
             etiqueta: `${DOCUMENTO[d.tipoDocumento] ?? d.tipoDocumento} ${d.serie}-${d.numero}`,

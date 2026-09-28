@@ -1,10 +1,10 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { sql } from "drizzle-orm";
-import { balanceComprobacion } from "@roulterp/servicios";
+import { balanceComprobacion, listarAsientos, listarPeriodos } from "@roulterp/servicios";
 import { money } from "@roulterp/core";
-import { conEmpresa } from "@/lib/sesion";
-import { Contenido, Encabezado, Importe, Insignia, Vacio } from "@/components/ui";
+import { conEmpresa, tienePermiso } from "@/lib/sesion";
+import { Contenido, Encabezado, EstadoDoc, Importe, Insignia, Vacio } from "@/components/ui";
 
 export const metadata = { title: "Contabilidad · RoultERP" };
 export const dynamic = "force-dynamic";
@@ -22,34 +22,24 @@ export default async function Contabilidad({
   const params = await searchParams;
   const periodo = /^\d{6}$/.test(params.periodo ?? "") ? params.periodo! : periodoActual();
 
-  const { balance, asientos, periodos } = await conEmpresa(async (db) => {
-    const asientos = (await db.execute(sql`
-      SELECT a.id, a.numero, a.fecha, a.glosa, a.subdiario, a.estado, a.moneda,
-             a.origen_modulo,
-             coalesce(sum(l.debe_funcional), 0)::text AS debe
-      FROM asientos a
-      LEFT JOIN asiento_lineas l ON l.asiento_id = a.id
-      WHERE a.periodo = ${periodo}
-      GROUP BY a.id
-      ORDER BY a.numero`)) as unknown as {
-      id: string;
-      numero: string;
-      fecha: string;
-      glosa: string;
-      subdiario: string;
-      estado: string;
-      moneda: string;
-      origen_modulo: string | null;
-      debe: string;
-    }[];
+  const [{ balance, asientos, periodos, estadosPeriodo }, puedeCrear] = await Promise.all([
+    conEmpresa(async (db) => {
+      const disponibles = (await db.execute(sql`
+        SELECT DISTINCT periodo FROM asientos ORDER BY periodo DESC LIMIT 12`)) as unknown as {
+        periodo: string;
+      }[];
+      return {
+        balance: await balanceComprobacion(db, periodo),
+        asientos: await listarAsientos(db, periodo),
+        periodos: [...disponibles].map((d) => d.periodo),
+        estadosPeriodo: await listarPeriodos(db),
+      };
+    }, "contabilidad:ver"),
+    tienePermiso("contabilidad:crear"),
+  ]);
 
-    const periodos = (await db.execute(sql`
-      SELECT DISTINCT periodo FROM asientos ORDER BY periodo DESC LIMIT 12`)) as unknown as {
-      periodo: string;
-    }[];
-
-    return { balance: await balanceComprobacion(db, periodo), asientos, periodos };
-  }, "contabilidad:ver");
+  const cerrado = estadosPeriodo.some((p) => p.periodo === periodo && p.estado === "cerrado");
+  const borradores = asientos.filter((a) => a.estado === "borrador").length;
 
   const totalDebe = balance.reduce((a, b) => money.add(a, money.dec(b.debe)), money.ZERO);
   const totalHaber = balance.reduce((a, b) => money.add(a, money.dec(b.haber)), money.ZERO);
@@ -62,9 +52,25 @@ export default async function Contabilidad({
         titulo="Contabilidad"
         descripcion={`Balance de comprobación y asientos del periodo ${periodo}.`}
         acciones={
-          <Link href={`/contabilidad/ple?periodo=${periodo}` as Route} className="boton boton-primario">
-            Libros electrónicos
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link href={`/contabilidad/estados?periodo=${periodo}` as Route} className="boton boton-secundario">
+              Estados financieros
+            </Link>
+            <Link href={"/contabilidad/periodos" as Route} className="boton boton-secundario">
+              Cierre de periodo
+            </Link>
+            <Link href={`/contabilidad/ple?periodo=${periodo}` as Route} className="boton boton-secundario">
+              Libros electrónicos
+            </Link>
+            {puedeCrear && !cerrado && (
+              <Link
+                href={`/contabilidad/asiento?periodo=${periodo}` as Route}
+                className="boton boton-primario"
+              >
+                Nuevo asiento
+              </Link>
+            )}
+          </div>
         }
       />
       <Contenido>
@@ -72,19 +78,26 @@ export default async function Contabilidad({
           {periodos.length > 0 ? (
             periodos.map((p) => (
               <Link
-                key={p.periodo}
-                href={`/contabilidad?periodo=${p.periodo}` as Route}
+                key={p}
+                href={`/contabilidad?periodo=${p}` as Route}
                 className="rounded border px-2.5 py-1 text-xs cifra transition-colors"
                 style={{
-                  borderColor: p.periodo === periodo ? "var(--acento)" : "var(--borde)",
-                  background: p.periodo === periodo ? "var(--acento-suave)" : "var(--superficie)",
-                  color: p.periodo === periodo ? "var(--acento)" : "var(--texto-suave)",
+                  borderColor: p === periodo ? "var(--acento)" : "var(--borde)",
+                  background: p === periodo ? "var(--acento-suave)" : "var(--superficie)",
+                  color: p === periodo ? "var(--acento)" : "var(--texto-suave)",
                 }}
               >
-                {p.periodo.slice(0, 4)}-{p.periodo.slice(4)}
+                {p.slice(0, 4)}-{p.slice(4)}
               </Link>
             ))
           ) : null}
+
+          {cerrado && <Insignia tono="neutro">periodo cerrado</Insignia>}
+          {borradores > 0 && (
+            <Insignia tono="alerta">
+              {borradores} {borradores === 1 ? "borrador" : "borradores"}
+            </Insignia>
+          )}
 
           <span className="ml-auto">
             {cuadra ? (
@@ -97,10 +110,10 @@ export default async function Contabilidad({
           </span>
         </div>
 
-        {balance.length === 0 ? (
+        {balance.length === 0 && asientos.length === 0 ? (
           <Vacio
             titulo={`Sin asientos en el periodo ${periodo}`}
-            descripcion="Los asientos nacen al registrar una compra o al confirmar una liquidación de importación."
+            descripcion="Los asientos nacen al registrar una compra o al confirmar una liquidación de importación, o se capturan a mano desde «Nuevo asiento»."
           />
         ) : (
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
@@ -155,6 +168,11 @@ export default async function Contabilidad({
             <section className="tarjeta overflow-x-auto">
               <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
                 Asientos del periodo
+                {asientos.length === 500 && (
+                  <span className="ml-2 font-normal" style={{ color: "var(--texto-suave)" }}>
+                    · los últimos 500; use el mayor o el libro diario para verlos todos
+                  </span>
+                )}
               </h2>
               <table className="tabla">
                 <thead>
@@ -169,7 +187,11 @@ export default async function Contabilidad({
                 <tbody>
                   {asientos.map((a) => (
                     <tr key={a.id}>
-                      <td className="cifra" style={{ textAlign: "left" }}>{a.numero}</td>
+                      <td className="cifra" style={{ textAlign: "left" }}>
+                        <Link href={`/contabilidad/asiento?id=${a.id}` as Route} className="underline">
+                          {a.numero}
+                        </Link>
+                      </td>
                       <td className="cifra">{a.fecha}</td>
                       <td className="max-w-[220px] truncate">
                         {a.glosa}
@@ -179,14 +201,8 @@ export default async function Contabilidad({
                           </span>
                         )}
                       </td>
-                      <td><Importe valor={a.debe} /></td>
-                      <td>
-                        {a.estado === "extornado" ? (
-                          <Insignia tono="alerta">extornado</Insignia>
-                        ) : (
-                          <Insignia tono="exito">contabilizado</Insignia>
-                        )}
-                      </td>
+                      <td><Importe valor={a.importe} /></td>
+                      <td><EstadoDoc estado={a.estado} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -195,10 +211,6 @@ export default async function Contabilidad({
           </div>
         )}
 
-        <p className="mt-4 text-xs" style={{ color: "var(--texto-suave)" }}>
-          La captura manual de asientos, los estados financieros y el cierre de ejercicio están en
-          el alcance y todavía no se han implementado.
-        </p>
       </Contenido>
     </>
   );

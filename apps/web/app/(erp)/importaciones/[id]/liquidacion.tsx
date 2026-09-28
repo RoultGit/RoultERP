@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { confirmar, type EstadoAccion } from "./acciones";
 import { Importe } from "@/components/ui";
+import { hoyEnPeru } from "@roulterp/core/fecha";
 
 export type VistaLiquidacion = {
   fobTotal: string;
@@ -37,7 +38,7 @@ export function PanelLiquidacion({
 }) {
   const [resultado, accion] = useActionState<EstadoAccion, FormData>(confirmar, {});
   const liquidada = estado === "liquidada";
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyEnPeru();
 
   return (
     <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">

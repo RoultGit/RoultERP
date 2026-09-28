@@ -1,8 +1,9 @@
 import { sql } from "drizzle-orm";
-import { documentosPorCobrar, carteraPorCliente, listarCuentas } from "@roulterp/servicios";
+import { documentosPorCobrar, carteraPorCliente, listarCuentas, cuentasParaOperar } from "@roulterp/servicios";
 import { conEmpresa } from "@/lib/sesion";
 import { Contenido, Encabezado, Vacio, BotonEnlace } from "@/components/ui";
 import { FormularioCobranza } from "./formulario";
+import { hoyEnPeru } from "@roulterp/core/fecha";
 
 export const metadata = { title: "Cobrar a cliente · RoultERP" };
 export const dynamic = "force-dynamic";
@@ -21,10 +22,11 @@ export default async function Cobrar({
       { hoy: string },
     ];
     return {
-      hoy: fila?.hoy ?? new Date().toISOString().slice(0, 10),
+      hoy: fila?.hoy ?? hoyEnPeru(),
       cartera: await carteraPorCliente(db),
       comprobantes: cliente ? await documentosPorCobrar(db, cliente) : [],
       cuentas: (await listarCuentas(db, true)).filter((c) => c.cuenta.startsWith("10")),
+      cuentasEfectivo: await cuentasParaOperar(db),
     };
   }, "cxc:crear");
 
@@ -91,6 +93,7 @@ export default async function Cobrar({
             cuenta: c.cuenta,
             etiqueta: `${c.cuenta} — ${c.descripcion}`,
           }))}
+          cuentasEfectivo={datos.cuentasEfectivo}
           comprobantes={datos.comprobantes.map((c) => ({
             id: c.id,
             etiqueta: `${DOCUMENTO[c.tipo_documento] ?? c.tipo_documento} ${c.serie}-${c.numero}`,

@@ -7,6 +7,7 @@ import {
   importarExtractoAccion, conciliarAccion, type EstadoForm,
 } from "./acciones";
 import { formatearImporte, Insignia } from "@/components/ui";
+import { hoyEnPeru } from "@roulterp/core/fecha";
 
 type Opcion = { cuenta: string; etiqueta: string };
 
@@ -34,6 +35,13 @@ function Resultado({ estado }: { estado: EstadoForm }) {
   }
   return null;
 }
+
+/** Cuenta del PCGE que corresponde a cada tipo de cuenta de efectivo. */
+const CUENTA_SUGERIDA: Record<string, string> = {
+  banco: "1041",
+  caja: "1011",
+  caja_chica: "1012",
+};
 
 export function FormularioCuenta({ cuentasContables }: { cuentasContables: Opcion[] }) {
   const [estado, accion] = useActionState<EstadoForm, FormData>(crearCuentaAccion, {});
@@ -72,7 +80,24 @@ export function FormularioCuenta({ cuentasContables }: { cuentasContables: Opcio
         </div>
         <div>
           <label className="etiqueta" htmlFor="cuentaContable">Cuenta contable *</label>
-          <select id="cuentaContable" name="cuentaContable" required className="campo" defaultValue="">
+          {/*
+            Se propone la que corresponde al tipo: una cuenta de banco va a la
+            1041 y una caja a la 1011 en el 99 % de los casos. Obligar a
+            buscarla entre las noventa y seis del plan es hacer trabajar al
+            usuario para que escriba lo único que podía escribir.
+          */}
+          <select
+            key={tipo}
+            id="cuentaContable"
+            name="cuentaContable"
+            required
+            className="campo"
+            defaultValue={
+              cuentasContables.some((c) => c.cuenta === CUENTA_SUGERIDA[tipo])
+                ? CUENTA_SUGERIDA[tipo]
+                : ""
+            }
+          >
             <option value="" disabled>Elija la cuenta</option>
             {cuentasContables.map((c) => (
               <option key={c.cuenta} value={c.cuenta}>{c.etiqueta}</option>
@@ -123,7 +148,7 @@ export function FormularioMovimiento({
   contrapartidas: Opcion[];
 }) {
   const [estado, accion] = useActionState<EstadoForm, FormData>(registrarMovimientoAccion, {});
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyEnPeru();
 
   return (
     <form action={accion} className="space-y-3">
@@ -185,7 +210,7 @@ export function FormularioArqueo({
 }) {
   const [estado, accion] = useActionState<EstadoForm, FormData>(registrarArqueoAccion, {});
   const [contado, setContado] = useState("");
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyEnPeru();
 
   const diferencia =
     contado === "" ? null : (Number(contado) || 0) - (Number(saldoActual) || 0);
@@ -280,7 +305,7 @@ export function FormularioConciliar({
   propuestas: PropuestaVista[];
 }) {
   const [estado, accion] = useActionState<EstadoForm, FormData>(conciliarAccion, {});
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyEnPeru();
 
   return (
     <form action={accion}>

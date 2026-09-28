@@ -3,39 +3,34 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Route } from "next";
-import {
-  emitirVenta, enviarASunat, VentaInvalida, ContabilizacionInvalida,
-  InventarioInvalido, ConfiguracionInvalida, type LineaVenta,
-} from "@roulterp/servicios";
-import { CertificadoInvalido, ErrorSunat } from "@roulterp/core/cpe";
-import { conEmpresa, exigirEmpresa, NoAutorizado } from "@/lib/sesion";
+import { emitirVenta, emitirNota, enviarASunat, type LineaVenta } from "@roulterp/servicios";
+
+import { conEmpresa, exigirEmpresaCon } from "@/lib/sesion";
 import { conexionApp, kekMaestra } from "@/lib/entorno";
+import { type EstadoForm, texto, filas } from "@/lib/formulario";
+import { traducirError } from "@/lib/errores";
 
-export type EstadoForm = { error?: string; exito?: string };
-
-const texto = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
+export type { EstadoForm };
 
 /** Reconstruye las líneas del formulario. Ver la nota en compras/acciones.ts. */
 function leerLineas(form: FormData): LineaVenta[] {
   const lineas: LineaVenta[] = [];
-  for (let i = 0; ; i++) {
-    const marca = form.get(`lineas[${i}].cantidad`);
-    if (marca === null) break;
-    const cantidad = String(marca).trim();
-    const productoId = texto(form, `lineas[${i}].productoId`);
-    const descripcion = texto(form, `lineas[${i}].descripcion`);
+  for (const campo of filas(form, "cantidad")) {
+    const cantidad = campo("cantidad");
+    const productoId = campo("productoId");
+    const descripcion = campo("descripcion");
     if (cantidad === "" || (productoId === "" && descripcion === "")) continue;
 
     lineas.push({
       cantidad,
-      valorUnitario: texto(form, `lineas[${i}].valorUnitario`) || "0",
+      valorUnitario: campo("valorUnitario") || "0",
       ...(productoId ? { productoId } : {}),
       ...(descripcion ? { descripcion } : {}),
-      ...(texto(form, `lineas[${i}].afectacionIgv`)
-        ? { afectacionIgv: texto(form, `lineas[${i}].afectacionIgv`) }
+      ...(campo("afectacionIgv")
+        ? { afectacionIgv: campo("afectacionIgv") }
         : {}),
-      ...(texto(form, `lineas[${i}].descuento`)
-        ? { descuento: texto(form, `lineas[${i}].descuento`) }
+      ...(campo("descuento")
+        ? { descuento: campo("descuento") }
         : {}),
     });
   }
@@ -51,6 +46,7 @@ export async function emitirVentaAccion(
 
   const almacenId = texto(form, "almacenId");
   const detraccionCodigo = texto(form, "detraccionCodigo");
+  const pedidoId = texto(form, "pedidoId");
   let id: string;
 
   try {
@@ -69,6 +65,7 @@ export async function emitirVentaAccion(
             : {}),
           ...(almacenId ? { almacenId } : {}),
           ...(detraccionCodigo ? { detraccionCodigo } : {}),
+          ...(pedidoId ? { pedidoId } : {}),
         }),
       "ventas:crear",
     );
@@ -78,6 +75,51 @@ export async function emitirVentaAccion(
   }
 
   revalidatePath("/ventas");
+  revalidatePath("/inventario");
+  if (pedidoId) revalidatePath("/ventas/pedidos");
+  redirect(`/ventas/${id}` as Route);
+}
+
+/**
+ * Emite una nota de crédito o de débito sobre un comprobante.
+ *
+ * Sin líneas propias la nota copia el comprobante entero, que es la anulación:
+ * el formulario deja esa casilla marcada por defecto porque es lo que se pide
+ * nueve de cada diez veces.
+ */
+export async function emitirNotaAccion(
+  _previo: EstadoForm,
+  form: FormData,
+): Promise<EstadoForm> {
+  const lineas = leerLineas(form);
+  const total = texto(form, "alcance") === "total";
+  if (!total && lineas.length === 0) {
+    return { error: "Indique las líneas de la nota o márquela como total." };
+  }
+
+  let id: string;
+  try {
+    const r = await conEmpresa(
+      (db, sesion) =>
+        emitirNota(db, sesion.empresaId, sesion.usuarioId, {
+          comprobanteId: texto(form, "comprobanteId"),
+          tipoDocumento: texto(form, "tipoDocumento"),
+          serie: texto(form, "serie"),
+          fechaEmision: texto(form, "fechaEmision"),
+          motivo: texto(form, "motivo"),
+          descripcionMotivo: texto(form, "descripcionMotivo"),
+          ...(total ? {} : { lineas }),
+          ...(form.get("devuelveMercaderia") ? { devuelveMercaderia: true } : {}),
+        }),
+      "ventas:crear",
+    );
+    id = r.comprobanteId;
+  } catch (e) {
+    return mensaje(e);
+  }
+
+  revalidatePath("/ventas");
+  revalidatePath("/cxc");
   revalidatePath("/inventario");
   redirect(`/ventas/${id}` as Route);
 }
@@ -94,7 +136,7 @@ export async function enviarASunatAccion(
   form: FormData,
 ): Promise<EstadoForm> {
   const id = texto(form, "comprobanteId");
-  const sesion = await exigirEmpresa();
+  const sesion = await exigirEmpresaCon("cpe:crear");
 
   try {
     const r = await enviarASunat(
@@ -118,25 +160,4 @@ export async function enviarASunatAccion(
   }
 }
 
-function mensaje(e: unknown): EstadoForm {
-  if (e instanceof NoAutorizado) return { error: "No tiene permiso para esta operación." };
-  if (
-    e instanceof VentaInvalida ||
-    e instanceof ContabilizacionInvalida ||
-    e instanceof InventarioInvalido ||
-    e instanceof ConfiguracionInvalida ||
-    e instanceof CertificadoInvalido
-  ) {
-    return { error: e.message };
-  }
-  if (e instanceof ErrorSunat) {
-    // Un fallo del servicio no es culpa del usuario y se resuelve reintentando.
-    return {
-      error: e.reintentable
-        ? `SUNAT no respondió (${e.codigo}). El comprobante quedó emitido; reintente el envío en unos minutos.`
-        : `SUNAT devolvió el error ${e.codigo}: ${e.message}`,
-    };
-  }
-  console.error("error en el módulo de ventas", e);
-  return { error: "No se pudo completar la operación. Revise los datos e intente de nuevo." };
-}
+const mensaje = (e: unknown) => traducirError(e, { contexto: "ventas", documento: "el comprobante" });

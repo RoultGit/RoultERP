@@ -1,64 +1,128 @@
 @import "tailwindcss";
 
 /*
- * Sistema visual sobrio, pensado para densidad.
+ * Sistema visual.
  *
- * Un ERP se usa ocho horas al día y las pantallas que más importan son tablas
- * de cien filas. Todo aquí está orientado a eso: interlineado corto, tipografía
- * pequeña pero legible, un solo color de acento y contraste alto. Nada de
- * degradados ni sombras grandes; el ruido visual cansa a la cuarta hora.
+ * Tomado del sistema de RClass —neutros fríos plata, grotesk precisa, un solo
+ * acento saturado— con el acento en verde en vez de cobalto.
  *
- * Las cifras van en tabulares (`font-variant-numeric`) para que las columnas de
- * importes se alineen dígito a dígito. En un sistema contable no es un detalle
- * estético: es lo que permite detectar un orden de magnitud equivocado de un
- * vistazo.
+ * Lo que se conserva de allá y por qué: la página no es blanca sino un gris
+ * frío, y el contenido se apoya en paneles blancos encima. Eso da jerarquía sin
+ * sombras pesadas, que a la densidad de un ERP ensucian. Las hairlines de 1px
+ * separan datos; las tarjetas se reservan para lo que de verdad es una unidad.
+ *
+ * **Los nombres de los tokens no cambian.** Ciento setenta y ocho archivos
+ * escriben `var(--texto-suave)` y `var(--borde)`, y ninguno tiene un color a
+ * mano: por eso todo el rediseño cabe aquí. Cambiar los nombres habría obligado
+ * a tocar los ciento setenta y ocho y a revisarlos uno por uno.
+ *
+ * Las cifras van en Geist Mono con tabulares. En un sistema contable no es
+ * estético: es lo que permite ver un orden de magnitud equivocado de un vistazo,
+ * porque las columnas alinean dígito con dígito.
  */
 
 @theme {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --font-sans: var(--fuente-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--fuente-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  --color-marca-50: #eef4f8;
-  --color-marca-100: #d6e4ee;
-  --color-marca-500: #2b6a8f;
-  --color-marca-600: #235a79;
-  --color-marca-700: #1c4860;
-  --color-marca-900: #12303f;
+  /* Exclusivas del logotipo. No se usan en ningún otro sitio. */
+  --font-marca: var(--fuente-marca), var(--fuente-sans), system-ui, sans-serif;
+  --font-marca-serif: var(--fuente-marca-serif), Georgia, serif;
 }
 
 :root {
-  --fondo: #f6f7f8;
+  /* ── Superficies ─────────────────────────────────────────────────────
+     La página es gris y el contenido va en paneles blancos encima. Un
+     `--superficie` blanco sobre `--fondo` blanco no se distingue, y ahí es
+     donde la interfaz empieza a parecer una hoja de cálculo sin bordes. */
+  --fondo: #edeff3;
   --superficie: #ffffff;
-  --superficie-2: #f0f2f4;
-  --borde: #d9dde2;
-  --borde-fuerte: #b9c0c8;
-  --texto: #16202a;
-  --texto-suave: #5b6672;
-  --acento: #235a79;
-  --acento-suave: #eef4f8;
-  --exito: #1c6b4a;
-  --alerta: #8a5a00;
-  --peligro: #9c2c2c;
+  --superficie-2: #f7f8fa;
+  /* La barra lateral: ni el gris de la página ni el blanco del panel. */
+  --rail: #f4f6f9;
+
+  /* ── Tinta ───────────────────────────────────────────────────────────
+     Nunca negro puro: el off-black conserva profundidad y cansa menos. */
+  --texto: #0b0d12;
+  --texto-suave: #4c5563;
+  --texto-tenue: #6b7280;
+
+  --borde: #e8ebf0;
+  --borde-fuerte: #d6dbe4;
+
+  /* ── Acento ──────────────────────────────────────────────────────────
+     Verde a la misma luminosidad y matiz-equivalente del cobalto de RClass
+     (OKLCH L=0.456). El croma del cobalto —0.225— no existe en verde dentro
+     de sRGB, así que se toma el máximo alcanzable a esa luminosidad: 0.147.
+     Da 6.8:1 contra blanco, que sirve para texto y para blanco encima. */
+  --acento: #096a16;
+  --acento-suave: #ebf8ea;
+
+  /* ── Semántica ───────────────────────────────────────────────────────
+     El éxito también es verde, y por eso se separa del acento a propósito:
+     24° de matiz y bastante más claro. El acento manda superficies —botón,
+     item activo— y el éxito sólo texto y pastillas. Sin esa distancia, un
+     importe positivo se leería como un enlace. */
+  --exito: #158364;
+  --exito-suave: #e8f4ef;
+  --alerta: #8a5a07;
+  --alerta-suave: #f8f2e6;
+  --peligro: #c23b2e;
+  --peligro-suave: #fbedeb;
+
+  /* ── Forma ───────────────────────────────────────────────────────────
+     Radios generosos y contenidos. Nada burbujeante. */
+  --radio-ctl: 10px;
+  --radio-panel: 14px;
+
+  /* Sombras tintadas al fondo, nunca negro puro, y muy difusas: sugieren
+     elevación sin dibujar un borde oscuro alrededor de cada caja. */
+  --sombra: 0 1px 2px rgba(11, 13, 18, 0.04), 0 8px 24px -12px rgba(11, 13, 18, 0.14);
+  --sombra-alta: 0 2px 4px rgba(11, 13, 18, 0.04), 0 24px 56px -20px rgba(11, 13, 18, 0.2);
+
+  /* Una sola curva en todo el producto. Ni `linear` ni `ease-in-out`. */
+  --suave: cubic-bezier(0.32, 0.72, 0, 1);
+
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-tema="claro"]) {
-    --fondo: #10151a;
-    --superficie: #171d24;
-    --superficie-2: #1e262e;
-    --borde: #2c3641;
-    --borde-fuerte: #3d4954;
-    --texto: #e6eaee;
-    --texto-suave: #9aa5b1;
-    --acento: #5b9fc4;
-    --acento-suave: #17303d;
-    --exito: #4caf87;
-    --alerta: #d4a145;
-    --peligro: #e07070;
-    color-scheme: dark;
-  }
+/*
+ * El oscuro, sólo si se elige.
+ *
+ * Antes colgaba de `prefers-color-scheme`, así que quien tenía el sistema en
+ * oscuro abría el ERP en azul marino sin haberlo pedido. El claro es el modo
+ * principal del producto; el oscuro está completo y entra por el interruptor de
+ * la barra lateral, que guarda la preferencia en el navegador.
+ */
+[data-tema="oscuro"] {
+  --fondo: #0a0c10;
+  --superficie: #191d26;
+  --superficie-2: #13161e;
+  --rail: #0e1117;
+
+  --texto: #e9ecf1;
+  --texto-suave: #a8b1bf;
+  --texto-tenue: #8a93a3;
+
+  --borde: #242a36;
+  --borde-fuerte: #323a49;
+
+  /* Mismo cálculo que en claro, sobre la luminosidad del acento oscuro de
+     RClass (L=0.631): 5.2:1 contra el panel. */
+  --acento: #14a628;
+  --acento-suave: #102310;
+
+  --exito: #3fbf8f;
+  --exito-suave: #11241d;
+  --alerta: #d0a04a;
+  --alerta-suave: #241e12;
+  --peligro: #e0705f;
+  --peligro-suave: #26150f;
+
+  --sombra: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 24px -12px rgba(0, 0, 0, 0.7);
+  --sombra-alta: 0 2px 4px rgba(0, 0, 0, 0.5), 0 24px 56px -20px rgba(0, 0, 0, 0.8);
+
+  color-scheme: dark;
 }
 
 body {
@@ -66,13 +130,23 @@ body {
   color: var(--texto);
   font-family: var(--font-sans);
   font-size: 14px;
-  line-height: 1.45;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Los importes y cantidades, siempre en cifras tabulares y alineados a la derecha. */
+/*
+ * Toda cifra, en mono y tabular.
+ *
+ * `tabular-nums` fuerza a que cada dígito ocupe lo mismo, así que las columnas
+ * de importes alinean por la coma aunque no se declare nada más. El tracking
+ * negativo compensa que la mono es más ancha que la sans y evita que una
+ * columna de totales se desborde.
+ */
 .cifra {
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
   text-align: right;
   white-space: nowrap;
 }
@@ -82,43 +156,66 @@ body {
 }
 
 @layer components {
+  /* ── Controles ─────────────────────────────────────────────────────── */
+
   .campo {
-    @apply w-full rounded border px-2.5 py-1.5 text-sm outline-none;
+    @apply w-full border px-3 py-2 text-sm outline-none;
+    border-radius: var(--radio-ctl);
     background: var(--superficie);
-    border-color: var(--borde);
+    border-color: var(--borde-fuerte);
     color: var(--texto);
+    transition: border-color 0.2s var(--suave), box-shadow 0.2s var(--suave);
+  }
+  .campo::placeholder {
+    color: var(--texto-tenue);
   }
   .campo:focus {
     border-color: var(--acento);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--acento) 18%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--acento) 16%, transparent);
   }
   .campo:disabled {
     background: var(--superficie-2);
-    color: var(--texto-suave);
+    border-color: var(--borde);
+    color: var(--texto-tenue);
   }
   .campo[aria-invalid="true"] {
     border-color: var(--peligro);
   }
+  /* Un campo numérico se teclea y se compara: va en mono como la columna. */
+  .campo.cifra,
+  input[inputmode="decimal"].campo,
+  input[inputmode="numeric"].campo {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
 
   .etiqueta {
-    @apply mb-1 block text-xs font-medium;
+    @apply mb-1.5 block text-[13px] font-medium;
     color: var(--texto-suave);
   }
 
   .boton {
-    @apply inline-flex items-center justify-center gap-1.5 rounded px-3 py-1.5
-           text-sm font-medium transition-colors;
+    @apply inline-flex items-center justify-center gap-1.5 px-3.5 py-2 text-sm font-medium;
     border: 1px solid transparent;
+    border-radius: var(--radio-ctl);
+    transition: background-color 0.25s var(--suave), border-color 0.25s var(--suave),
+      color 0.25s var(--suave), transform 0.15s var(--suave);
+  }
+  /* Respuesta táctil: el botón cede al pulsarlo. Sólo transform, que no
+     obliga al navegador a recalcular la maquetación. */
+  .boton:active:not(:disabled) {
+    transform: scale(0.975);
   }
   .boton:disabled {
-    @apply cursor-not-allowed opacity-55;
+    @apply cursor-not-allowed opacity-50;
+    transform: none;
   }
   .boton-primario {
     background: var(--acento);
     color: #fff;
   }
   .boton-primario:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--acento) 85%, black);
+    background: color-mix(in srgb, var(--acento) 88%, black);
   }
   .boton-secundario {
     background: var(--superficie);
@@ -127,64 +224,166 @@ body {
   }
   .boton-secundario:hover:not(:disabled) {
     background: var(--superficie-2);
+    border-color: var(--texto-tenue);
   }
   .boton-peligro {
     background: transparent;
-    border-color: var(--peligro);
+    border-color: color-mix(in srgb, var(--peligro) 45%, transparent);
     color: var(--peligro);
   }
-
-  .tarjeta {
-    @apply rounded-md border;
-    background: var(--superficie);
-    border-color: var(--borde);
+  .boton-peligro:hover:not(:disabled) {
+    background: var(--peligro-suave);
+    border-color: var(--peligro);
   }
+
+  /* ── Superficies ───────────────────────────────────────────────────── */
+
+  /*
+   * El panel sobre el que se apoya el contenido.
+   *
+   * Lleva borde **y** sombra muy difusa: el borde lo recorta contra el gris de
+   * la página y la sombra lo despega. Con sombra sola, en modo oscuro el panel
+   * se funde con el fondo; con borde solo, en claro parece un recuadro dibujado.
+   */
+  .tarjeta {
+    background: var(--superficie);
+    border: 1px solid var(--borde);
+    border-radius: var(--radio-panel);
+    box-shadow: var(--sombra);
+  }
+
+  /* ── Tablas ────────────────────────────────────────────────────────── */
 
   .tabla {
     @apply w-full border-collapse text-sm;
   }
   .tabla thead th {
-    @apply px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide;
-    color: var(--texto-suave);
-    background: var(--superficie-2);
-    border-bottom: 1px solid var(--borde);
+    @apply px-3.5 py-2.5 text-left text-[12.5px] font-medium;
+    color: var(--texto-tenue);
+    background: transparent;
+    border-bottom: 1px solid var(--borde-fuerte);
+    letter-spacing: 0.01em;
     position: sticky;
     top: 0;
+    /* Sin fondo propio la cabecera pegajosa deja ver las filas por debajo. */
+    background: var(--superficie);
+  }
+  /*
+   * Una fila, una línea.
+   *
+   * En mono los números son más anchos, y en un panel estrecho una columna
+   * apretada parte «IMP-2026-0015» en tres renglones y descoloca la fila
+   * entera. Las columnas de texto largo ya recortan con `truncate` allí donde
+   * hace falta, y el panel scrollea en horizontal: es preferible arrastrar la
+   * tabla a leer un documento partido en pedazos.
+   */
+  .tabla thead th,
+  .tabla tbody td,
+  .tabla tfoot td {
+    white-space: nowrap;
   }
   .tabla tbody td {
-    @apply px-3 py-1.5;
+    @apply px-3.5 py-2.5;
     border-bottom: 1px solid var(--borde);
   }
+  /* La última fila no dibuja raya: la cierra el borde del panel. */
+  .tabla tbody tr:last-child td {
+    border-bottom: none;
+  }
+  .tabla tbody tr {
+    transition: background-color 0.3s var(--suave);
+  }
   .tabla tbody tr:hover td {
-    background: var(--acento-suave);
+    background: var(--superficie-2);
+  }
+  .tabla tfoot td {
+    @apply px-3.5 py-2.5;
+    border-top: 1px solid var(--borde-fuerte);
   }
 
+  /* ── Señales ───────────────────────────────────────────────────────── */
+
   .insignia {
-    @apply inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium;
+    @apply inline-flex items-center whitespace-nowrap px-2 py-0.5 text-[12.5px] font-medium;
+    border-radius: 6px;
     background: var(--superficie-2);
     color: var(--texto-suave);
     border: 1px solid var(--borde);
   }
 
   .aviso {
-    @apply rounded border px-3 py-2 text-sm;
-    border-color: color-mix(in srgb, var(--peligro) 40%, transparent);
-    background: color-mix(in srgb, var(--peligro) 8%, transparent);
+    @apply px-3.5 py-2.5 text-sm;
+    border: 1px solid color-mix(in srgb, var(--peligro) 35%, transparent);
+    border-radius: var(--radio-ctl);
+    background: var(--peligro-suave);
     color: var(--peligro);
   }
 
+  /* ── Navegación ────────────────────────────────────────────────────── */
+
   .enlace-nav {
-    @apply block rounded px-2.5 py-1.5 text-sm transition-colors;
+    @apply block px-3 py-[7px] text-sm;
+    border-radius: var(--radio-ctl);
     color: var(--texto-suave);
+    transition: background-color 0.25s var(--suave), color 0.25s var(--suave);
   }
   .enlace-nav:hover {
-    background: var(--superficie-2);
+    background: var(--superficie);
     color: var(--texto);
   }
+  /*
+   * El item activo va en acento macizo con texto blanco, no en pastilla suave.
+   * En una barra de once módulos plegados hay que poder localizar de un vistazo
+   * dónde se está, y un fondo tenue no se encuentra sin buscarlo.
+   */
   .enlace-nav[aria-current="page"] {
-    background: var(--acento-suave);
-    color: var(--acento);
+    background: var(--acento);
+    color: #fff;
     font-weight: 500;
+    box-shadow: var(--sombra);
+  }
+
+  /* Cabecera de un módulo plegable. */
+  .grupo-nav {
+    @apply cursor-pointer list-none px-3 py-[7px] text-sm font-medium select-none;
+    border-radius: var(--radio-ctl);
+    color: var(--texto);
+    transition: background-color 0.25s var(--suave);
+  }
+  .grupo-nav::marker,
+  .grupo-nav::-webkit-details-marker {
+    content: "";
+    display: none;
+  }
+  /* Un triángulo propio: el del navegador se ve distinto en cada uno. */
+  .grupo-nav::before {
+    content: "›";
+    display: inline-block;
+    width: 0.9em;
+    color: var(--texto-tenue);
+    transition: transform 0.25s var(--suave);
+  }
+  details[open] > .grupo-nav::before {
+    transform: rotate(90deg);
+  }
+  .grupo-nav:hover {
+    background: var(--superficie);
+  }
+  .grupo-nav[aria-current="true"] {
+    color: var(--acento);
+  }
+  details > div > .enlace-nav {
+    margin-left: 0.9em;
+  }
+}
+
+/* Nadie quiere coreografía mientras carga cien filas. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
   }
 }
 
@@ -193,4 +392,74 @@ body {
 :focus-visible {
   outline: 2px solid var(--acento);
   outline-offset: 2px;
+}
+
+/*
+ * Impresión.
+ *
+ * Starsoft se usa con la impresora al lado: el registro de compras se imprime y
+ * se archiva, la orden se imprime y se manda al proveedor. Una pantalla que en
+ * papel sale con el menú lateral, los botones y el fondo gris no sirve para eso.
+ *
+ * Lo que se quita es lo que no es el documento: navegación, botones, formularios
+ * de filtro y avisos de interfaz. Lo que queda va a negro sobre blanco, con la
+ * cabecera de la tabla repetida en cada hoja y sin filas partidas por la mitad.
+ */
+@media print {
+  :root {
+    --superficie: #fff;
+    --superficie-2: #fff;
+    --texto: #000;
+    --texto-suave: #333;
+    --borde: #999;
+    --borde-fuerte: #666;
+  }
+
+  aside,
+  nav,
+  .no-imprimir,
+  .boton,
+  form.filtro {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+    font-size: 10pt;
+  }
+
+  main {
+    width: 100%;
+  }
+
+  .tarjeta {
+    border: none;
+    box-shadow: none;
+  }
+
+  /* El encabezado de la tabla se repite en cada hoja: un registro de ochenta
+     líneas ocupa tres páginas y las dos últimas saldrían sin decir qué es cada
+     columna. */
+  thead {
+    display: table-header-group;
+  }
+  tfoot {
+    display: table-footer-group;
+  }
+  tr,
+  img {
+    break-inside: avoid;
+  }
+  .tabla tbody tr:hover td {
+    background: transparent;
+  }
+
+  a[href]::after {
+    content: "";
+  }
+
+  @page {
+    margin: 12mm;
+  }
 }

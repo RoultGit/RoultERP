@@ -1,5 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { registroCompras, inventarioValorizado, aLatin1, LIBROS } from "@roulterp/servicios";
+import {
+  registroCompras, comprasNoDomiciliados, registroVentas, libroDiario, libroMayor,
+  inventarioUnidades, inventarioValorizado, aLatin1, LIBROS,
+} from "@roulterp/servicios";
 import { conEmpresa, NoAutorizado } from "@/lib/sesion";
 
 /**
@@ -16,8 +19,13 @@ import { conEmpresa, NoAutorizado } from "@/lib/sesion";
 export const dynamic = "force-dynamic";
 
 const GENERADORES = {
+  [LIBROS.DIARIO]: libroDiario,
+  [LIBROS.MAYOR]: libroMayor,
   [LIBROS.COMPRAS]: registroCompras,
+  [LIBROS.COMPRAS_NO_DOMICILIADOS]: comprasNoDomiciliados,
+  [LIBROS.INVENTARIO_UNIDADES]: inventarioUnidades,
   [LIBROS.INVENTARIO_VALORIZADO]: inventarioValorizado,
+  [LIBROS.VENTAS]: registroVentas,
 } as const;
 
 export async function GET(req: NextRequest) {

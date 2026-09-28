@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { registrarCobranzaAccion, canjearCobrarAccion, type EstadoForm } from "../acciones";
 import { formatearImporte, Insignia } from "@/components/ui";
+import { hoyEnPeru } from "@roulterp/core/fecha";
 
 export type ComprobanteAbierto = {
   id: string;
@@ -35,10 +36,12 @@ export function FormularioCobranza({
   cliente,
   comprobantes,
   cuentas,
+  cuentasEfectivo,
 }: {
   cliente: { id: string; nombre: string; limite: string; saldo: string };
   comprobantes: ComprobanteAbierto[];
   cuentas: { cuenta: string; etiqueta: string }[];
+  cuentasEfectivo: { id: string; codigo: string; nombre: string }[];
 }) {
   const [modo, setModo] = useState<"cobro" | "letra">("cobro");
   const [estado, accion] = useActionState<EstadoForm, FormData>(
@@ -46,7 +49,7 @@ export function FormularioCobranza({
     {},
   );
   const [importes, setImportes] = useState<Record<string, string>>({});
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyEnPeru();
 
   const total = Object.values(importes).reduce((a, v) => a + (Number(v) || 0), 0);
   const excedido = Number(cliente.limite) > 0 && Number(cliente.saldo) > Number(cliente.limite);
@@ -109,11 +112,27 @@ export function FormularioCobranza({
               </div>
               <div className="sm:col-span-2">
                 <label className="etiqueta" htmlFor="cuentaDestino">Entra a *</label>
-                <select id="cuentaDestino" name="cuentaDestino" className="campo" defaultValue="1041">
-                  {cuentas.map((c) => (
-                    <option key={c.cuenta} value={c.cuenta}>{c.etiqueta}</option>
-                  ))}
-                </select>
+                {/*
+                  Se ofrecen las cuentas reales de la empresa cuando las hay: al
+                  elegirlas, el movimiento aparece además en Caja y Bancos y
+                  entra en la conciliación. Sólo si la empresa todavía no ha
+                  dado de alta ninguna se cae a la cuenta contable a secas.
+                */}
+                {cuentasEfectivo.length > 0 ? (
+                  <select id="cuentaDestino" name="cuentaEfectivoId" className="campo">
+                    {cuentasEfectivo.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.codigo} — {c.nombre}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <select id="cuentaDestino" name="cuentaDestino" className="campo" defaultValue="1041">
+                    {cuentas.map((c) => (
+                      <option key={c.cuenta} value={c.cuenta}>{c.etiqueta}</option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div>
                 <label className="etiqueta" htmlFor="referencia">Referencia</label>

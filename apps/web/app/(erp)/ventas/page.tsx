@@ -60,20 +60,23 @@ export default async function Ventas({
         acciones={
           <>
             <BotonEnlace href="/cpe" variante="secundario">Configuración de emisión</BotonEnlace>
-            {puedeCrear && preparacion.lista && (
+            {puedeCrear && preparacion.puedeEmitir && (
               <BotonEnlace href="/ventas/nueva">Emitir comprobante</BotonEnlace>
             )}
           </>
         }
       />
       <Contenido>
-        {!preparacion.lista && (
+        {/* Se distingue lo que impide facturar de lo que sólo impide enviar:
+            sin certificado se puede seguir vendiendo, y decir lo contrario
+            paraliza a una empresa que aún espera el trámite. */}
+        {!preparacion.puedeEmitir ? (
           <div className="mb-5 tarjeta p-4" style={{ borderColor: "color-mix(in srgb, var(--alerta) 45%, transparent)" }}>
             <p className="font-medium" style={{ color: "var(--alerta)" }}>
-              Falta configurar la emisión electrónica
+              Falta configurar la numeración
             </p>
             <ul className="mt-2 space-y-1 text-sm" style={{ color: "var(--texto-suave)" }}>
-              {preparacion.faltantes.map((f) => (
+              {preparacion.faltantesEmision.map((f) => (
                 <li key={f}>· {f}</li>
               ))}
             </ul>
@@ -81,7 +84,25 @@ export default async function Ventas({
               <BotonEnlace href="/cpe">Configurar</BotonEnlace>
             </div>
           </div>
-        )}
+        ) : !preparacion.puedeEnviar ? (
+          <div className="mb-5 tarjeta p-4" style={{ borderColor: "color-mix(in srgb, var(--alerta) 45%, transparent)" }}>
+            <p className="font-medium" style={{ color: "var(--alerta)" }}>
+              Puede facturar, pero todavía no enviar a SUNAT
+            </p>
+            <ul className="mt-2 space-y-1 text-sm" style={{ color: "var(--texto-suave)" }}>
+              {preparacion.faltantesEnvio.map((f) => (
+                <li key={f}>· {f}</li>
+              ))}
+            </ul>
+            <p className="mt-2 text-sm" style={{ color: "var(--texto-suave)" }}>
+              Los comprobantes quedan emitidos y en cola; se envían en cuanto la configuración
+              esté completa.
+            </p>
+            <div className="mt-3">
+              <BotonEnlace href="/cpe">Configurar</BotonEnlace>
+            </div>
+          </div>
+        ) : null}
 
         {preparacion.avisos.length > 0 && (
           <div className="mb-4 flex flex-wrap gap-2">
@@ -113,7 +134,7 @@ export default async function Ventas({
             titulo={periodo ? `Sin ventas en el periodo ${periodo}` : "Todavía no hay ventas"}
             descripcion="Emitir genera el comprobante, descarga el inventario y contabiliza. El envío a SUNAT ocurre después, para que una caída del servicio no impida facturar."
             accion={
-              puedeCrear && preparacion.lista
+              puedeCrear && preparacion.puedeEmitir
                 ? <BotonEnlace href="/ventas/nueva">Emitir comprobante</BotonEnlace>
                 : null
             }

@@ -5,6 +5,7 @@ import { listarCxp } from "@roulterp/servicios";
 import { money } from "@roulterp/core";
 import { conEmpresa } from "@/lib/sesion";
 import { Contenido, Encabezado, Importe, Insignia, Vacio } from "@/components/ui";
+import { hoyEnPeru } from "@roulterp/core/fecha";
 
 export const metadata = { title: "Cuentas por pagar · RoultERP" };
 export const dynamic = "force-dynamic";
@@ -53,7 +54,7 @@ export default async function Cxp({
     return {
       documentos: await listarCxp(db, proveedor),
       proveedores,
-      hoy: fila?.hoy ?? new Date().toISOString().slice(0, 10),
+      hoy: fila?.hoy ?? hoyEnPeru(),
     };
   }, "cxp:ver");
 

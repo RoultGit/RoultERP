@@ -5,6 +5,8 @@ import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { emitirVentaAccion, type EstadoForm } from "../acciones";
 import { formatearImporte } from "@/components/ui";
+import { hoyEnPeru } from "@roulterp/core/fecha";
+import { useLineas } from "@/lib/lineas";
 
 export type ClienteOpcion = { id: string; etiqueta: string; tieneRuc: boolean };
 export type ProductoOpcion = {
@@ -15,6 +17,30 @@ export type ProductoOpcion = {
   afectacion: string;
 };
 export type SerieOpcion = { serie: string; tipoDocumento: string; siguiente: string };
+
+/**
+ * Pedido que se está atendiendo.
+ *
+ * Cuando se factura contra un pedido el detalle no se teclea: llega con lo que
+ * falta por despachar. Se puede bajar una cantidad —un despacho parcial es
+ * normal— pero no subirla ni cambiar de cliente, que es justo lo que el
+ * documento existe para impedir.
+ */
+export type PedidoAFacturar = {
+  id: string;
+  numero: string;
+  clienteId: string;
+  almacenId: string | null;
+  moneda: string;
+  tipoCambio: string;
+  lineas: {
+    productoId: string | null;
+    descripcion: string;
+    saldo: string;
+    valorUnitario: string;
+    afectacionIgv: string;
+  }[];
+};
 
 type Linea = {
   clave: number;
@@ -33,9 +59,7 @@ const AFECTACIONES = [
   ["15", "Gratuito (bonificación)"],
 ] as const;
 
-let siguienteClave = 0;
-const lineaVacia = (): Linea => ({
-  clave: siguienteClave++,
+const lineaVacia = (): Omit<Linea, "clave"> => ({
   productoId: "",
   descripcion: "",
   cantidad: "1",
@@ -57,18 +81,30 @@ export function FormularioVenta({
   productos,
   almacenes,
   series,
+  pedido,
 }: {
   clientes: ClienteOpcion[];
   productos: ProductoOpcion[];
   almacenes: { id: string; etiqueta: string }[];
   series: SerieOpcion[];
+  pedido?: PedidoAFacturar;
 }) {
   const [estado, accion] = useActionState<EstadoForm, FormData>(emitirVentaAccion, {});
-  const [lineas, setLineas] = useState<Linea[]>([lineaVacia()]);
-  const [clienteId, setClienteId] = useState("");
+  // Facturando contra un pedido, las líneas arrancan con su saldo pendiente.
+  const { lineas, actualizar, agregar, quitar } = useLineas<Linea>(
+    lineaVacia,
+    pedido?.lineas.map((l) => ({
+      productoId: l.productoId ?? "",
+      descripcion: l.descripcion,
+      cantidad: l.saldo,
+      valorUnitario: l.valorUnitario,
+      afectacionIgv: l.afectacionIgv,
+    })),
+  );
+  const [clienteId, setClienteId] = useState(pedido?.clienteId ?? "");
   const [serie, setSerie] = useState(series[0]?.serie ?? "");
-  const [moneda, setMoneda] = useState("PEN");
-  const hoy = new Date().toISOString().slice(0, 10);
+  const [moneda, setMoneda] = useState(pedido?.moneda ?? "PEN");
+  const hoy = hoyEnPeru();
 
   const serieElegida = series.find((s) => s.serie === serie);
   const cliente = clientes.find((c) => c.id === clienteId);
@@ -78,8 +114,6 @@ export function FormularioVenta({
   // dejar que el servidor lo rechace después de teclear todo el detalle.
   const clienteIncompatible = esFactura && cliente !== undefined && !cliente.tieneRuc;
 
-  const actualizar = (clave: number, cambio: Partial<Linea>) =>
-    setLineas((ls) => ls.map((l) => (l.clave === clave ? { ...l, ...cambio } : l)));
 
   const elegirProducto = (clave: number, productoId: string) => {
     const p = productos.find((x) => x.id === productoId);
@@ -107,13 +141,25 @@ export function FormularioVenta({
         </p>
       )}
 
+      {pedido && (
+        <>
+          <input type="hidden" name="pedidoId" value={pedido.id} />
+          <input type="hidden" name="clienteId" value={pedido.clienteId} />
+          <p className="tarjeta p-3 text-sm" role="status">
+            Atendiendo el pedido <strong>{pedido.numero}</strong>. El detalle trae lo que falta por
+            despachar; puede facturar menos, y el saldo queda pendiente en el pedido.
+          </p>
+        </>
+      )}
+
       <section className="tarjeta p-4">
         <h2 className="mb-3 text-sm font-semibold">Comprobante</h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="sm:col-span-2">
             <label className="etiqueta" htmlFor="clienteId">Cliente *</label>
             <select
-              id="clienteId" name="clienteId" required className="campo"
+              id="clienteId" {...(pedido ? { disabled: true } : { name: "clienteId" })}
+              required className="campo"
               value={clienteId} onChange={(e) => setClienteId(e.target.value)}
               aria-invalid={clienteIncompatible ? "true" : undefined}
             >
@@ -175,7 +221,8 @@ export function FormularioVenta({
               <label className="etiqueta" htmlFor="tipoCambio">T.C.</label>
               <input
                 id="tipoCambio" name="tipoCambio" inputMode="decimal" className="campo"
-                defaultValue="1" key={moneda} placeholder={moneda === "PEN" ? "1" : "3.75"} />
+                defaultValue={pedido?.tipoCambio ?? "1"} key={moneda}
+                placeholder={moneda === "PEN" ? "1" : "3.75"} />
             </div>
           </div>
         </div>
@@ -186,7 +233,7 @@ export function FormularioVenta({
           <h2 className="text-sm font-semibold">Detalle</h2>
           <button
             type="button" className="boton boton-secundario !py-1 !text-xs"
-            onClick={() => setLineas((ls) => [...ls, lineaVacia()])}
+            onClick={() => agregar()}
           >
             Agregar línea
           </button>
@@ -262,7 +309,7 @@ export function FormularioVenta({
                     <button
                       type="button" aria-label={`Quitar línea ${i + 1}`}
                       className="text-xs" style={{ color: "var(--peligro)" }}
-                      onClick={() => setLineas((ls) => ls.filter((x) => x.clave !== l.clave))}
+                      onClick={() => quitar(l.clave)}
                     >
                       ✕
                     </button>
@@ -295,7 +342,10 @@ export function FormularioVenta({
         <h2 className="mb-3 text-sm font-semibold">Salida de mercadería</h2>
         <div className="max-w-md">
           <label className="etiqueta" htmlFor="almacenId">Almacén</label>
-          <select id="almacenId" name="almacenId" className="campo" defaultValue={almacenes[0]?.id ?? ""}>
+          <select
+            id="almacenId" name="almacenId" className="campo"
+            defaultValue={pedido?.almacenId ?? almacenes[0]?.id ?? ""}
+          >
             <option value="">No descargar inventario</option>
             {almacenes.map((a) => (
               <option key={a.id} value={a.id}>{a.etiqueta}</option>

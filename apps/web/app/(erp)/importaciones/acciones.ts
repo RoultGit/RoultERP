@@ -3,16 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Route } from "next";
-import { ZodError } from "zod";
+
 import {
-  crearImportacion, agregarItem, agregarGasto, ImportacionInvalida,
-  type BaseProrrateo,
+  crearImportacion, agregarItem, agregarGasto, type BaseProrrateo,
 } from "@roulterp/servicios";
-import { conEmpresa, NoAutorizado } from "@/lib/sesion";
+import { conEmpresa } from "@/lib/sesion";
+import { type EstadoForm, texto } from "@/lib/formulario";
+import { traducirError } from "@/lib/errores";
 
-export type EstadoForm = { error?: string; exito?: string };
-
-const texto = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
+export type { EstadoForm };
 
 export async function crearImportacionAccion(
   _previo: EstadoForm,
@@ -101,17 +100,9 @@ export async function agregarGastoAccion(
   return { exito: "Gasto agregado." };
 }
 
-function mensaje(e: unknown): EstadoForm {
-  if (e instanceof NoAutorizado) return { error: "No tiene permiso para esta operación." };
-  if (e instanceof ImportacionInvalida) return { error: e.message };
-  if (e instanceof ZodError) {
-    return { error: e.issues[0]?.message ?? "Revise los datos ingresados." };
-  }
-  // Un número de importación repetido choca contra el índice único; se traduce
-  // en vez de mostrar el error de Postgres.
-  if (e instanceof Error && /importaciones_uk|duplicate key/.test(e.message)) {
-    return { error: "Ya existe una importación con ese número." };
-  }
-  console.error("error en el módulo de importaciones", e);
-  return { error: "No se pudo completar la operación. Revise los datos e intente de nuevo." };
-}
+const mensaje = (e: unknown) => traducirError(e, {
+  contexto: "importaciones",
+  choques: [
+    [/importaciones_uk|duplicate key/, "Ya existe una importación con ese número."],
+  ],
+});

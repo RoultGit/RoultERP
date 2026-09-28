@@ -1,7 +1,9 @@
+import Link from "next/link";
+import type { Route } from "next";
 import { notFound } from "next/navigation";
 import {
   cargar, previsualizarLiquidacion, listarProductos, CONCEPTOS_IMPORTACION,
-  ImportacionInvalida,
+  expedienteDe, ImportacionInvalida,
 } from "@roulterp/servicios";
 import { money } from "@roulterp/core";
 import { conEmpresa, tienePermiso } from "@/lib/sesion";
@@ -9,6 +11,7 @@ import { Contenido, Encabezado, EstadoDoc, Importe, Insignia } from "@/component
 import { PanelLiquidacion } from "./liquidacion";
 import { AvanzarEstado } from "./estado";
 import { AgregarItem, AgregarGasto } from "./agregar";
+import { Expediente } from "./expediente";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +30,12 @@ export default async function DetalleImportacion({
       const vista = base.items.length
         ? await previsualizarLiquidacion(db, id)
         : null;
-      return { ...base, vista, productos: await listarProductos(db) };
+      return {
+        ...base,
+        vista,
+        productos: await listarProductos(db),
+        expediente: await expedienteDe(db, id),
+      };
     } catch (e) {
       if (e instanceof ImportacionInvalida) return null;
       throw e;
@@ -36,7 +44,7 @@ export default async function DetalleImportacion({
 
   if (!datos) notFound();
 
-  const { cabecera, items, gastos, vista, productos } = datos;
+  const { cabecera, items, gastos, vista, productos, expediente } = datos;
   const editable = cabecera.estado !== "liquidada" && cabecera.estado !== "anulada";
   const puedeEditar = await tienePermiso("importaciones:editar");
   const puedeAprobar = await tienePermiso("importaciones:aprobar");
@@ -58,7 +66,18 @@ export default async function DetalleImportacion({
           .filter(Boolean)
           .join(" · ")}
         acciones={
-          puedeAprobar ? <AvanzarEstado id={id} estado={cabecera.estado} /> : <EstadoDoc estado={cabecera.estado} />
+          <div className="flex items-center gap-2">
+            {/* La orden se imprime y se manda al exportador: es un documento,
+                no una pantalla de trabajo, y por eso vive en su propia ruta. */}
+            <Link href={`/importaciones/${id}/orden` as Route} className="boton boton-secundario">
+              Emitir orden
+            </Link>
+            {puedeAprobar ? (
+              <AvanzarEstado id={id} estado={cabecera.estado} />
+            ) : (
+              <EstadoDoc estado={cabecera.estado} />
+            )}
+          </div>
         }
       />
 
@@ -157,6 +176,25 @@ export default async function DetalleImportacion({
                 </details>
               )}
             </section>
+
+            <Expediente
+              importacionId={id}
+              filas={expediente.filas.map((f) => ({
+                clave: f.clave,
+                nombre: f.nombre,
+                exigible: f.exigible,
+                antesDe: f.antesDe,
+                ...(f.nota ? { nota: f.nota } : {}),
+                recibidoEn: f.recibidoEn,
+                referencia: f.referencia,
+                noAplica: f.noAplica,
+                observaciones: f.observaciones,
+                vencido: f.vencido,
+              }))}
+              vencidos={expediente.vencidos.length}
+              hito={expediente.hito}
+              editable={editable && puedeEditar}
+            />
 
             <section className="tarjeta overflow-x-auto">
               <div

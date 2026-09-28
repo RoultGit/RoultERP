@@ -4,15 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { Route } from "next";
 import {
-  registrarCobranza, canjearPorLetra,
-  CobranzaInvalida, PagoInvalido, ContabilizacionInvalida,
-  type AplicacionCobranza,
+  registrarCobranza, canjearPorLetra, type AplicacionCobranza,
 } from "@roulterp/servicios";
-import { conEmpresa, NoAutorizado } from "@/lib/sesion";
+import { conEmpresa } from "@/lib/sesion";
+import { type EstadoForm, texto } from "@/lib/formulario";
+import { traducirError } from "@/lib/errores";
 
-export type EstadoForm = { error?: string; exito?: string };
-
-const texto = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
+export type { EstadoForm };
 
 /** Lee cuánto se cobra de cada comprobante. Ver la nota en cxp/acciones.ts. */
 function leerAplicaciones(form: FormData): AplicacionCobranza[] {
@@ -47,6 +45,9 @@ export async function registrarCobranzaAccion(
           tipoCambio: texto(form, "tipoCambio") || "1",
           medioCobro: texto(form, "medioCobro") || "transferencia",
           cuentaDestino: texto(form, "cuentaDestino") || "1041",
+          ...(texto(form, "cuentaEfectivoId")
+            ? { cuentaEfectivoId: texto(form, "cuentaEfectivoId") }
+            : {}),
           aplicaciones,
           ...(texto(form, "referencia") ? { referencia: texto(form, "referencia") } : {}),
         }),
@@ -93,21 +94,10 @@ export async function canjearCobrarAccion(
   redirect("/cxc" as Route);
 }
 
-function mensaje(e: unknown): EstadoForm {
-  if (e instanceof NoAutorizado) return { error: "No tiene permiso para esta operación." };
-  if (
-    e instanceof CobranzaInvalida ||
-    e instanceof PagoInvalido ||
-    e instanceof ContabilizacionInvalida
-  ) {
-    return { error: e.message };
-  }
-  if (e instanceof Error && /cobranzas_uk|duplicate key/.test(e.message)) {
-    return { error: "Ya existe una cobranza con ese número." };
-  }
-  if (e instanceof Error && /letras_uk/.test(e.message)) {
-    return { error: "Ya existe una letra con ese número." };
-  }
-  console.error("error en cuentas por cobrar", e);
-  return { error: "No se pudo completar la operación. Revise los datos e intente de nuevo." };
-}
+const mensaje = (e: unknown) => traducirError(e, {
+  contexto: "cuentas por cobrar",
+  choques: [
+    [/letras_uk/, "Ya existe una letra con ese número."],
+    [/cobranzas_uk|duplicate key/, "Ya existe una cobranza con ese número."],
+  ],
+});

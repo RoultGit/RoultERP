@@ -1,6 +1,8 @@
 import { sql } from "drizzle-orm";
 import { exigirEmpresa, conEmpresa } from "@/lib/sesion";
 import { Navegacion } from "@/components/navegacion";
+import { Logo } from "@/components/logo";
+import { InterruptorTema } from "@/components/tema";
 import { salir } from "../entrar/acciones";
 
 export default async function EsqueletoErp({ children }: { children: React.ReactNode }) {
@@ -15,18 +17,37 @@ export default async function EsqueletoErp({ children }: { children: React.React
   const variasEmpresas =
     [...sesion.actor.membresias.values()].filter((m) => m.activo).length > 1;
 
+  /*
+   * Barra fija de 252px y el contenido con su propio scroll.
+   *
+   * Es el modelo de Notion, y la razón es práctica: en una tabla de doscientas
+   * filas la barra tiene que quedarse quieta. Si scrollea la página entera, el
+   * menú desaparece por arriba y volver a otro módulo obliga a subir del todo.
+   *
+   * Bajo 1024px la rejilla se deshace y la barra pasa arriba: en un portátil de
+   * trece pulgadas, 252px de menú fijo se comen el ancho de la tabla.
+   */
   return (
-    <div className="flex min-h-screen">
+    <div className="lg:grid lg:h-[100dvh] lg:grid-cols-[252px_minmax(0,1fr)] lg:overflow-hidden">
       <aside
-        className="flex w-60 shrink-0 flex-col border-r"
-        style={{ background: "var(--superficie)", borderColor: "var(--borde)" }}
+        className="flex flex-col border-b lg:h-full lg:border-b-0 lg:border-r"
+        style={{ background: "var(--rail)", borderColor: "var(--borde-fuerte)" }}
       >
-        <div className="border-b px-4 py-3" style={{ borderColor: "var(--borde)" }}>
-          <div className="text-sm font-semibold tracking-tight">RoultERP</div>
-          <div className="mt-0.5 truncate text-xs" style={{ color: "var(--texto-suave)" }}>
+        <div className="px-5 pb-4 pt-5">
+          <Logo className="text-[26px]" />
+        </div>
+
+        {/* La empresa activa, en su propio panel. No es decoración: quien
+            trabaja con dos empresas necesita ver en cuál está antes de emitir
+            un comprobante, y el RUC es la forma de no equivocarse. */}
+        <div className="tarjeta mx-3.5 mb-3 px-3 py-2.5">
+          <div className="text-[12.5px]" style={{ color: "var(--texto-tenue)" }}>
+            Empresa activa
+          </div>
+          <div className="mt-0.5 truncate text-[14px] font-semibold tracking-[-0.015em]">
             {empresa?.razon_social}
           </div>
-          <div className="cifra text-xs" style={{ color: "var(--texto-suave)", textAlign: "left" }}>
+          <div className="cifra mt-px text-[12.5px]" style={{ color: "var(--texto-tenue)", textAlign: "left" }}>
             RUC {empresa?.ruc}
           </div>
         </div>
@@ -36,27 +57,36 @@ export default async function EsqueletoErp({ children }: { children: React.React
             quien fuerce la URL se topa igual con la comprobación del servidor. */}
         <Navegacion permisos={[...permisos]} />
 
-        <div className="mt-auto border-t p-3 text-xs" style={{ borderColor: "var(--borde)" }}>
-          <div className="mb-2 truncate" style={{ color: "var(--texto-suave)" }}>
-            {sesion.nombre}
+        <div
+          className="grid gap-2 border-t px-3.5 py-3"
+          style={{ borderColor: "var(--borde)" }}
+        >
+          <div className="min-w-0 px-1">
+            <div className="truncate text-[13.5px] font-medium tracking-[-0.01em]">
+              {sesion.nombre}
+            </div>
           </div>
-          <div className="flex gap-2">
-            <a href="/cuenta" className="boton boton-secundario flex-1 !py-1 !text-xs">
+          <div className="grid grid-cols-2 gap-1.5">
+            <a href="/cuenta" className="boton boton-secundario !px-2 !py-1.5 !text-[13px]">
               Mi cuenta
             </a>
             {variasEmpresas && (
-              <a href="/empresas" className="boton boton-secundario !py-1 !text-xs">
+              <a href="/empresas" className="boton boton-secundario !px-2 !py-1.5 !text-[13px]">
                 Cambiar
               </a>
             )}
+            <InterruptorTema />
+            <form action={salir}>
+              <button className="boton boton-secundario w-full !px-2 !py-1.5 !text-[13px]">
+                Salir
+              </button>
+            </form>
           </div>
-          <form action={salir} className="mt-2">
-            <button className="boton boton-secundario w-full !py-1 !text-xs">Salir</button>
-          </form>
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1">{children}</main>
+      {/* El scroll vive aquí dentro, no en la página. */}
+      <main className="min-w-0 lg:h-full lg:overflow-y-auto">{children}</main>
     </div>
   );
 }

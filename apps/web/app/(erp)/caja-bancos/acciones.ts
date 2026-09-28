@@ -2,15 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import {
-  crearCuenta, registrarMovimientoEfectivo, importarExtracto,
-  proponerConciliacion, confirmarConciliacion, registrarArqueo,
-  TesoreriaInvalida, ContabilizacionInvalida,
+  crearCuenta, registrarMovimientoEfectivo, importarExtracto, confirmarConciliacion, registrarArqueo,
 } from "@roulterp/servicios";
-import { conEmpresa, NoAutorizado } from "@/lib/sesion";
+import { conEmpresa } from "@/lib/sesion";
+import { type EstadoForm, texto } from "@/lib/formulario";
+import { traducirError } from "@/lib/errores";
+import { hoyEnPeru } from "@roulterp/core/fecha";
 
-export type EstadoForm = { error?: string; exito?: string };
-
-const texto = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
+export type { EstadoForm };
 
 export async function crearCuentaAccion(
   _previo: EstadoForm,
@@ -140,7 +139,7 @@ export async function conciliarAccion(
   form: FormData,
 ): Promise<EstadoForm> {
   const cuentaId = texto(form, "cuentaId");
-  const fecha = texto(form, "fecha") || new Date().toISOString().slice(0, 10);
+  const fecha = texto(form, "fecha") || hoyEnPeru();
 
   // Sólo se concilia lo que la persona marcó: aparear automático lo que no es
   // seguro escondería justamente los errores que la conciliación busca.
@@ -196,14 +195,9 @@ export async function registrarArqueoAccion(
   }
 }
 
-function mensaje(e: unknown): EstadoForm {
-  if (e instanceof NoAutorizado) return { error: "No tiene permiso para esta operación." };
-  if (e instanceof TesoreriaInvalida || e instanceof ContabilizacionInvalida) {
-    return { error: e.message };
-  }
-  if (e instanceof Error && /cuentas_efectivo_uk|duplicate key/.test(e.message)) {
-    return { error: "Ya existe una cuenta con ese código." };
-  }
-  console.error("error en caja y bancos", e);
-  return { error: "No se pudo completar la operación. Revise los datos e intente de nuevo." };
-}
+const mensaje = (e: unknown) => traducirError(e, {
+  contexto: "caja y bancos",
+  choques: [
+    [/cuentas_efectivo_uk|duplicate key/, "Ya existe una cuenta con ese código."],
+  ],
+});

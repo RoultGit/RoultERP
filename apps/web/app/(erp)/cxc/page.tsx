@@ -5,6 +5,7 @@ import { documentosPorCobrar, carteraPorCliente } from "@roulterp/servicios";
 import { money } from "@roulterp/core";
 import { conEmpresa, tienePermiso } from "@/lib/sesion";
 import { Contenido, Encabezado, Importe, Insignia, Vacio, BotonEnlace } from "@/components/ui";
+import { hoyEnPeru } from "@roulterp/core/fecha";
 
 export const metadata = { title: "Cuentas por cobrar · RoultERP" };
 export const dynamic = "force-dynamic";
@@ -25,7 +26,7 @@ export default async function Cxc({
     return {
       documentos: await documentosPorCobrar(db, cliente),
       cartera: await carteraPorCliente(db),
-      hoy: fila?.hoy ?? new Date().toISOString().slice(0, 10),
+      hoy: fila?.hoy ?? hoyEnPeru(),
     };
   }, "cxc:ver");
 

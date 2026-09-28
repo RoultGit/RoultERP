@@ -22,6 +22,8 @@ import {
   cargarSesion, puede, exigirPermiso, type Permiso, type SesionActiva,
 } from "@roulterp/servicios";
 import { conexionApp, entornoAuth, esProduccion } from "./entorno";
+// Se reexporta para no obligar a cada acción a importar de dos sitios.
+import { NoAutorizado } from "./errores";
 
 /**
  * `cache` de React deduplica la carga dentro de una misma petición: el layout,
@@ -47,13 +49,6 @@ export async function exigirEmpresa(): Promise<SesionActiva & { empresaId: strin
   return s as SesionActiva & { empresaId: string };
 }
 
-export class NoAutorizado extends Error {
-  constructor(readonly permiso: Permiso) {
-    super("no tiene permiso para esta operación");
-    this.name = "NoAutorizado";
-  }
-}
-
 /**
  * Ejecuta trabajo contra la base con el contexto de la empresa activa.
  *
@@ -75,6 +70,27 @@ export async function conEmpresa<T>(
   );
 }
 
+/**
+ * Exige sesión, empresa **y permiso**, sin abrir una transacción.
+ *
+ * `conEmpresa` ya comprueba el permiso, pero no sirve para todo: hablar con
+ * SUNAT tarda y no puede retener una conexión del pool, así que esas acciones
+ * reciben la conexión y abren sus propias transacciones cortas. Al hacerlo se
+ * saltaban `conEmpresa` y, con él, la comprobación del permiso: quedaban
+ * protegidas por RLS —veían sólo su empresa— pero cualquiera con sesión podía
+ * dispararlas, incluido el rol de sólo consulta.
+ *
+ * Eso importa más aquí que en otros sitios: informar a SUNAT es un acto hacia
+ * fuera y no se deshace. Una vez aceptado, está declarado.
+ */
+export async function exigirEmpresaCon(
+  permiso: Permiso,
+): Promise<SesionActiva & { empresaId: string }> {
+  const sesion = await exigirEmpresa();
+  if (!puede(sesion.actor, sesion.empresaId, permiso)) throw new NoAutorizado(permiso);
+  return sesion;
+}
+
 /** ¿Puede el usuario actual hacer esto en la empresa activa? Para ocultar botones. */
 export async function tienePermiso(permiso: Permiso): Promise<boolean> {
   const s = await sesionActual();
@@ -94,4 +110,4 @@ export async function borrarCookieSesion(): Promise<void> {
   (await cookies()).delete(SESSION_COOKIE);
 }
 
-export { exigirPermiso, type Permiso, type SesionActiva };
+export { NoAutorizado, exigirPermiso, type Permiso, type SesionActiva };

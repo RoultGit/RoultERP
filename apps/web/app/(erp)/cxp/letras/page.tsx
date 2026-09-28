@@ -1,9 +1,11 @@
 import { sql } from "drizzle-orm";
-import { listarLetras } from "@roulterp/servicios";
+import { listarLetras, cuentasParaOperar, esAgenteRetencion } from "@roulterp/servicios";
 import { money } from "@roulterp/core";
 import { conEmpresa, tienePermiso } from "@/lib/sesion";
 import { Contenido, Encabezado, Importe, Insignia, Vacio, BotonEnlace } from "@/components/ui";
 import { RenovarLetra } from "./renovar";
+import { VencimientoLetra } from "./vencimiento";
+import { hoyEnPeru } from "@roulterp/core/fecha";
 
 export const metadata = { title: "Letras por pagar · RoultERP" };
 export const dynamic = "force-dynamic";
@@ -17,14 +19,23 @@ const TONO: Record<string, "exito" | "alerta" | "peligro" | "neutro"> = {
   en_cartera: "alerta",
 };
 
-export default async function Letras() {
-  const { letras, hoy } = await conEmpresa(async (db) => {
+export default async function Letras({
+  searchParams,
+}: {
+  searchParams: Promise<{ hecho?: string }>;
+}) {
+  const { hecho } = await searchParams;
+  const { letras, hoy, cuentas, agente } = await conEmpresa(async (db) => {
     const [fila] = (await db.execute(sql`SELECT current_date::text AS hoy`)) as unknown as [
       { hoy: string },
     ];
     return {
       letras: await listarLetras(db, "pagar"),
-      hoy: fila?.hoy ?? new Date().toISOString().slice(0, 10),
+      hoy: fila?.hoy ?? hoyEnPeru(),
+      cuentas: await cuentasParaOperar(db),
+      // La casilla de retener sólo tiene sentido si la empresa es agente: al que
+      // no lo es, el servicio le devolvería cero y la casilla sería un engaño.
+      agente: await esAgenteRetencion(db),
     };
   }, "cxp:ver");
 
@@ -43,11 +54,27 @@ export default async function Letras() {
         acciones={
           <>
             <BotonEnlace href="/cxp" variante="secundario">Cuentas por pagar</BotonEnlace>
+            <BotonEnlace href="/cxp/egresos" variante="secundario">Programación de egresos</BotonEnlace>
             {puedeOperar && <BotonEnlace href="/cxp/pagar">Canjear por letra</BotonEnlace>}
           </>
         }
       />
       <Contenido>
+        {/* El resultado de pagar o protestar llega en la dirección: la fila que
+            lo produjo pierde sus botones y con ellos se iba el aviso. */}
+        {hecho && (
+          <p
+            className="mb-4 rounded border px-3 py-2 text-sm"
+            style={{
+              borderColor: "color-mix(in srgb, var(--exito) 35%, transparent)",
+              color: "var(--exito)",
+            }}
+            role="status"
+          >
+            {hecho}
+          </p>
+        )}
+
         {letras.length === 0 ? (
           <Vacio
             titulo="Sin letras"
@@ -67,7 +94,7 @@ export default async function Letras() {
                   <th className="text-right">Importe</th>
                   <th className="text-right">Saldo</th>
                   <th>Estado</th>
-                  <th className="w-24" />
+                  <th className="w-64 text-right">Acción</th>
                 </tr>
               </thead>
               <tbody>
@@ -93,11 +120,24 @@ export default async function Letras() {
                       <td><Insignia tono={TONO[l.estado] ?? "neutro"}>{l.estado}</Insignia></td>
                       <td>
                         {puedeOperar && abierta && l.estado !== "renovada" && (
-                          <RenovarLetra
-                            letraId={l.id}
-                            numeroActual={l.numero}
-                            saldo={l.saldo}
-                          />
+                          <div className="space-y-1">
+                            <VencimientoLetra
+                              letraId={l.id}
+                              numero={l.numero}
+                              saldo={l.saldo}
+                              protestada={l.estado === "protestada"}
+                              agente={agente}
+                              cuentas={cuentas.map((c) => ({
+                                id: c.id,
+                                etiqueta: `${c.nombre} · ${c.moneda}`,
+                              }))}
+                            />
+                            <RenovarLetra
+                              letraId={l.id}
+                              numeroActual={l.numero}
+                              saldo={l.saldo}
+                            />
+                          </div>
                         )}
                       </td>
                     </tr>

@@ -3,10 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./dist/index.js", "./schema": "./dist/schema/index.js" },
+  "exports": {
+    ".": "./dist/index.js",
+    "./schema": "./dist/schema/index.js"
+  },
   "scripts": {
     "build": "tsc -b",
-    "migrate": "tsx src/migrate.ts",
+    "migrate": "tsx src/migrate-cli.ts",
     "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
@@ -14,5 +17,7 @@
     "drizzle-orm": "^0.38.3",
     "postgres": "^3.4.5"
   },
-  "devDependencies": { "drizzle-kit": "^0.30.1" }
+  "devDependencies": {
+    "drizzle-kit": "^0.30.1"
+  }
 }

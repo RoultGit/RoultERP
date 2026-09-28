@@ -17,7 +17,18 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 
-const DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "migrations");
+/**
+ * Dónde están los archivos `.sql`, calculado al usarse y no al importarse.
+ *
+ * Estaba como constante de módulo, y eso hacía que importar este archivo
+ * ejecutara `fileURLToPath(import.meta.url)`. En un archivo empaquetado a
+ * CommonJS `import.meta.url` no existe, así que el módulo reventaba nada más
+ * cargarlo, sin que nadie hubiera pedido migrar nada.
+ *
+ * Un módulo no debe hacer trabajo que pueda fallar sólo por importarlo.
+ */
+const directorioMigraciones = (): string =>
+  join(dirname(fileURLToPath(import.meta.url)), "..", "migrations");
 
 /** Se reaplica en cada despliegue en lugar de registrarse una sola vez. */
 const SIEMPRE = /^9999_/;
@@ -34,6 +45,7 @@ export async function migrar(url: string, opts: { silencioso?: boolean } = {}): 
         aplicada_en timestamptz NOT NULL DEFAULT now()
       )`;
 
+    const DIR = directorioMigraciones();
     const archivos = (await readdir(DIR)).filter((f) => f.endsWith(".sql")).sort();
     const aplicadas = new Map(
       (await sql<{ nombre: string; hash: string }[]>`SELECT nombre, hash FROM _migraciones`)
@@ -70,13 +82,4 @@ export async function migrar(url: string, opts: { silencioso?: boolean } = {}): 
   } finally {
     await sql.end();
   }
-}
-
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const url = process.env["DATABASE_URL"];
-  if (!url) {
-    console.error("falta DATABASE_URL");
-    process.exit(1);
-  }
-  await migrar(url);
 }

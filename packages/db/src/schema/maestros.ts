@@ -122,6 +122,8 @@ export const terceros = pgTable(
     sujetoPercepcion: boolean("sujeto_percepcion").notNull().default(false),
     /** Días de crédito por defecto al emitir un documento a este tercero. */
     diasCredito: integer("dias_credito").notNull().default(0),
+    /** Su cuenta de detracciones, para depositarle cuando la compra la lleva. */
+    cuentaDetracciones: text("cuenta_detracciones"),
     limiteCredito: importeCero("limite_credito"),
     monedaLimite: text("moneda_limite").notNull().default("PEN"),
     /** Cuenta contable por defecto: 12 para clientes, 42 para proveedores. */

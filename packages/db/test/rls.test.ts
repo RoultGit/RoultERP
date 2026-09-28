@@ -313,8 +313,20 @@ describe("libros inmutables", () => {
   test("un asiento contabilizado no se puede borrar", async () => {
     await assert.rejects(
       () => enEmpresa(app, ctxA(), (db) => db.execute(sql`DELETE FROM asientos WHERE id = ${asientoId}`)),
-      /no se borran/,
+      /un asiento contabilizado no se borra/,
     );
+  });
+
+  test("un borrador sí se borra: todavía no es contabilidad", async () => {
+    const [b] = await raw<{ id: string }[]>`
+      INSERT INTO asientos (empresa_id, periodo, numero, fecha, subdiario, glosa, moneda, estado)
+      VALUES (${ids.empresaA}, '202609', '0009', '2026-09-09', '00', 'Borrador', 'PEN', 'borrador')
+      RETURNING id`;
+    await enEmpresa(app, ctxA(), (db) =>
+      db.execute(sql`DELETE FROM asientos WHERE id = ${b!.id}`),
+    );
+    const quedan = await raw`SELECT id FROM asientos WHERE id = ${b!.id}`;
+    assert.equal(quedan.length, 0);
   });
 
   test("un asiento contabilizado no se puede editar", async () => {

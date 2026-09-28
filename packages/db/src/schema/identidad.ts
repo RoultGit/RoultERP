@@ -31,6 +31,11 @@ export const empresas = pgTable(
     metodoValorizacion: text("metodo_valorizacion").notNull().default("promedio"),
     /** Cómo redondea el depósito de detracción: "cercano" o "arriba". */
     redondeoDetraccion: text("redondeo_detraccion").notNull().default("cercano"),
+    /**
+     * Cuenta de detracciones en el Banco de la Nación. Va impresa en la factura
+     * sujeta a detracción: sin el número, el cliente no puede depositar.
+     */
+    cuentaDetracciones: text("cuenta_detracciones"),
     esAgenteRetencion: boolean("es_agente_retencion").notNull().default(false),
     esAgentePercepcion: boolean("es_agente_percepcion").notNull().default(false),
     activa: boolean("activa").notNull().default(true),

@@ -54,6 +54,22 @@ export type OpcionesConexion = {
 };
 
 /**
+ * La zona horaria de la empresa. **No es negociable y no se hereda del servidor.**
+ *
+ * Perú es UTC−5 todo el año: no hay horario de verano, así que no hay salto que
+ * gestionar. Lo que sí hay es un servidor en la nube que corre en UTC, y
+ * entonces `current_date` devuelve el día siguiente desde las 19:00 hora de
+ * Lima. Eso fecha las facturas de la tarde del 30 en el mes siguiente: periodo
+ * tributario equivocado y correlativo fuera de orden cronológico, que es lo que
+ * SUNAT rechaza.
+ *
+ * Fijarla en la conexión resuelve de una vez los `current_date`, los `now()` y
+ * todas las conversiones a `date` de las consultas, sin que cada una tenga que
+ * acordarse.
+ */
+export const ZONA_HORARIA = "America/Lima";
+
+/**
  * Abre un pool.
  *
  * `transform: undefined` a propósito: los `numeric` llegan como texto y así
@@ -65,7 +81,7 @@ export function conectar(opts: OpcionesConexion) {
   const cliente = postgres(opts.url, {
     max: opts.max ?? 10,
     prepare: false, // compatible con los pooler en modo transacción
-    connection: { application_name: `roulterp_${opts.rol}` },
+    connection: { application_name: `roulterp_${opts.rol}`, TimeZone: ZONA_HORARIA },
     onnotice: () => {},
   });
   const db = drizzle(cliente, { schema });

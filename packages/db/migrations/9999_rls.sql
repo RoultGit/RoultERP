@@ -147,7 +147,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE
   ON public.usuarios, public.sesiones, public.usuario_empresa,
      public.tokens_un_uso, public.intentos_login
   TO roulterp_auth;
-GRANT SELECT ON public.roles TO roulterp_auth;
+-- Los roles se leen en el login y se administran desde la pantalla de usuarios,
+-- que también corre con este rol: la definición de quién puede qué es parte de
+-- la identidad, no del negocio.
+GRANT SELECT, INSERT, UPDATE ON public.roles TO roulterp_auth;
 
 -- El rol de autenticación necesita ver todas las filas de identidad, porque
 -- busca por correo antes de saber quién es nadie.
@@ -164,7 +167,12 @@ BEGIN
 END $$;
 
 DROP POLICY IF EXISTS auth_lee_roles ON public.roles;
-CREATE POLICY auth_lee_roles ON public.roles FOR SELECT TO roulterp_auth USING (true);
+DROP POLICY IF EXISTS auth_administra_roles ON public.roles;
+-- Sin restricción de empresa: este rol busca por correo antes de saber a qué
+-- empresa pertenece nadie. El filtro por empresa lo pone cada consulta del
+-- servicio, que es la única puerta a estas tablas.
+CREATE POLICY auth_administra_roles ON public.roles FOR ALL TO roulterp_auth
+  USING (true) WITH CHECK (true);
 
 -- Para `roulterp_app`, en cambio, la identidad está acotada: se ve a sí mismo y
 -- a los compañeros de la empresa activa.
@@ -240,15 +248,15 @@ CREATE OR REPLACE FUNCTION impedir_modificacion_libro() RETURNS trigger
   LANGUAGE plpgsql AS
 $$
 BEGIN
-  IF TG_OP = 'DELETE' THEN
-    RAISE EXCEPTION 'los asientos y movimientos no se borran; use un extorno'
-      USING ERRCODE = 'restrict_violation';
+  -- Un borrador todavía no es contabilidad: se corrige y se borra. A partir de
+  -- que se contabiliza, el asiento es inmutable y sólo se revierte extornándolo.
+  IF OLD.estado = 'borrador' THEN
+    RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
   END IF;
 
-  -- Un borrador todavía se puede corregir. Una vez contabilizado, sólo puede
-  -- cambiar de estado a extornado o anulado; ninguna otra columna se mueve.
-  IF OLD.estado = 'borrador' THEN
-    RETURN NEW;
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'un asiento contabilizado no se borra; use un extorno'
+      USING ERRCODE = 'restrict_violation';
   END IF;
 
   IF NEW.estado IS DISTINCT FROM OLD.estado
@@ -280,10 +288,31 @@ CREATE TRIGGER movimientos_sin_borrado
   BEFORE DELETE ON public.movimientos_inventario
   FOR EACH ROW EXECUTE FUNCTION impedir_borrado();
 
+-- Las líneas de un asiento **contabilizado** son inmutables. Las de un borrador
+-- no: el contador escribe veinte líneas, las corrige y las reescribe, y esa es
+-- justamente la razón de que exista el estado borrador.
+CREATE OR REPLACE FUNCTION impedir_borrado_lineas_contabilizadas() RETURNS trigger
+  LANGUAGE plpgsql AS
+$$
+DECLARE
+  estado_asiento text;
+BEGIN
+  SELECT estado INTO estado_asiento FROM public.asientos WHERE id = OLD.asiento_id;
+
+  -- Si el asiento ya no existe, el borrado viene en cascada desde la cabecera,
+  -- que tiene su propio control.
+  IF estado_asiento IS NULL OR estado_asiento = 'borrador' THEN
+    RETURN OLD;
+  END IF;
+
+  RAISE EXCEPTION 'el asiento está %; sus líneas no se borran, use un extorno', estado_asiento
+    USING ERRCODE = 'restrict_violation';
+END $$;
+
 DROP TRIGGER IF EXISTS lineas_asiento_sin_borrado ON public.asiento_lineas;
 CREATE TRIGGER lineas_asiento_sin_borrado
   BEFORE DELETE ON public.asiento_lineas
-  FOR EACH ROW EXECUTE FUNCTION impedir_borrado();
+  FOR EACH ROW EXECUTE FUNCTION impedir_borrado_lineas_contabilizadas();
 
 -- ─── actualizado_en ───────────────────────────────────────────────────────
 

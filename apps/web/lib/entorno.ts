@@ -41,11 +41,26 @@ declare global {
  * en cada recarga. Guardarlos en `globalThis` evita quedarse sin conexiones a
  * los diez minutos de trabajo.
  */
+/*
+ * Tamaño del pool, configurable por entorno.
+ *
+ * En una máquina con un proceso, diez conexiones son holgura. En un entorno
+ * sin servidor —Vercel, Lambda— hay un pool **por instancia**, y cada instancia
+ * caliente reserva las suyas: con cinco instancias, quince conexiones cada una
+ * son setenta y cinco, y ahí se agota el límite del servidor de base antes de
+ * que haya usuarios de verdad.
+ *
+ * Por eso se puede bajar sin recompilar: `ROULTERP_POOL_MAX=2` en serverless.
+ * El valor de partida, diez, es el correcto para un contenedor de larga vida.
+ */
+const POOL_MAX = Math.max(1, Number(process.env["ROULTERP_POOL_MAX"]) || 10);
+
 const pools =
   globalThis.__roulterp ??
   (globalThis.__roulterp = {
-    app: conectar({ url: DATABASE_URL, rol: "app", max: 10 }),
-    auth: conectar({ url: DATABASE_URL, rol: "auth", max: 5 }),
+    app: conectar({ url: DATABASE_URL, rol: "app", max: POOL_MAX }),
+    // La de identidad trabaja sólo en el login: necesita menos.
+    auth: conectar({ url: DATABASE_URL, rol: "auth", max: Math.max(1, Math.ceil(POOL_MAX / 2)) }),
   });
 
 export const conexionApp = pools.app;

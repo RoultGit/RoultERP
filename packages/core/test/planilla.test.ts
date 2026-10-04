@@ -22,7 +22,7 @@ const n = (v: string) => Number(v);
 /** Un operario del régimen general, en AFP Integra con comisión por flujo. */
 const operario = {
   id: "t1",
-  nombre: "Wilder Inga",
+  nombre: "Julio Ramírez",
   basico: "2500.00",
   regimen: { sistema: "afp", afp: "integra", comision: "flujo" } as const,
   tieneHijos: true,

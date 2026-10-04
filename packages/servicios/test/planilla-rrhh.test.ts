@@ -57,7 +57,7 @@ beforeEach(async () => {
 const con = <T>(t: (db: Db) => Promise<T>) => enEmpresa(app, { empresaId, usuarioId }, t);
 const n = (v: string) => Number(v);
 
-/** Wilder Inga, operario en AFP Integra, con hijos, desde marzo de 2022. */
+/** Julio Ramírez, operario en AFP Integra, con hijos, desde marzo de 2022. */
 async function contratar(over: Record<string, unknown> = {}): Promise<string> {
   const [cc] = await raw<{ id: string }[]>`
     SELECT id FROM centros_costo WHERE empresa_id = ${empresaId} LIMIT 1`;
@@ -66,7 +66,7 @@ async function contratar(over: Record<string, unknown> = {}): Promise<string> {
       numeroDocumento: "45678912",
       apellidoPaterno: "Inga",
       apellidoMaterno: "Campos",
-      nombres: "Wilder Jhonatan",
+      nombres: "Julio César",
       fechaIngreso: "2022-03-01",
       cargo: "Operario de almacén",
       regimenPension: "afp",
@@ -351,7 +351,7 @@ describe("planilla mensual", () => {
       SELECT id FROM centros_costo WHERE empresa_id = ${empresaId} LIMIT 1`;
     await con((db) =>
       guardarTrabajador(db, empresaId, usuarioId, {
-        numeroDocumento: "11223344", apellidoPaterno: "Ayala", nombres: "Estephanie",
+        numeroDocumento: "11223344", apellidoPaterno: "Ayala", nombres: "Rosa",
         fechaIngreso: "2025-09-01", regimenPension: "onp", centroCostoId: cc!.id,
       }),
     );

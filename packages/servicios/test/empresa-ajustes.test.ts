@@ -63,7 +63,7 @@ describe("ajustes de la empresa", () => {
   test("guarda lo que el cliente respondió en el cuestionario", async () => {
     await con((db) =>
       guardarAjustesEmpresa(db, empresaId, {
-        direccion: "URB. LOS SAUCES AV. PROLONGACION MARISCAL NIETO 263",
+        direccion: "AV. PRINCIPAL 263, URB. LOS JARDINES",
         ubigeo: "180101",
         cuentaDetracciones: "00-000-000000",
         esAgenteRetencion: false,

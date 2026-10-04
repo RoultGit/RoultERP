@@ -366,7 +366,7 @@ describe("sucursales", () => {
         id: antes!.id,
         codigo: antes!.codigo,
         nombre: "Oficina principal",
-        direccion: "Av. Prolong. Mariscal Nieto 108, Ate",
+        direccion: "Av. Prolong. Sede secundaria, Ate",
         ubigeo: "150103",
         codigoSunat: "0000",
       }),

@@ -34,7 +34,7 @@ const EMISOR = {
   razonSocial: "SERVIDIVERSOS MARINA S.R.LTDA.",
   nombreComercial: "SERVIDIMAR",
   ubigeo: "150103",
-  direccion: "Av. Prolong. Mariscal Nieto 108, Ate",
+  direccion: "Av. Prolong. Sede secundaria, Ate",
   distrito: "ATE",
   provincia: "LIMA",
   departamento: "LIMA",

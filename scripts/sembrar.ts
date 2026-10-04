@@ -43,7 +43,7 @@ async function main() {
       ruc: "20303051831",
       razonSocial: "SERVIDIVERSOS MARINA S.R.LTDA.",
       nombreComercial: "SERVIDIMAR",
-      direccion: "Urb. Los Sauces, Av. Prolongación Mariscal Nieto 263",
+      direccion: "Av. Principal 263, Urb. Los Jardines",
       // Respondido por el cliente en el cuestionario: valorizan a promedio.
       metodoValorizacion: "promedio",
     },
@@ -71,14 +71,14 @@ async function main() {
    * ubigeo de cada local, y es obligatorio: viaja en cada guía de remisión como
    * punto de partida y la GRE la rechaza sin él. Lo que va abajo son los
    * distritos que se deducen de la dirección —Moquegua para Mariscal Nieto,
-   * Ate para Separadora Industrial— y hay que confirmarlos antes de emitir de
+   * Ate para Sede industrial— y hay que confirmarlos antes de emitir de
    * verdad. Sin ningún valor, el módulo de guías no se puede ni enseñar.
    */
   const ESTABLECIMIENTOS = [
-    ["0003", "Prolongación Mariscal Nieto", "URB. LOS SAUCES AV. PROLONGACION MARISCAL NIETO 263", "180101"],
-    ["0001", "Santa María", "URB. INDUSTRIAL LA AURORA AV. SANTA MARIA 165", "150103"],
-    ["0002", "Mariscal Nieto 108", "URB. LOS SAUCES AV. MARISCAL NIETO 108", "180101"],
-    ["0008", "Separadora Industrial", "URB. MIGUEL GRAU AV. SEPARADORA INDUSTRIAL 719", "150103"],
+    ["0003", "Sede principal", "AV. PRINCIPAL 263, URB. LOS JARDINES", "180101"],
+    ["0001", "Sede norte", "AV. INDUSTRIAL 165, URB. LA PLANTA", "150103"],
+    ["0002", "Sede secundaria", "AV. PRINCIPAL 108, URB. LOS JARDINES", "180101"],
+    ["0008", "Sede industrial", "AV. SEPARADORA 719, URB. EL PARQUE", "150103"],
   ] as const;
   for (const [codigo, nombre, direccion, ubigeo] of ESTABLECIMIENTOS) {
     await raw`
@@ -97,7 +97,7 @@ async function main() {
                            WHERE empresa_id = ${empresa.empresaId} AND codigo = '0003')
      WHERE empresa_id = ${empresa.empresaId} AND codigo = '001'`;
   for (const [codigo, nombre, sucursal] of [
-    ["002", "Almacén Santa María", "0001"],
+    ["002", "Almacén Sede norte", "0001"],
     ["003", "Almacén Separadora", "0008"],
   ] as const) {
     await raw`

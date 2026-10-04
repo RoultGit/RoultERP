@@ -27,8 +27,24 @@
 import { after, before, describe, test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { chromium, type Browser, type Page } from "playwright";
+import { periodoDeHoy } from "@roulterp/core/fecha";
 
 const BASE = process.env["BASE"] ?? "http://localhost:3100";
+
+/**
+ * El periodo de la semilla y el de lo que la prueba emite no son el mismo.
+ *
+ * `SEMBRADO` es setiembre de 2026 porque las fechas de `scripts/sembrar.ts` son
+ * fijas: ahí viven la exportación, la nota de crédito y las compras que miran
+ * los libros y el PDT. `EMITIDO` es el mes de hoy, porque un documento que la
+ * prueba crea se emite con la fecha de hoy.
+ *
+ * Confundirlos hacía que la suite se rompiera sola al cambiar de mes: el 30 de
+ * setiembre pasaba y el 1 de octubre dos pruebas buscaban en `202609` una venta
+ * que acababan de emitir en `202610`.
+ */
+const SEMBRADO = "202609";
+const EMITIDO = periodoDeHoy();
 const USUARIO = process.env["E2E_USUARIO"] ?? "admin@servidimar.pe";
 const CLAVE = process.env["E2E_CLAVE"] ?? "roulterp-desarrollo-1";
 
@@ -1670,7 +1686,7 @@ describe("ratios financieros", () => {
   test("calcula los ratios sobre el formato predeterminado", async (t) => {
     if (sinServidor(t)) return;
 
-    await pagina.goto(`${BASE}/contabilidad/ratios?periodo=202609`);
+    await pagina.goto(`${BASE}/contabilidad/ratios?periodo=${SEMBRADO}`);
     await pagina.waitForSelector("table", { timeout: 60000 });
     const texto = (await pagina.textContent("main")) ?? "";
 
@@ -1693,7 +1709,7 @@ describe("ratios financieros", () => {
     if (sinServidor(t)) return;
     await pagina.goto(`${BASE}/contabilidad/ratios`);
     await pagina.waitForSelector('select[name="situacion"]');
-    await pagina.fill('input[name="periodo"]', "202609");
+    await pagina.fill('input[name="periodo"]', SEMBRADO);
     await pagina.click('button:text-is("Ver")');
     await pagina.waitForSelector("table", { timeout: 60000 });
     assert.match((await pagina.textContent("main")) ?? "", /Liquidez/);
@@ -1743,7 +1759,7 @@ describe("cuentas de integración", () => {
     await pagina.click('button[type="submit"]:not([disabled])');
     await pagina.waitForURL(/\/ventas\/[0-9a-f-]{36}$/, { timeout: 60000 });
 
-    await pagina.goto(`${BASE}/contabilidad?periodo=202609`);
+    await pagina.goto(`${BASE}/contabilidad?periodo=${EMITIDO}`);
     await pagina.waitForSelector("table", { timeout: 60000 });
     const balance = (await pagina.textContent("main")) ?? "";
     assert.match(balance, /70911/, "la venta no llegó a la cuenta configurada");
@@ -1975,7 +1991,7 @@ describe("registros de compras y ventas", () => {
   test("el registro de compras cuadra con el archivo del PLE", async (t) => {
     if (sinServidor(t)) return;
 
-    await pagina.goto(`${BASE}/contabilidad/registros?periodo=202609&libro=compras`);
+    await pagina.goto(`${BASE}/contabilidad/registros?periodo=${SEMBRADO}&libro=compras`);
     await pagina.waitForSelector("table", { timeout: 60000 });
     const texto = (await pagina.textContent("main")) ?? "";
     assert.match(texto, /Totales del periodo/);
@@ -1983,7 +1999,7 @@ describe("registros de compras y ventas", () => {
 
     // Tantas filas en pantalla como líneas tiene el archivo del PLE.
     const filas = await pagina.locator("table tbody tr").count();
-    const r = await pagina.request.get(`${BASE}/api/ple?periodo=202609&libro=080100`);
+    const r = await pagina.request.get(`${BASE}/api/ple?periodo=${SEMBRADO}&libro=080100`);
     assert.equal(r.status(), 200);
     assert.equal(Number(r.headers()["x-filas"]), filas);
   });
@@ -1995,7 +2011,7 @@ describe("registros de compras y ventas", () => {
    */
   test("el registro de ventas deja fuera los borradores y lo dice", async (t) => {
     if (sinServidor(t)) return;
-    await pagina.goto(`${BASE}/contabilidad/registros?periodo=202609&libro=ventas`);
+    await pagina.goto(`${BASE}/contabilidad/registros?periodo=${EMITIDO}&libro=ventas`);
     await pagina.waitForSelector("form", { timeout: 60000 });
     const texto = (await pagina.textContent("main")) ?? "";
 
@@ -2171,9 +2187,14 @@ describe("planillas de cobranza", () => {
 describe("exportación al PDT", () => {
   test("la liquidación se descarga en CSV con sus casillas", async (t) => {
     if (sinServidor(t)) return;
-    const r = await pagina.request.get(`${BASE}/api/pdt?periodo=202609`);
+    const r = await pagina.request.get(`${BASE}/api/pdt?periodo=${SEMBRADO}`);
     assert.equal(r.status(), 200);
-    assert.match(r.headers()["content-disposition"] ?? "", /PDT621-20303051831-202609\.csv/);
+    assert.ok(
+      (r.headers()["content-disposition"] ?? "").includes(
+        `PDT621-20303051831-${SEMBRADO}.csv`,
+      ),
+      "el PDT no salió con el nombre que espera el aplicativo de SUNAT",
+    );
 
     const filas = (await r.text()).trimEnd().split("\r\n");
     assert.equal(filas[0], "SECCION;CASILLA;CONCEPTO;IMPORTE");
@@ -2190,7 +2211,7 @@ describe("exportación al PDT", () => {
 describe("descarga de libros electrónicos", () => {
   test("el PLE se descarga con su nombre de 33 caracteres", async (t) => {
     if (sinServidor(t)) return;
-    const r = await pagina.request.get(`${BASE}/api/ple?periodo=202609&libro=050100`);
+    const r = await pagina.request.get(`${BASE}/api/ple?periodo=${SEMBRADO}&libro=050100`);
     assert.equal(r.status(), 200);
     const nombre = /filename="([^"]+)"/.exec(r.headers()["content-disposition"] ?? "")?.[1];
     assert.ok(nombre, "falta el nombre del archivo");

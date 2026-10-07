@@ -78,7 +78,19 @@ function sinServidor(t: TestContext): boolean {
   return false;
 }
 
+/**
+ * Las opciones de un desplegable, esperando a que haya al menos una.
+ *
+ * La espera no es decorativa: sin ella se lee el DOM del instante, y un
+ * desplegable que todavía no acabó de pintarse devuelve una lista vacía que la
+ * prueba interpreta como «no hay almacenes».
+ */
 async function opciones(sel: string) {
+  await pagina
+    .locator(`${sel} option[value]:not([value=""])`)
+    .first()
+    .waitFor({ state: "attached", timeout: 30000 })
+    .catch(() => {});
   return pagina.$$eval(`${sel} option`, (os) =>
     os
       .map((o) => ({ v: (o as HTMLOptionElement).value, t: o.textContent?.trim() ?? "" }))
@@ -86,7 +98,22 @@ async function opciones(sel: string) {
   );
 }
 
+/**
+ * Elige del desplegable la opción cuyo texto contiene lo que se pide.
+ *
+ * Espera a que la opción exista antes de leerla. `$$eval` no espera nada: mira
+ * el DOM tal como está en ese instante. Corriendo la prueba sola, justo después
+ * de sembrar, el desplegable se leía antes de acabar de pintarse y el fallo era
+ * «el cliente no sale», con el cliente perfectamente guardado en la base. En la
+ * suite completa no pasaba porque las rutas ya estaban calientes, que es la
+ * clase de prueba que falla sólo cuando nadie la está mirando.
+ */
 async function elegir(sel: string, contiene: string) {
+  await pagina
+    .locator(`${sel} option`, { hasText: contiene })
+    .first()
+    .waitFor({ state: "attached", timeout: 30000 })
+    .catch(() => {});
   const o = (await opciones(sel)).find((x) => x.t.includes(contiene));
   assert.ok(o, `«${contiene}» no sale en ${sel}`);
   await pagina.selectOption(sel, o.v);

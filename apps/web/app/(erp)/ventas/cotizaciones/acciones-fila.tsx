@@ -14,7 +14,7 @@ import { resolverCotizacionAccion, convertirAccion, type EstadoForm } from "./ac
 function Boton({ children }: { children: React.ReactNode }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className="boton boton-secundario !py-1 !text-xs" disabled={pending}>
+    <button type="submit" className="boton boton-secundario boton-chico" disabled={pending}>
       {pending ? "…" : children}
     </button>
   );
@@ -59,7 +59,7 @@ export function Acciones({
         <form action={convertir} className="flex items-center gap-1.5">
           <input type="hidden" name="cotizacionId" value={cotizacionId} />
           <input type="hidden" name="fecha" value={hoy} />
-          <select name="almacenId" className="campo !py-1 !text-xs" defaultValue={almacenes[0]?.id ?? ""}>
+          <select name="almacenId" className="campo campo-chico" defaultValue={almacenes[0]?.id ?? ""}>
             <option value="">Sin almacén</option>
             {almacenes.map((a) => (
               <option key={a.id} value={a.id}>{a.etiqueta}</option>

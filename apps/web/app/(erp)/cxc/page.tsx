@@ -85,7 +85,7 @@ export default async function Cxc({
         </div>
 
         {cartera.length > 0 && (
-          <div className="mb-4 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
             <Filtro href="/cxc" activo={!cliente}>Todos</Filtro>
             {cartera.slice(0, 8).map((c) => (
               <Filtro key={c.id} href={`/cxc?cliente=${c.id}`} activo={cliente === c.id}>

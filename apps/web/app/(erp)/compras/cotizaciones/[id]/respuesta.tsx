@@ -158,12 +158,12 @@ export function FormularioRespuesta({
                 <td>
                   <input
                     name={`lineas[${i}].cantidad`} inputMode="decimal"
-                    className="campo cifra !py-1 !text-xs" placeholder={l.cantidad} />
+                    className="campo campo-chico cifra" placeholder={l.cantidad} />
                 </td>
                 <td>
                   <input
                     name={`lineas[${i}].valorUnitario`} inputMode="decimal"
-                    className="campo cifra !py-1 !text-xs" placeholder="—" />
+                    className="campo campo-chico cifra" placeholder="—" />
                 </td>
               </tr>
             ))}

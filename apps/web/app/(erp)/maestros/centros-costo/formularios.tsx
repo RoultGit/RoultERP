@@ -68,7 +68,7 @@ export function CambiarEstado({
       <input type="hidden" name="activo" value={activo ? "0" : "1"} />
       <button
         type="submit"
-        className="boton boton-secundario !py-1 !text-xs"
+        className="boton boton-secundario boton-chico"
         style={activo ? { color: "var(--peligro)" } : undefined}
       >
         {activo ? "Desactivar" : "Reactivar"}

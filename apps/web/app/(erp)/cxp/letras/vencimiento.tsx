@@ -8,7 +8,7 @@ import { hoyEnPeru } from "@roulterp/core/fecha";
 function Boton({ texto, tono }: { texto: string; tono: "primario" | "secundario" }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className={`boton boton-${tono} !py-1 !text-xs`} disabled={pending}>
+    <button type="submit" className={`boton boton-${tono} boton-chico`} disabled={pending}>
       {pending ? "…" : texto}
     </button>
   );
@@ -69,7 +69,7 @@ export function VencimientoLetra({
       <div className="flex flex-wrap justify-end gap-1">
         <button
           type="button"
-          className="boton boton-primario !py-1 !text-xs"
+          className="boton boton-primario boton-chico"
           onClick={() => setAbierto("pago")}
         >
           Pagar
@@ -77,7 +77,7 @@ export function VencimientoLetra({
         {!protestada && (
           <button
             type="button"
-            className="boton boton-secundario !py-1 !text-xs"
+            className="boton boton-secundario boton-chico"
             onClick={() => setAbierto("protesto")}
           >
             Protestar
@@ -94,14 +94,14 @@ export function VencimientoLetra({
       <form action={accionPago} className="space-y-1">
         <input type="hidden" name="letraId" value={letraId} />
         <div className="flex flex-wrap items-end justify-end gap-1">
-          <input name="fecha" type="date" required defaultValue={hoy} className="campo !py-1 !text-xs" />
+          <input name="fecha" type="date" required defaultValue={hoy} className="campo campo-chico" />
           <input
-            name="importe" inputMode="decimal" className="campo cifra !py-1 !text-xs"
+            name="importe" inputMode="decimal" className="campo campo-chico cifra"
             style={{ width: "6rem" }} placeholder={saldo}
             aria-label={`Importe a pagar de la letra ${numero}`}
           />
           <select
-            name="cuentaEfectivoId" className="campo !py-1 !text-xs" defaultValue=""
+            name="cuentaEfectivoId" className="campo campo-chico" defaultValue=""
             aria-label={`Cuenta de la que sale el pago de la letra ${numero}`}
           >
             <option value="">Sin cuenta</option>
@@ -117,7 +117,7 @@ export function VencimientoLetra({
           )}
           <Boton texto="Confirmar" tono="primario" />
           <button
-            type="button" className="boton boton-secundario !py-1 !text-xs"
+            type="button" className="boton boton-secundario boton-chico"
             onClick={() => setAbierto(null)}
           >
             ×
@@ -136,20 +136,20 @@ export function VencimientoLetra({
     <form action={accionProtesto} className="space-y-1">
       <input type="hidden" name="letraId" value={letraId} />
       <div className="flex flex-wrap items-end justify-end gap-1">
-        <input name="fecha" type="date" required defaultValue={hoy} className="campo !py-1 !text-xs" />
+        <input name="fecha" type="date" required defaultValue={hoy} className="campo campo-chico" />
         <input
-          name="gastos" inputMode="decimal" className="campo cifra !py-1 !text-xs"
+          name="gastos" inputMode="decimal" className="campo campo-chico cifra"
           style={{ width: "5.5rem" }} placeholder="Gastos"
           aria-label={`Gastos del protesto de la letra ${numero}`}
         />
         <input
-          name="motivo" maxLength={120} className="campo !py-1 !text-xs"
+          name="motivo" maxLength={120} className="campo campo-chico"
           style={{ width: "10rem" }} placeholder="Motivo"
           aria-label={`Motivo del protesto de la letra ${numero}`}
         />
         <Boton texto="Protestar" tono="secundario" />
         <button
-          type="button" className="boton boton-secundario !py-1 !text-xs"
+          type="button" className="boton boton-secundario boton-chico"
           onClick={() => setAbierto(null)}
         >
           ×

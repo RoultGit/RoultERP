@@ -73,7 +73,7 @@ export function FormularioReglas({
         <div className="flex items-center justify-between border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
           <h2 className="text-sm font-semibold">Reglas</h2>
           <button
-            type="button" className="boton boton-secundario !py-1 !text-xs"
+            type="button" className="boton boton-secundario boton-chico"
             onClick={() => setReglas((rs) => [...rs, vacia()])}
           >
             Añadir regla
@@ -95,14 +95,14 @@ export function FormularioReglas({
                   <input
                     name={`reglas[${i}].cuenta`} value={r.cuenta} maxLength={10}
                     onChange={(e) => actualizar(r.clave, { cuenta: e.target.value })}
-                    className="campo cifra !py-1 !text-xs" style={{ textAlign: "left" }}
+                    className="campo campo-chico cifra" style={{ textAlign: "left" }}
                     placeholder="cualquiera" />
                 </td>
                 <td>
                   <select
                     name={`reglas[${i}].centroCostoId`} value={r.centroCostoId}
                     onChange={(e) => actualizar(r.clave, { centroCostoId: e.target.value })}
-                    className="campo !py-1 !text-xs"
+                    className="campo campo-chico"
                   >
                     <option value="">— cualquiera —</option>
                     {centrosCosto.map((c) => (
@@ -114,7 +114,7 @@ export function FormularioReglas({
                   <select
                     name={`reglas[${i}].cuentaDestino`} value={r.cuentaDestino}
                     onChange={(e) => actualizar(r.clave, { cuentaDestino: e.target.value })}
-                    className="campo !py-1 !text-xs"
+                    className="campo campo-chico"
                   >
                     {DESTINOS.map(([c, t]) => (
                       <option key={c} value={c}>{c} — {t}</option>

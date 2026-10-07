@@ -108,15 +108,23 @@ export default async function Ventas({
           </div>
         ) : null}
 
+        {/*
+          * Los avisos son frases, así que no van en insignias.
+          *
+          * `.insignia` lleva `whitespace-nowrap` porque etiqueta estados de una
+          * palabra —«borrador», «aceptado»—; una frase dentro no envuelve y se
+          * salía 436 píxeles de la ventana en pantalla estrecha. El formato que
+          * les corresponde es una lista de avisos.
+          */}
         {preparacion.avisos.length > 0 && (
-          <div className="mb-4 flex flex-wrap gap-2">
+          <ul className="aviso space-y-1">
             {preparacion.avisos.map((a) => (
-              <Insignia key={a} tono="alerta">{a}</Insignia>
+              <li key={a}>· {a}</li>
             ))}
-          </div>
+          </ul>
         )}
 
-        <form className="mb-4 flex gap-2" action="/ventas">
+        <form className="flex gap-2" action="/ventas">
           <input
             name="periodo" defaultValue={periodo ?? ""} className="campo w-32 cifra"
             style={{ textAlign: "left" }} placeholder="202609" pattern="\d{6}"
@@ -125,11 +133,10 @@ export default async function Ventas({
           <button className="boton boton-secundario">Filtrar</button>
           {periodo && <Link href="/ventas" className="boton boton-secundario">Limpiar</Link>}
           {pendientes > 0 && (
-            <span className="ml-auto self-center">
-              <Insignia tono="alerta">
-                {pendientes} pendiente{pendientes === 1 ? "" : "s"} de informar a SUNAT
-              </Insignia>
-            </span>
+            <p className="self-center text-[13px] sm:ml-auto" style={{ color: "var(--alerta)" }}>
+              <span className="cifra">{pendientes}</span> pendiente
+              {pendientes === 1 ? "" : "s"} de informar a SUNAT
+            </p>
           )}
         </form>
 

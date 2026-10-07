@@ -233,6 +233,19 @@ describe("captura manual de asientos", () => {
     assert.equal(lista.filter((x) => x.estado === "borrador").length, 1);
     assert.equal(s2(lista.find((x) => x.estado === "contabilizado")!.importe), "3000.00");
   });
+
+  test("la lista empieza por el asiento más reciente", async () => {
+    // Importa porque la pantalla la pagina: con el orden ascendente, el asiento
+    // que el contador acaba de capturar se iba a la última página y no lo veía.
+    await con((db) => guardarBorrador(db, empresaId, usuarioId, borradorBase()));
+    await con((db) => guardarBorrador(db, empresaId, usuarioId, borradorBase()));
+    await con((db) => guardarBorrador(db, empresaId, usuarioId, borradorBase()));
+
+    const lista = await con((db) => listarAsientos(db, "202609"));
+    assert.ok(lista.length >= 3);
+    const numeros = lista.map((x) => x.numero);
+    assert.deepEqual(numeros, [...numeros].sort().reverse(), "el más reciente va primero");
+  });
 });
 
 // ─── Estados financieros ──────────────────────────────────────────────────

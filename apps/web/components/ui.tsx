@@ -37,7 +37,16 @@ export function Encabezado({
           </p>
         )}
       </div>
-      {acciones && <div className="flex shrink-0 flex-wrap gap-2">{acciones}</div>}
+      {/*
+        * `shrink-0` sólo desde `sm`.
+        *
+        * Con él siempre puesto, el bloque de acciones conservaba su ancho de
+        * contenido y sus propios botones no envolvían nunca: a 400 píxeles la
+        * página entera se iba 200 píxeles a la derecha. Desde `sm` sigue sin
+        * encogerse —es el título el que debe ceder, no los botones— y por
+        * debajo cede y envuelve.
+        */}
+      {acciones && <div className="flex flex-wrap gap-2 sm:shrink-0">{acciones}</div>}
     </header>
   );
 }
@@ -189,16 +198,28 @@ export function EstadoDoc({ estado }: { estado: string }) {
   );
 }
 
-/*
- * El cuerpo de la pantalla.
+/**
+ * El cuerpo de la pantalla, y el que manda el ritmo vertical.
  *
  * Con el mismo ancho máximo y el mismo margen lateral que el encabezado, para
  * que el título y la primera tabla arranquen en la misma vertical. Sin el tope
  * de ancho, en un monitor de 27 pulgadas una tabla de seis columnas se estira
  * hasta que el ojo pierde la fila entre la primera celda y la última.
+ *
+ * La separación entre bloques la pone aquí, no cada bloque por su cuenta.
+ *
+ * Antes cada pantalla elegía la suya y salían tres distintas —20, 16 y 12
+ * píxeles— a veces en la misma página: `/cxc` alternaba 20 y 16 entre sus cuatro
+ * bloques. Nadie lo decidió así; es lo que pasa cuando la separación se escribe
+ * en el bloque y no en quien los ordena.
+ *
+ * `space-y-5` de Tailwind 4 se aplica con `:where()`, o sea con especificidad
+ * cero. Eso lo convierte justo en lo que hace falta: un valor por omisión de 20
+ * píxeles que cualquier bloque puede sobreescribir con su propio `mb-*` cuando
+ * de verdad necesita otra cosa, y entonces se ve que es una excepción.
  */
 export function Contenido({ children }: { children: React.ReactNode }) {
-  return <div className="mx-auto max-w-[1180px] px-6 pb-10">{children}</div>;
+  return <div className="contenido mx-auto max-w-[1180px] space-y-5 px-6 pb-10">{children}</div>;
 }
 
 export function BotonEnlace({

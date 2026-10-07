@@ -7,7 +7,7 @@ import { anularPedidoAccion, type EstadoForm } from "./acciones";
 function Boton() {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className="boton boton-secundario !py-1 !text-xs" disabled={pending}>
+    <button type="submit" className="boton boton-secundario boton-chico" disabled={pending}>
       {pending ? "…" : "Anular"}
     </button>
   );

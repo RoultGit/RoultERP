@@ -621,8 +621,19 @@ export async function listarAsientos(db: Db, periodo: string) {
     origen_modulo: string | null;
     importe: string;
   }[];
-  // Se presentan en el orden en que se hicieron, que es como se lee un diario.
-  return [...filas].reverse();
+  /*
+   * Se devuelven con el más reciente primero, tal como salen de la consulta.
+   *
+   * Antes se invertían para dejarlos en orden de correlativo, «como se lee un
+   * diario». Pero el diario que se lee así es el del PLE, que sale de
+   * `libroDiario` y no de aquí; esta lista es la de trabajo, la que el contador
+   * abre para ver qué se ha asentado. Con el orden ascendente y la lista
+   * paginada, el asiento que acababa de capturar caía en la última página: el
+   * mismo fallo que el `ORDER BY ... DESC` de arriba ya evitaba a los 500, otra
+   * vez a los 50. El número de asiento va en su columna, así que el orden de
+   * lectura no se pierde.
+   */
+  return filas;
 }
 
 // ─── Estados financieros ──────────────────────────────────────────────────

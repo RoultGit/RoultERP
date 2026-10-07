@@ -90,7 +90,7 @@ export function FormularioRendicion({
             <input id="fecha" name="fecha" type="date" required defaultValue={hoy} className="campo w-44" />
           </div>
           <button
-            type="button" className="boton boton-secundario !py-1 !text-xs"
+            type="button" className="boton boton-secundario boton-chico"
             onClick={() => setLineas((ls) => [...ls, vacia()])}
           >
             Añadir documento
@@ -118,13 +118,13 @@ export function FormularioRendicion({
                     <input
                       name={`lineas[${i}].fecha`} type="date" value={l.fecha}
                       onChange={(e) => actualizar(l.clave, { fecha: e.target.value })}
-                      className="campo !py-1 !text-xs" />
+                      className="campo campo-chico" />
                   </td>
                   <td>
                     <select
                       name={`lineas[${i}].tipoDocumento`} value={l.tipoDocumento}
                       onChange={(e) => actualizar(l.clave, { tipoDocumento: e.target.value })}
-                      className="campo !py-1 !text-xs"
+                      className="campo campo-chico"
                     >
                       {DOCUMENTOS.map(([v, t]) => (
                         <option key={v} value={v}>{t}</option>
@@ -135,25 +135,25 @@ export function FormularioRendicion({
                     <input
                       name={`lineas[${i}].serie`} value={l.serie} maxLength={6}
                       onChange={(e) => actualizar(l.clave, { serie: e.target.value })}
-                      className="campo cifra !py-1 !text-xs" style={{ textAlign: "left" }} />
+                      className="campo campo-chico cifra" style={{ textAlign: "left" }} />
                   </td>
                   <td>
                     <input
                       name={`lineas[${i}].numero`} value={l.numero} maxLength={12}
                       onChange={(e) => actualizar(l.clave, { numero: e.target.value })}
-                      className="campo cifra !py-1 !text-xs" style={{ textAlign: "left" }} />
+                      className="campo campo-chico cifra" style={{ textAlign: "left" }} />
                   </td>
                   <td>
                     <input
                       name={`lineas[${i}].concepto`} value={l.concepto} maxLength={200}
                       onChange={(e) => actualizar(l.clave, { concepto: e.target.value })}
-                      className="campo !py-1 !text-xs" placeholder="Pasajes Lima–Trujillo" />
+                      className="campo campo-chico" placeholder="Pasajes Lima–Trujillo" />
                   </td>
                   <td>
                     <select
                       name={`lineas[${i}].cuenta`} value={l.cuenta}
                       onChange={(e) => actualizar(l.clave, { cuenta: e.target.value })}
-                      className="campo !py-1 !text-xs"
+                      className="campo campo-chico"
                     >
                       {cuentas.map((c) => (
                         <option key={c.id} value={c.id}>{c.etiqueta}</option>
@@ -164,7 +164,7 @@ export function FormularioRendicion({
                     <input
                       name={`lineas[${i}].importe`} value={l.importe} inputMode="decimal"
                       onChange={(e) => actualizar(l.clave, { importe: e.target.value })}
-                      className="campo cifra !py-1 !text-xs" placeholder="0.00" />
+                      className="campo campo-chico cifra" placeholder="0.00" />
                   </td>
                   <td>
                     {lineas.length > 1 && (

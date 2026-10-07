@@ -11,7 +11,7 @@
  * Ninguno de estos documentos toca inventario ni contabilidad. Son papeles de
  * decisión: el primer hecho contable sigue siendo la factura del proveedor.
  */
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { money, tributario } from "@roulterp/core";
 import { schema as s, type Db } from "@roulterp/db";
 import { siguienteNumero } from "./correlativos.ts";
@@ -639,11 +639,7 @@ export async function cuadroComparativo(db: Db, solicitudId: string) {
     ? await db
         .select()
         .from(cotizacionProveedorItems)
-        .where(
-          sql`${cotizacionProveedorItems.cotizacionId} IN ${sql.raw(
-            `(${cotizaciones.map((c) => `'${c.id}'`).join(",")})`,
-          )}`,
-        )
+        .where(inArray(cotizacionProveedorItems.cotizacionId, cotizaciones.map((c) => c.id)))
     : [];
 
   const tcDe = new Map(cotizaciones.map((c) => [c.id, dec(c.tipoCambio)]));

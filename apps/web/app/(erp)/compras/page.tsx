@@ -65,7 +65,7 @@ export default async function Compras({
         }
       />
       <Contenido>
-        <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Pestana href="/compras" activa={!enOrdenes}>
             Registro de compras
           </Pestana>

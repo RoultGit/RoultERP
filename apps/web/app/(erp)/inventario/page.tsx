@@ -50,7 +50,7 @@ export default async function Inventario({
         }
       />
       <Contenido>
-        <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Filtro href="/inventario" activo={!almacen}>
             Todos los almacenes
           </Filtro>

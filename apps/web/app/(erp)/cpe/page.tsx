@@ -181,7 +181,7 @@ export default async function ConfiguracionCpe() {
           </section>
         </div>
 
-        <section className="tarjeta mt-5">
+        <section className="tarjeta overflow-x-auto">
           <div className="flex items-center justify-between border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
             <h2 className="text-sm font-semibold">Series de emisión</h2>
             <span className="text-xs" style={{ color: "var(--texto-suave)" }}>

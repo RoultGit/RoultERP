@@ -13,7 +13,7 @@ function Boton({ children, primario }: { children: React.ReactNode; primario?: b
   return (
     <button
       type="submit"
-      className={`boton ${primario ? "boton-primario" : "boton-secundario"} !py-1 !text-xs`}
+      className={`boton ${primario ? "boton-primario" : "boton-secundario"} boton-chico`}
       disabled={pending}
     >
       {pending ? "…" : children}
@@ -83,7 +83,7 @@ export function AccionesColumna({
         <div className="flex flex-wrap gap-1.5">
           {puedeAprobar && (
             <button
-              type="button" className="boton boton-primario !py-1 !text-xs"
+              type="button" className="boton boton-primario boton-chico"
               onClick={() => setConfirmando(true)}
             >
               Elegir
@@ -99,17 +99,17 @@ export function AccionesColumna({
         <form action={elegir} className="space-y-1">
           <input type="hidden" name="cotizacionId" value={cotizacionId} />
           <input type="hidden" name="fecha" value={hoy} />
-          <select name="almacenId" className="campo !py-1 !text-xs" defaultValue={almacenes[0]?.id ?? ""}>
+          <select name="almacenId" className="campo campo-chico" defaultValue={almacenes[0]?.id ?? ""}>
             <option value="">Sin almacén</option>
             {almacenes.map((a) => (
               <option key={a.id} value={a.id}>{a.etiqueta}</option>
             ))}
           </select>
-          <input name="fechaEntrega" type="date" className="campo !py-1 !text-xs" />
+          <input name="fechaEntrega" type="date" className="campo campo-chico" />
           <div className="flex gap-1.5">
             <Boton primario>Emitir orden</Boton>
             <button
-              type="button" className="boton boton-secundario !py-1 !text-xs"
+              type="button" className="boton boton-secundario boton-chico"
               onClick={() => setConfirmando(false)}
             >
               Cancelar

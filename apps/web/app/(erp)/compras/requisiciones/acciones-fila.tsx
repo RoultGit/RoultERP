@@ -12,7 +12,7 @@ function Boton({ children, primario }: { children: React.ReactNode; primario?: b
   return (
     <button
       type="submit"
-      className={`boton ${primario ? "boton-primario" : "boton-secundario"} !py-1 !text-xs`}
+      className={`boton ${primario ? "boton-primario" : "boton-secundario"} boton-chico`}
       disabled={pending}
     >
       {pending ? "…" : children}
@@ -52,7 +52,7 @@ export function AccionesRequisicion({
               <Boton primario>Aprobar</Boton>
             </form>
             <button
-              type="button" className="boton boton-secundario !py-1 !text-xs"
+              type="button" className="boton boton-secundario boton-chico"
               onClick={() => setRechazando(true)}
             >
               Rechazar
@@ -66,11 +66,11 @@ export function AccionesRequisicion({
             <input type="hidden" name="estado" value="rechazada" />
             <input
               name="motivo" required maxLength={200} autoFocus
-              className="campo !py-1 !text-xs" placeholder="Motivo del rechazo"
+              className="campo campo-chico" placeholder="Motivo del rechazo"
             />
             <Boton>Confirmar</Boton>
             <button
-              type="button" className="boton boton-secundario !py-1 !text-xs"
+              type="button" className="boton boton-secundario boton-chico"
               onClick={() => setRechazando(false)}
             >
               Cancelar

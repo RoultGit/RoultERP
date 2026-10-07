@@ -116,7 +116,7 @@ export function FormularioPresupuesto({
         <div className="flex items-center justify-between border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
           <h2 className="text-sm font-semibold">Partidas</h2>
           <button
-            type="button" className="boton boton-secundario !py-1 !text-xs"
+            type="button" className="boton boton-secundario boton-chico"
             onClick={() => setPartidas((ps) => [...ps, vacia()])}
           >
             Añadir partida
@@ -139,7 +139,7 @@ export function FormularioPresupuesto({
                   <select
                     name={`partidas[${i}].centroCostoId`} value={p.centroCostoId}
                     onChange={(e) => actualizar(p.clave, { centroCostoId: e.target.value })}
-                    className="campo !py-1 !text-xs"
+                    className="campo campo-chico"
                   >
                     <option value="">— sin centro —</option>
                     {centrosCosto.map((c) => (
@@ -152,14 +152,14 @@ export function FormularioPresupuesto({
                     name={`partidas[${i}].cuenta`} value={p.cuenta} maxLength={10}
                     list="cuentas-presupuesto"
                     onChange={(e) => actualizar(p.clave, { cuenta: e.target.value })}
-                    className="campo cifra !py-1 !text-xs" style={{ textAlign: "left" }}
+                    className="campo campo-chico cifra" style={{ textAlign: "left" }}
                     placeholder="63" required={i === 0} />
                 </td>
                 <td>
                   <select
                     name={`partidas[${i}].mes`} value={p.mes}
                     onChange={(e) => actualizar(p.clave, { mes: e.target.value })}
-                    className="campo !py-1 !text-xs"
+                    className="campo campo-chico"
                   >
                     <option value="">Todo el año</option>
                     {MESES.map((m, j) => (
@@ -171,7 +171,7 @@ export function FormularioPresupuesto({
                   <input
                     name={`partidas[${i}].importe`} value={p.importe} inputMode="decimal"
                     onChange={(e) => actualizar(p.clave, { importe: e.target.value })}
-                    className="campo cifra !py-1 !text-xs" placeholder="0.00" />
+                    className="campo campo-chico cifra" placeholder="0.00" />
                 </td>
                 <td>
                   {partidas.length > 1 && (
@@ -263,7 +263,7 @@ function Boton({ children, primario }: { children: React.ReactNode; primario?: b
   return (
     <button
       type="submit"
-      className={`boton ${primario ? "boton-primario" : "boton-secundario"} !py-1 !text-xs`}
+      className={`boton ${primario ? "boton-primario" : "boton-secundario"} boton-chico`}
       disabled={pending}
     >
       {pending ? "…" : children}

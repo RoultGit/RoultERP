@@ -46,7 +46,7 @@ export default async function Productos({
         }
       />
       <Contenido>
-        <form className="mb-4 flex gap-2" action="/maestros/productos">
+        <form className="flex gap-2" action="/maestros/productos">
           <input
             name="q"
             defaultValue={q ?? ""}

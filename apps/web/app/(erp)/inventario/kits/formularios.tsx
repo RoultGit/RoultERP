@@ -105,7 +105,7 @@ export function FormularioReceta({
           </h2>
           {tipo === "kit" && (
             <button
-              type="button" className="boton boton-secundario !py-1 !text-xs"
+              type="button" className="boton boton-secundario boton-chico"
               onClick={() => setLineas((ls) => [...ls, vacia()])}
             >
               Añadir componente
@@ -127,7 +127,7 @@ export function FormularioReceta({
                   <select
                     name={`lineas[${i}].componenteId`} value={l.componenteId} required
                     onChange={(e) => actualizar(l.clave, { componenteId: e.target.value })}
-                    className="campo !py-1 !text-xs"
+                    className="campo campo-chico"
                   >
                     <option value="">— elija —</option>
                     {productos.map((p) => (
@@ -139,7 +139,7 @@ export function FormularioReceta({
                   <input
                     name={`lineas[${i}].cantidad`} value={l.cantidad} inputMode="decimal"
                     onChange={(e) => actualizar(l.clave, { cantidad: e.target.value })}
-                    className="campo cifra !py-1 !text-xs" />
+                    className="campo campo-chico cifra" />
                 </td>
                 <td>
                   {lineas.length > 1 && (

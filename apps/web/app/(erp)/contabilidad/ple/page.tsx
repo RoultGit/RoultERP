@@ -168,7 +168,7 @@ export default async function Ple({
         </div>
 
         {/* Una nota al pie no necesita el marco de un panel: basta la línea. */}
-        <section className="mt-6 border-t pt-4 text-sm" style={{ borderColor: "var(--borde)" }}>
+        <section className="border-t pt-4 text-sm" style={{ borderColor: "var(--borde)" }}>
           <h2 className="mb-2 font-medium">Antes de subirlo al PLE</h2>
           <ul className="space-y-1" style={{ color: "var(--texto-suave)" }}>
             <li>· El archivo va en Latin-1 y con saltos CRLF, que es lo que espera el validador.</li>

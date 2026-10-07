@@ -236,6 +236,25 @@ body {
     border-color: var(--peligro);
   }
 
+  /*
+   * La variante pequeña, para los controles que van dentro de una fila de tabla.
+   *
+   * Existía ya, pero sin nombre: ciento siete controles la conseguían escribiendo
+   * `!py-1 !text-xs` en el sitio de uso. Dos consecuencias. Una, ciento siete
+   * `!important` compitiendo con la hoja de estilos en vez de apoyarse en ella.
+   * Y dos, lo que de verdad se veía: los botones acabaron midiendo 26, 33 y 38
+   * píxeles de alto y los campos 26, 28, 30 y 38, porque cada sitio añadió su
+   * ajuste y nadie comparaba contra el de al lado.
+   *
+   * Declarada una vez, hay un alto pequeño y uno normal, y se acabó la deriva.
+   */
+  .boton-chico {
+    @apply py-1 text-xs;
+  }
+  .campo-chico {
+    @apply py-1 text-xs;
+  }
+
   /* ── Superficies ───────────────────────────────────────────────────── */
 
   /*

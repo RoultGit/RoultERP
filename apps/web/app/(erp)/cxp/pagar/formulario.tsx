@@ -194,7 +194,7 @@ export function FormularioPago({
           <h2 className="text-sm font-semibold">
             Documentos pendientes de {proveedor.nombre}
           </h2>
-          <button type="button" className="boton boton-secundario !py-1 !text-xs" onClick={llenarTodo}>
+          <button type="button" className="boton boton-secundario boton-chico" onClick={llenarTodo}>
             Aplicar el saldo completo
           </button>
         </div>
@@ -229,7 +229,7 @@ export function FormularioPago({
                   <input
                     name={`aplicar[${d.id}]`}
                     inputMode="decimal"
-                    className="campo cifra !py-1 !text-xs"
+                    className="campo campo-chico cifra"
                     value={importes[d.id] ?? ""}
                     onChange={(e) =>
                       setImportes((prev) => ({ ...prev, [d.id]: e.target.value }))

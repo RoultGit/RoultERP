@@ -12,7 +12,7 @@ function Boton({ children, primario }: { children: React.ReactNode; primario?: b
   return (
     <button
       type="submit"
-      className={`boton ${primario ? "boton-primario" : "boton-secundario"} !py-1 !text-xs`}
+      className={`boton ${primario ? "boton-primario" : "boton-secundario"} boton-chico`}
       disabled={pending}
     >
       {pending ? "…" : children}
@@ -159,11 +159,11 @@ export function AccionesCheque({
           <input type="hidden" name="estado" value="cobrado" />
           <input
             name="fechaCobrado" type="date" required defaultValue={hoy}
-            className="campo !py-1 !text-xs" aria-label="Fecha en que el banco lo acreditó"
+            className="campo campo-chico" aria-label="Fecha en que el banco lo acreditó"
           />
           <Boton primario>Confirmar</Boton>
           <button
-            type="button" className="boton boton-secundario !py-1 !text-xs"
+            type="button" className="boton boton-secundario boton-chico"
             onClick={() => setModo(null)}
           >
             No
@@ -175,12 +175,12 @@ export function AccionesCheque({
           <input type="hidden" name="estado" value="rebotado" />
           <input
             name="motivoRechazo" required maxLength={120} autoFocus
-            className="campo !py-1 !text-xs" placeholder="Sin fondos"
+            className="campo campo-chico" placeholder="Sin fondos"
             aria-label="Motivo del rechazo"
           />
           <Boton>Confirmar</Boton>
           <button
-            type="button" className="boton boton-secundario !py-1 !text-xs"
+            type="button" className="boton boton-secundario boton-chico"
             onClick={() => setModo(null)}
           >
             No
@@ -196,13 +196,13 @@ export function AccionesCheque({
             </form>
           )}
           <button
-            type="button" className="boton boton-primario !py-1 !text-xs"
+            type="button" className="boton boton-primario boton-chico"
             onClick={() => setModo("cobrado")}
           >
             Cobrado
           </button>
           <button
-            type="button" className="boton boton-secundario !py-1 !text-xs"
+            type="button" className="boton boton-secundario boton-chico"
             onClick={() => setModo("rebotado")}
           >
             Rebotó

@@ -58,7 +58,7 @@ export function FormularioCertificado({ tieneUno }: { tieneUno: boolean }) {
         </label>
         <input
           id="pfx" name="pfx" type="file" accept=".pfx,.p12"
-          required className="campo !py-1" />
+          required className="campo campo-chico" />
       </div>
 
       <div>

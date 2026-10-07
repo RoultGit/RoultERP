@@ -88,7 +88,7 @@ export default async function Contabilidad({
         }
       />
       <Contenido>
-        <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {periodos.length > 0 ? (
             periodos.map((p) => (
               <Link

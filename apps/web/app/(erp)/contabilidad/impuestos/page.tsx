@@ -103,9 +103,6 @@ export default async function Impuestos({
             <input
               id="saldo" name="saldo" inputMode="decimal" defaultValue={params.saldo ?? ""}
               className="campo cifra w-40" placeholder="0.00" />
-            <p className="mt-1 text-xs" style={{ color: "var(--texto-suave)" }}>
-              Casilla 145 del mes pasado.
-            </p>
           </div>
           <div>
             <label className="etiqueta" htmlFor="tasa">Tasa de renta (%)</label>
@@ -125,6 +122,18 @@ export default async function Impuestos({
               <dd className="text-lg font-medium"><Importe valor={l.pagoACuentaRenta} /></dd>
             </div>
           </dl>
+
+          {/*
+            * La ayuda va debajo de la fila, no dentro de un campo.
+            *
+            * Estaba colgada del campo del saldo a favor, y con `items-end` eso
+            * alineaba el borde inferior del bloque entero: el campo quedaba
+            * veinte píxeles más arriba que los de al lado y la fila se veía
+            * torcida. Una nota no debe mover el control que explica.
+            */}
+          <p className="w-full text-xs" style={{ color: "var(--texto-suave)" }}>
+            El saldo a favor es la casilla 145 de la declaración del mes pasado.
+          </p>
         </form>
 
         {l.avisos.length > 0 && (

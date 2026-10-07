@@ -37,7 +37,7 @@ export function InterruptorTema() {
     <button
       type="button"
       onClick={cambiar}
-      className="boton boton-secundario !px-2 !py-1.5 !text-[13px]"
+      className="boton boton-secundario boton-chico"
       aria-pressed={oscuro}
     >
       {oscuro ? "Modo claro" : "Modo oscuro"}

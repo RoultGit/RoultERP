@@ -79,7 +79,7 @@ export default async function Centros({
         </form>
 
         {enPerdida.length > 0 && (
-          <p className="aviso mb-4" role="alert">
+          <p className="aviso" role="alert">
             {enPerdida.length === 1
               ? `«${enPerdida[0]!.nombre}» está en pérdida.`
               : `${enPerdida.length} centros de costo están en pérdida: ${enPerdida

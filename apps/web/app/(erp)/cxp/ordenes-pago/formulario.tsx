@@ -171,7 +171,7 @@ export function FormularioOrden({
                       placeholder={d.libre}
                       disabled={!marcados[d.id]}
                       onChange={(e) => setImportes((i) => ({ ...i, [d.id]: e.target.value }))}
-                      className="campo cifra !py-1 !text-xs"
+                      className="campo campo-chico cifra"
                     />
                   </td>
                 </tr>

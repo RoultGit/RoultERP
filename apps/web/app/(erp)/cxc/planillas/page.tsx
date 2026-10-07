@@ -49,7 +49,7 @@ export default async function Planillas({
       />
       <Contenido>
         {puedeCrear && (
-          <div className="mb-6">
+          <div>
             <FormularioPlanilla
               cobrables={datos.cobrables.map((c) => ({
                 marca: `${c.clase}:${c.id}`,
@@ -64,7 +64,7 @@ export default async function Planillas({
           </div>
         )}
 
-        <div className="mb-4 flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           {ESTADOS.map(([valor, texto]) => (
             <Link
               key={valor}

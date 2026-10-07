@@ -210,6 +210,46 @@ describe("armar un kit", () => {
     await receta();
   }
 
+  /*
+   * El `productoId` llega de un formulario, así que hay que tratarlo como texto
+   * hostil hasta que la consulta lo parametrice.
+   *
+   * Antes la comprobación de «todos los componentes contra la misma cuenta»
+   * armaba su `IN (...)` concatenando cadenas: `ids.map(i => `'${i}'`)`. Con una
+   * comilla dentro del identificador eso deja de ser un valor y pasa a ser SQL.
+   * Hoy va por `inArray`, que lo manda como parámetro, y la base lo rechaza por
+   * no ser un UUID en vez de ejecutarlo.
+   */
+  test("un identificador con comillas no se ejecuta como SQL", async () => {
+    await conStock();
+    const antes = await valorDelAlmacen();
+
+    for (const veneno of [
+      "' OR '1'='1",
+      "'); DROP TABLE productos; --",
+      `${"00000000-0000-0000-0000-000000000000"}' UNION SELECT NULL--`,
+    ]) {
+      await assert.rejects(
+        con((db) =>
+          armar(db, empresaId, usuarioId, {
+            productoId: veneno,
+            cantidad: "1",
+            fecha: "2026-09-15",
+            almacenId: almacen,
+          }),
+        ),
+        "el identificador tiene que ser rechazado, no interpretado",
+      );
+    }
+
+    // Y lo que importa de verdad: nada se movió ni se borró.
+    assert.equal(await valorDelAlmacen(), antes);
+    const [{ n }] = (await raw`SELECT count(*)::int AS n FROM productos`) as unknown as [
+      { n: number },
+    ];
+    assert.ok(n > 0, "la tabla productos sigue ahí");
+  });
+
   test("consume los componentes y produce el kit a su costo exacto", async () => {
     await conStock();
     const antes = await valorDelAlmacen();

@@ -78,7 +78,7 @@ export default async function Recibos({
           </div>
         )}
 
-        <div className="mb-4 flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           {[
             ["", "Todos"],
             ["ingreso", "Ingresos"],

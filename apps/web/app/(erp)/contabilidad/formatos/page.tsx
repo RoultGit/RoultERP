@@ -74,7 +74,7 @@ export default async function Formatos({
             {puedeEditar && (
               <Link
                 href={"/contabilidad/formatos?nuevo=1" as Route}
-                className="boton boton-primario !py-1 !text-xs"
+                className="boton boton-primario boton-chico"
               >
                 Nuevo formato
               </Link>

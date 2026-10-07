@@ -83,7 +83,7 @@ export default async function Requisiciones({
           </div>
         )}
 
-        <div className="mb-4 flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           {ESTADOS.map(([valor, texto]) => (
             <Link
               key={valor}

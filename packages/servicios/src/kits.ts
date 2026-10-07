@@ -17,7 +17,7 @@
  * en proporción a lo que cada uno aporta, con resto mayor para que la suma
  * vuelva a cuadrar al céntimo.
  */
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, eq, inArray, sql } from "drizzle-orm";
 import { money, inventario as kardex } from "@roulterp/core";
 import { schema as s, type Db } from "@roulterp/db";
 import { registrarMovimiento } from "./inventario.ts";
@@ -186,6 +186,7 @@ export type ResultadoComposicion = {
  * en un balance descuadrado.
  */
 async function exigirMismaCuenta(db: Db, ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
   const filas = await db
     .select({
       id: productos.id,
@@ -194,7 +195,7 @@ async function exigirMismaCuenta(db: Db, ids: string[]): Promise<void> {
     })
     .from(productos)
     .leftJoin(planCuentas, eq(planCuentas.id, productos.cuentaExistenciaId))
-    .where(sql`${productos.id} IN ${sql.raw(`(${ids.map((i) => `'${i}'`).join(",")})`)}`);
+    .where(inArray(productos.id, ids));
 
   const cuentas = new Set(filas.map((f) => f.cuenta ?? "(por defecto)"));
   if (cuentas.size > 1) {

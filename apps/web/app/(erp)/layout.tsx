@@ -67,17 +67,17 @@ export default async function EsqueletoErp({ children }: { children: React.React
             </div>
           </div>
           <div className="grid grid-cols-2 gap-1.5">
-            <a href="/cuenta" className="boton boton-secundario !px-2 !py-1.5 !text-[13px]">
+            <a href="/cuenta" className="boton boton-secundario boton-chico">
               Mi cuenta
             </a>
             {variasEmpresas && (
-              <a href="/empresas" className="boton boton-secundario !px-2 !py-1.5 !text-[13px]">
+              <a href="/empresas" className="boton boton-secundario boton-chico">
                 Cambiar
               </a>
             )}
             <InterruptorTema />
             <form action={salir}>
-              <button className="boton boton-secundario w-full !px-2 !py-1.5 !text-[13px]">
+              <button className="boton boton-secundario boton-chico w-full">
                 Salir
               </button>
             </form>

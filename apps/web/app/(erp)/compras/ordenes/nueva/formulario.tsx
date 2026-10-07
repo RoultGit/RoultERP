@@ -141,7 +141,7 @@ export function FormularioOrden({
         <div className="flex items-center justify-between border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
           <h2 className="text-sm font-semibold">Detalle</h2>
           <button
-            type="button" className="boton boton-secundario !py-1 !text-xs"
+            type="button" className="boton boton-secundario boton-chico"
             onClick={() => agregar()}
           >
             Agregar línea
@@ -166,7 +166,7 @@ export function FormularioOrden({
                   <select
                     name={`lineas[${i}].productoId`} value={l.productoId} required={i === 0}
                     onChange={(e) => elegirProducto(l.clave, e.target.value)}
-                    className="campo !py-1 !text-xs"
+                    className="campo campo-chico"
                   >
                     <option value="">— elija —</option>
                     {productos.map((p) => (
@@ -178,25 +178,25 @@ export function FormularioOrden({
                   <input
                     name={`lineas[${i}].descripcion`} value={l.descripcion}
                     onChange={(e) => actualizar(l.clave, { descripcion: e.target.value })}
-                    className="campo !py-1 !text-xs" />
+                    className="campo campo-chico" />
                 </td>
                 <td>
                   <input
                     name={`lineas[${i}].cantidad`} value={l.cantidad} inputMode="decimal"
                     onChange={(e) => actualizar(l.clave, { cantidad: e.target.value })}
-                    className="campo cifra !py-1 !text-xs" />
+                    className="campo campo-chico cifra" />
                 </td>
                 <td>
                   <input
                     name={`lineas[${i}].valorUnitario`} value={l.valorUnitario} inputMode="decimal"
                     onChange={(e) => actualizar(l.clave, { valorUnitario: e.target.value })}
-                    className="campo cifra !py-1 !text-xs" />
+                    className="campo campo-chico cifra" />
                 </td>
                 <td>
                   <select
                     name={`lineas[${i}].afectacionIgv`} value={l.afectacionIgv}
                     onChange={(e) => actualizar(l.clave, { afectacionIgv: e.target.value })}
-                    className="campo !py-1 !text-xs"
+                    className="campo campo-chico"
                   >
                     {AFECTACIONES.map(([c, t]) => (
                       <option key={c} value={c}>{t}</option>

@@ -44,7 +44,7 @@ export default async function Terceros({
         }
       />
       <Contenido>
-        <form className="mb-4 flex flex-wrap gap-2" action="/maestros/terceros">
+        <form className="flex flex-wrap gap-2" action="/maestros/terceros">
           <input
             name="q" defaultValue={q ?? ""} className="campo max-w-xs"
             placeholder="Buscar por nombre o documento" aria-label="Buscar terceros"

@@ -66,7 +66,7 @@ export default async function PlanDeCuentas({
         }
       />
       <Contenido>
-        <form className="mb-4 flex items-end gap-2">
+        <form className="flex items-end gap-2">
           <div>
             <label className="etiqueta" htmlFor="q">Buscar</label>
             <input

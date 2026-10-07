@@ -338,7 +338,7 @@ export async function listarTrabajadores(db: Db, filtro?: { situacion?: string }
   const sueldos = (await db.execute(sql`
     SELECT DISTINCT ON (trabajador_id) trabajador_id::text AS id, basico::text, vigente_desde::text
       FROM remuneraciones
-     WHERE trabajador_id IN ${sql.raw(`(${filas.map((f) => `'${f.id}'`).join(",")})`)}
+     WHERE trabajador_id = ANY(${filas.map((f) => f.id)}::uuid[])
        AND vigente_desde <= current_date
      ORDER BY trabajador_id, vigente_desde DESC`)) as unknown as {
     id: string; basico: string; vigente_desde: string;

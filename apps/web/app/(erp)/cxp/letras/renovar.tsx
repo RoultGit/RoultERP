@@ -8,7 +8,7 @@ import { hoyEnPeru } from "@roulterp/core/fecha";
 function Boton() {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className="boton boton-primario !py-1 !text-xs" disabled={pending}>
+    <button type="submit" className="boton boton-primario boton-chico" disabled={pending}>
       {pending ? "Renovando…" : "Renovar"}
     </button>
   );
@@ -64,19 +64,19 @@ export function RenovarLetra({
       )}
 
       <input
-        name="numero" required maxLength={40} className="campo !py-1 !text-xs"
+        name="numero" required maxLength={40} className="campo campo-chico"
         placeholder={`${numeroActual}-R`} aria-label="Número de la letra nueva" />
       <input
-        name="fechaVencimiento" type="date" required className="campo !py-1 !text-xs"
+        name="fechaVencimiento" type="date" required className="campo campo-chico"
         aria-label="Nuevo vencimiento" />
       <input
-        name="intereses" inputMode="decimal" className="campo cifra !py-1 !text-xs"
+        name="intereses" inputMode="decimal" className="campo campo-chico cifra"
         placeholder="Intereses" aria-label="Intereses de la renovación" />
 
       <div className="flex gap-1">
         <Boton />
         <button
-          type="button" className="boton boton-secundario !py-1 !text-xs"
+          type="button" className="boton boton-secundario boton-chico"
           onClick={() => setAbierto(false)}
         >
           Cancelar

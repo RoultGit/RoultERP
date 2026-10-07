@@ -51,7 +51,7 @@ export default async function OrdenesPago({
       />
       <Contenido>
         {puedeCrear && (
-          <div className="mb-6">
+          <div>
             <FormularioOrden
               proveedorId={proveedor ?? ""}
               proveedores={datos.proveedores.map((p) => ({
@@ -77,7 +77,7 @@ export default async function OrdenesPago({
           </div>
         )}
 
-        <div className="mb-4 flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-1.5">
           {ESTADOS.map(([valor, texto]) => (
             <Link
               key={valor}

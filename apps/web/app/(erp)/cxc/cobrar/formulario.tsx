@@ -159,7 +159,7 @@ export function FormularioCobranza({
         <div className="flex items-center justify-between border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
           <h2 className="text-sm font-semibold">Comprobantes pendientes de {cliente.nombre}</h2>
           <button
-            type="button" className="boton boton-secundario !py-1 !text-xs"
+            type="button" className="boton boton-secundario boton-chico"
             onClick={() => setImportes(Object.fromEntries(comprobantes.map((c) => [c.id, c.saldo])))}
           >
             Aplicar el saldo completo
@@ -191,7 +191,7 @@ export function FormularioCobranza({
                 <td>
                   <input
                     name={`aplicar[${c.id}]`} inputMode="decimal"
-                    className="campo cifra !py-1 !text-xs"
+                    className="campo campo-chico cifra"
                     value={importes[c.id] ?? ""}
                     onChange={(e) => setImportes((p) => ({ ...p, [c.id]: e.target.value }))}
                     placeholder="0.00"

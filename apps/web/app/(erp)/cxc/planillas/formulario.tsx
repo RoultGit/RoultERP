@@ -122,7 +122,7 @@ export function FormularioPlanilla({ cobrables }: { cobrables: Cobrable[] }) {
                       placeholder={c.libre}
                       disabled={!marcados[c.marca]}
                       onChange={(e) => setImportes((i) => ({ ...i, [c.marca]: e.target.value }))}
-                      className="campo cifra !py-1 !text-xs"
+                      className="campo campo-chico cifra"
                     />
                   </td>
                 </tr>

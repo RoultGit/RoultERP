@@ -5,5 +5,3 @@ dist/
 .env.local
 *.tsbuildinfo
 .DS_Store
-auditar.tmp.mjs
-sondeo.tmp.mjs

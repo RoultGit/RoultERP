@@ -124,7 +124,7 @@ export function FormularioFormato({
         <div className="flex items-center justify-between border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
           <h2 className="text-sm font-semibold">Renglones</h2>
           <button
-            type="button" className="boton boton-secundario !py-1 !text-xs"
+            type="button" className="boton boton-secundario boton-chico"
             onClick={() => setLineas((ls) => [...ls, vacia()])}
           >
             Añadir renglón
@@ -151,7 +151,7 @@ export function FormularioFormato({
                   <select
                     name={`lineas[${i}].clase`} value={l.clase}
                     onChange={(e) => actualizar(l.clave, { clase: e.target.value })}
-                    className="campo !py-1 !text-xs"
+                    className="campo campo-chico"
                   >
                     <option value="detalle">Detalle</option>
                     <option value="total">Total</option>
@@ -162,25 +162,25 @@ export function FormularioFormato({
                   <input
                     name={`lineas[${i}].codigo`} value={l.codigo} maxLength={20}
                     onChange={(e) => actualizar(l.clave, { codigo: e.target.value })}
-                    className="campo !py-1 !text-xs" placeholder="efectivo" />
+                    className="campo campo-chico" placeholder="efectivo" />
                 </td>
                 <td>
                   <input
                     name={`lineas[${i}].concepto`} value={l.concepto} maxLength={120}
                     onChange={(e) => actualizar(l.clave, { concepto: e.target.value })}
-                    className="campo !py-1 !text-xs" required={i === 0} />
+                    className="campo campo-chico" required={i === 0} />
                 </td>
                 <td>
                   <input
                     name={`lineas[${i}].nivel`} value={String(l.nivel)} inputMode="numeric"
                     onChange={(e) => actualizar(l.clave, { nivel: Number(e.target.value) || 0 })}
-                    className="campo cifra !py-1 !text-xs" />
+                    className="campo campo-chico cifra" />
                 </td>
                 <td>
                   <input
                     name={`lineas[${i}].cuentas`} value={l.cuentas} maxLength={120}
                     onChange={(e) => actualizar(l.clave, { cuentas: e.target.value })}
-                    className="campo cifra !py-1 !text-xs" style={{ textAlign: "left" }}
+                    className="campo campo-chico cifra" style={{ textAlign: "left" }}
                     placeholder="12-18, 40111"
                     disabled={l.clase !== "detalle"} />
                 </td>
@@ -188,7 +188,7 @@ export function FormularioFormato({
                   <select
                     name={`lineas[${i}].signo`} value={l.signo}
                     onChange={(e) => actualizar(l.clave, { signo: e.target.value })}
-                    className="campo !py-1 !text-xs"
+                    className="campo campo-chico"
                     disabled={l.clase !== "detalle"}
                   >
                     <option value="deudor">Deudor</option>
@@ -199,7 +199,7 @@ export function FormularioFormato({
                   <input
                     name={`lineas[${i}].suma`} value={l.suma} maxLength={200}
                     onChange={(e) => actualizar(l.clave, { suma: e.target.value })}
-                    className="campo !py-1 !text-xs" placeholder="efectivo, cobrar"
+                    className="campo campo-chico" placeholder="efectivo, cobrar"
                     disabled={l.clase !== "total"} />
                 </td>
                 {tipo === "situacion" && (
@@ -207,7 +207,7 @@ export function FormularioFormato({
                     <select
                       name={`lineas[${i}].columna`} value={l.columna}
                       onChange={(e) => actualizar(l.clave, { columna: e.target.value })}
-                      className="campo !py-1 !text-xs"
+                      className="campo campo-chico"
                     >
                       <option value="">—</option>
                       <option value="activo">Activo</option>

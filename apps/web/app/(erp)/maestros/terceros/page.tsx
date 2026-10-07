@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { Route } from "next";
 import { listarTerceros } from "@roulterp/servicios";
 import { conEmpresa, tienePermiso } from "@/lib/sesion";
+import { Paginacion } from "@/components/paginacion";
+import { paginaDe, rodaja } from "@/lib/paginacion";
 import { Contenido, Encabezado, Importe, Insignia, Vacio, BotonEnlace } from "@/components/ui";
 
 export const metadata = { title: "Clientes y proveedores · RoultERP" };
@@ -14,9 +16,11 @@ const DOCUMENTO: Record<string, string> = {
 export default async function Terceros({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; rol?: string }>;
+  searchParams: Promise<{ q?: string; rol?: string; pagina?: string }>;
 }) {
-  const { q, rol } = await searchParams;
+  const params = await searchParams;
+  const { q, rol } = params;
+  const pagina = paginaDe(params.pagina);
   const filas = await conEmpresa(
     (db) =>
       listarTerceros(db, {
@@ -74,7 +78,7 @@ export default async function Terceros({
                 </tr>
               </thead>
               <tbody>
-                {filas.map((t) => (
+                {rodaja(filas, pagina).map((t) => (
                   <tr key={t.id}>
                     <td className="cifra" style={{ textAlign: "left" }}>
                       <Link href={`/maestros/terceros/${t.id}` as Route} className="underline">
@@ -94,6 +98,7 @@ export default async function Terceros({
                 ))}
               </tbody>
             </table>
+            <Paginacion total={filas.length} pagina={pagina} params={params} etiqueta="terceros" />
           </div>
         )}
       </Contenido>

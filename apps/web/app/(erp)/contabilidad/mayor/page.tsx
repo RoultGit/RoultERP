@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { notFound } from "next/navigation";
-import { mayorDeCuenta } from "@roulterp/servicios";
+import { mayorDeCuenta, listarCuentas } from "@roulterp/servicios";
 import { money } from "@roulterp/core";
 import { conEmpresa } from "@/lib/sesion";
 import { Contenido, Encabezado, Importe, Vacio } from "@/components/ui";
@@ -16,9 +15,18 @@ export default async function Mayor({
   searchParams: Promise<{ cuenta?: string; periodo?: string }>;
 }) {
   const { cuenta, periodo } = await searchParams;
-  if (!cuenta) notFound();
 
-  const filas = (await conEmpresa(
+  /*
+   * Sin cuenta no se devuelve 404.
+   *
+   * Al mayor se llega desde el balance, con la cuenta en la dirección, pero
+   * también se llega escribiendo la dirección o volviendo desde un marcador.
+   * Antes eso era `notFound()`: la pantalla existía y contestaba «no existe».
+   * Ahora ofrece el selector, que es lo que el usuario venía a hacer.
+   */
+  const cuentas = await conEmpresa((db) => listarCuentas(db, true), "contabilidad:ver");
+
+  const filas = !cuenta ? [] : (await conEmpresa(
     (db) => mayorDeCuenta(db, cuenta, periodo),
     "contabilidad:ver",
   )) as unknown as {
@@ -44,8 +52,14 @@ export default async function Mayor({
   return (
     <>
       <Encabezado
-        titulo={`Mayor de la cuenta ${cuenta}`}
-        descripcion={periodo ? `Periodo ${periodo}` : "Todos los periodos"}
+        titulo={cuenta ? `Mayor de la cuenta ${cuenta}` : "Mayor de cuentas"}
+        descripcion={
+          !cuenta
+            ? "Elija la cuenta cuyo movimiento quiere ver."
+            : periodo
+              ? `Periodo ${periodo}`
+              : "Todos los periodos"
+        }
         acciones={
           <>
             <Imprimir />
@@ -59,7 +73,44 @@ export default async function Mayor({
         }
       />
       <Contenido>
-        {conSaldo.length === 0 ? (
+        <form method="get" className="mb-5 flex flex-wrap items-end gap-3">
+          <div className="min-w-[22rem]">
+            <label className="etiqueta" htmlFor="cuenta">Cuenta</label>
+            <select id="cuenta" name="cuenta" defaultValue={cuenta ?? ""} className="campo" required>
+              <option value="" disabled>Elija una cuenta</option>
+              {cuentas.map((c) => (
+                <option key={c.cuenta} value={c.cuenta}>
+                  {c.cuenta} · {c.descripcion}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="etiqueta" htmlFor="periodo">Periodo</label>
+            <input
+              id="periodo"
+              name="periodo"
+              defaultValue={periodo ?? ""}
+              placeholder="202610"
+              inputMode="numeric"
+              pattern="[0-9]{6}"
+              className="campo w-32"
+            />
+          </div>
+          <button className="boton boton-primario">Ver</button>
+        </form>
+
+        {!cuenta ? (
+          <Vacio
+            titulo="Elija una cuenta"
+            descripcion="El mayor se lee cuenta por cuenta. También se llega desde el balance de comprobación, pulsando el código de la cuenta."
+            accion={
+              <Link href="/contabilidad" className="boton boton-secundario">
+                Ir al balance
+              </Link>
+            }
+          />
+        ) : conSaldo.length === 0 ? (
           <Vacio titulo="Sin movimientos" descripcion="Esta cuenta no tiene asientos en el periodo." />
         ) : (
           <div className="tarjeta overflow-x-auto">

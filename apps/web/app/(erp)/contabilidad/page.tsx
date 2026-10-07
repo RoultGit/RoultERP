@@ -5,6 +5,8 @@ import { balanceComprobacion, listarAsientos, listarPeriodos } from "@roulterp/s
 import { money } from "@roulterp/core";
 import { conEmpresa, tienePermiso } from "@/lib/sesion";
 import { Contenido, Encabezado, EstadoDoc, Importe, Insignia, Vacio } from "@/components/ui";
+import { Paginacion } from "@/components/paginacion";
+import { paginaDe, rodaja } from "@/lib/paginacion";
 
 export const metadata = { title: "Contabilidad · RoultERP" };
 export const dynamic = "force-dynamic";
@@ -17,7 +19,7 @@ function periodoActual(): string {
 export default async function Contabilidad({
   searchParams,
 }: {
-  searchParams: Promise<{ periodo?: string }>;
+  searchParams: Promise<{ periodo?: string; pagina?: string }>;
 }) {
   const params = await searchParams;
   const periodo = /^\d{6}$/.test(params.periodo ?? "") ? params.periodo! : periodoActual();
@@ -40,6 +42,18 @@ export default async function Contabilidad({
 
   const cerrado = estadosPeriodo.some((p) => p.periodo === periodo && p.estado === "cerrado");
   const borradores = asientos.filter((a) => a.estado === "borrador").length;
+
+  /*
+   * Los asientos del periodo se paginan; el balance no.
+   *
+   * No es una distinción estética. El balance de comprobación se lee y se
+   * imprime completo porque sus totales tienen que cuadrar: partirlo en páginas
+   * rompe justamente lo que se va a revisar. La lista de asientos es lo
+   * contrario, un registro que sólo crece y del que se mira un trozo; en
+   * setiembre eran ciento siete y la tabla medía casi cinco mil píxeles.
+   */
+  const pagina = paginaDe(params.pagina);
+  const asientosPagina = rodaja(asientos, pagina);
 
   const totalDebe = balance.reduce((a, b) => money.add(a, money.dec(b.debe)), money.ZERO);
   const totalHaber = balance.reduce((a, b) => money.add(a, money.dec(b.haber)), money.ZERO);
@@ -185,7 +199,7 @@ export default async function Contabilidad({
                   </tr>
                 </thead>
                 <tbody>
-                  {asientos.map((a) => (
+                  {asientosPagina.map((a) => (
                     <tr key={a.id}>
                       <td className="cifra" style={{ textAlign: "left" }}>
                         <Link href={`/contabilidad/asiento?id=${a.id}` as Route} className="underline">
@@ -207,6 +221,12 @@ export default async function Contabilidad({
                   ))}
                 </tbody>
               </table>
+              <Paginacion
+                total={asientos.length}
+                pagina={pagina}
+                params={params}
+                etiqueta="asientos"
+              />
             </section>
           </div>
         )}

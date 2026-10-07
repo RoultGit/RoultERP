@@ -3,6 +3,8 @@ import type { Route } from "next";
 import { listarVentas, listaParaEmitir } from "@roulterp/servicios";
 import { money } from "@roulterp/core";
 import { conEmpresa, tienePermiso } from "@/lib/sesion";
+import { Paginacion } from "@/components/paginacion";
+import { paginaDe, rodaja } from "@/lib/paginacion";
 import { kekMaestra } from "@/lib/entorno";
 import {
   Contenido, Encabezado, Importe, Insignia, Vacio, BotonEnlace,
@@ -33,9 +35,11 @@ function EstadoSunat({ estado, codigo }: { estado: string; codigo: number | null
 export default async function Ventas({
   searchParams,
 }: {
-  searchParams: Promise<{ periodo?: string }>;
+  searchParams: Promise<{ periodo?: string; pagina?: string }>;
 }) {
-  const { periodo } = await searchParams;
+  const params = await searchParams;
+  const { periodo } = params;
+  const pagina = paginaDe(params.pagina);
 
   const { ventas, preparacion } = await conEmpresa(
     async (db, sesion) => ({
@@ -155,7 +159,7 @@ export default async function Ventas({
                 </tr>
               </thead>
               <tbody>
-                {ventas.map((v) => (
+                {rodaja(ventas, pagina).map((v) => (
                   <tr key={v.id}>
                     <td className="whitespace-nowrap">
                       <span className="text-xs" style={{ color: "var(--texto-suave)" }}>
@@ -183,7 +187,7 @@ export default async function Ventas({
               <tfoot>
                 <tr style={{ background: "var(--superficie-2)" }}>
                   <td colSpan={5} className="px-3 py-2 text-right text-xs font-semibold uppercase">
-                    Totales
+                    Totales del periodo
                   </td>
                   <td className="px-3 py-2 font-semibold"><Importe valor={money.toString(igv, 2)} /></td>
                   <td className="px-3 py-2 font-semibold"><Importe valor={money.toString(total, 2)} /></td>
@@ -191,6 +195,7 @@ export default async function Ventas({
                 </tr>
               </tfoot>
             </table>
+            <Paginacion total={ventas.length} pagina={pagina} params={params} etiqueta="comprobantes" />
           </div>
         )}
 

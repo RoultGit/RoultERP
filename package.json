@@ -14,7 +14,7 @@
     "sembrar": "tsx scripts/sembrar.ts",
     "test": "npm run test:dominio && npm run test:web && npm run test:integracion",
     "test:dominio": "tsx --test packages/core/test/*.test.ts",
-    "test:web": "tsx --test apps/web/test/formulario.test.ts apps/web/test/errores.test.ts apps/web/test/permisos.test.ts apps/web/test/lineas.test.ts",
+    "test:web": "tsx --test apps/web/test/formulario.test.ts apps/web/test/errores.test.ts apps/web/test/permisos.test.ts apps/web/test/lineas.test.ts apps/web/test/paginacion.test.ts",
     "test:navegador": "tsx --test apps/web/test/navegador.test.ts apps/web/test/empresa-nueva.test.ts",
     "start": "npm run start -w @roulterp/web",
     "test:integracion": "tsx --test --test-concurrency=1 packages/db/test/*.test.ts packages/servicios/test/*.test.ts"

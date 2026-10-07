@@ -3,6 +3,8 @@ import type { Route } from "next";
 import { listarCompras, listarOrdenes } from "@roulterp/servicios";
 import { money } from "@roulterp/core";
 import { conEmpresa, tienePermiso } from "@/lib/sesion";
+import { Paginacion } from "@/components/paginacion";
+import { paginaDe, rodaja } from "@/lib/paginacion";
 import {
   Contenido, Encabezado, EstadoDoc, Importe, Insignia, Vacio, BotonEnlace,
 } from "@/components/ui";
@@ -23,9 +25,11 @@ const DOCUMENTO: Record<string, string> = {
 export default async function Compras({
   searchParams,
 }: {
-  searchParams: Promise<{ periodo?: string; vista?: string }>;
+  searchParams: Promise<{ periodo?: string; vista?: string; pagina?: string }>;
 }) {
-  const { periodo, vista } = await searchParams;
+  const params = await searchParams;
+  const { periodo, vista } = params;
+  const pagina = paginaDe(params.pagina);
   const enOrdenes = vista === "ordenes";
 
   const datos = await conEmpresa(
@@ -102,7 +106,7 @@ export default async function Compras({
                   </tr>
                 </thead>
                 <tbody>
-                  {datos.ordenes.map((o) => (
+                  {rodaja(datos.ordenes, pagina).map((o) => (
                     <tr key={o.id}>
                       <td>
                         <Link href={`/compras/ordenes/${o.id}` as Route} className="font-medium underline">
@@ -119,6 +123,12 @@ export default async function Compras({
                   ))}
                 </tbody>
               </table>
+              <Paginacion
+                total={datos.ordenes.length}
+                pagina={pagina}
+                params={params}
+                etiqueta="órdenes"
+              />
             </div>
           )
         ) : datos.compras.length === 0 ? (
@@ -144,7 +154,7 @@ export default async function Compras({
                 </tr>
               </thead>
               <tbody>
-                {datos.compras.map((c) => (
+                {rodaja(datos.compras, pagina).map((c) => (
                   <tr key={c.id}>
                     <td className="whitespace-nowrap">
                       <span className="text-xs" style={{ color: "var(--texto-suave)" }}>
@@ -187,6 +197,12 @@ export default async function Compras({
                 </tr>
               </tfoot>
             </table>
+            <Paginacion
+              total={datos.compras.length}
+              pagina={pagina}
+              params={params}
+              etiqueta="compras"
+            />
           </div>
         )}
 

@@ -1,6 +1,5 @@
 import Link from "next/link";
 import type { Route } from "next";
-import { notFound } from "next/navigation";
 import { eq, inArray } from "drizzle-orm";
 import {
   cuentasConSaldo, proponerConciliacion, estadoConciliacion,
@@ -20,9 +19,8 @@ export default async function Conciliar({
   searchParams: Promise<{ cuenta?: string }>;
 }) {
   const { cuenta } = await searchParams;
-  if (!cuenta) notFound();
 
-  const datos = await conEmpresa(async (db) => {
+  const datos = !cuenta ? null : await conEmpresa(async (db) => {
     const cuentas = await cuentasConSaldo(db);
     const elegida = cuentas.find((c) => c.id === cuenta);
     if (!elegida) return null;
@@ -51,7 +49,16 @@ export default async function Conciliar({
     return { cuenta: elegida, propuestas, estado, lineasExtracto, movimientos };
   }, "caja_bancos:ver");
 
-  if (!datos) notFound();
+  /*
+   * Sin cuenta elegida se ofrece elegirla, en vez de devolver 404.
+   *
+   * La conciliación se abre desde la cuenta bancaria, pero la pantalla también
+   * se alcanza escribiendo la dirección. Antes contestaba «no existe» a una
+   * pantalla que existe, y eso se lee como una función rota. El retorno
+   * temprano mantiene el render de abajo sin un solo `null` que comprobar.
+   */
+  if (!datos) return <ElegirCuenta />;
+
   const { cuenta: cta, propuestas, estado, lineasExtracto, movimientos } = datos;
   const puedeConciliar = await tienePermiso("caja_bancos:aprobar");
   const puedeImportar = await tienePermiso("caja_bancos:crear");
@@ -222,5 +229,51 @@ function Tarjeta({
         <Importe valor={valor} />
       </div>
     </div>
+  );
+}
+
+/**
+ * Pantalla de «elija la cuenta», para cuando se llega sin ninguna.
+ *
+ * Vuelve a consultar las cuentas en vez de recibirlas: así el camino normal
+ * —que llega con la cuenta en la dirección— no paga una consulta que no usa.
+ */
+async function ElegirCuenta() {
+  const cuentas = await conEmpresa((db) => cuentasConSaldo(db), "caja_bancos:ver");
+  return (
+    <>
+      <Encabezado
+        titulo="Conciliación bancaria"
+        descripcion="Elija la cuenta que quiere conciliar contra su extracto."
+      />
+      <Contenido>
+        {cuentas.length === 0 ? (
+          <Vacio
+            titulo="No hay cuentas bancarias"
+            descripcion="Registre primero la cuenta y sus movimientos."
+            accion={
+              <Link href="/caja-bancos" className="boton boton-primario">
+                Ir a caja y bancos
+              </Link>
+            }
+          />
+        ) : (
+          <form method="get" className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[22rem]">
+              <label className="etiqueta" htmlFor="cuenta">Cuenta</label>
+              <select id="cuenta" name="cuenta" className="campo" required defaultValue="">
+                <option value="" disabled>Elija una cuenta</option>
+                {cuentas.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {[c.nombre, c.banco, c.numero_cuenta].filter(Boolean).join(" · ")}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button className="boton boton-primario">Conciliar</button>
+          </form>
+        )}
+      </Contenido>
+    </>
   );
 }

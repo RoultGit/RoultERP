@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { Route } from "next";
 import { listarProductos } from "@roulterp/servicios";
 import { conEmpresa, tienePermiso } from "@/lib/sesion";
+import { Paginacion } from "@/components/paginacion";
+import { paginaDe, rodaja } from "@/lib/paginacion";
 import { Contenido, Encabezado, Importe, Insignia, Vacio, BotonEnlace } from "@/components/ui";
 import { desactivarProductoAccion } from "../acciones";
 
@@ -19,9 +21,11 @@ const AFECTACION: Record<string, string> = {
 export default async function Productos({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; pagina?: string }>;
 }) {
-  const { q } = await searchParams;
+  const params = await searchParams;
+  const { q } = params;
+  const pagina = paginaDe(params.pagina);
   const filas = await conEmpresa(
     (db) => listarProductos(db, q ? { busqueda: q } : undefined),
     "maestros:ver",
@@ -76,7 +80,7 @@ export default async function Productos({
                 </tr>
               </thead>
               <tbody>
-                {filas.map((p) => (
+                {rodaja(filas, pagina).map((p) => (
                   <tr key={p.id}>
                     <td className="cifra" style={{ textAlign: "left" }}>
                       <Link href={`/maestros/productos/${p.id}` as Route} className="underline">{p.codigo}</Link>
@@ -101,6 +105,7 @@ export default async function Productos({
                 ))}
               </tbody>
             </table>
+            <Paginacion total={filas.length} pagina={pagina} params={params} etiqueta="productos" />
           </div>
         )}
       </Contenido>

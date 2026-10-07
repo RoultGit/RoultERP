@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { Route } from "next";
 import { listarPlanillas, cobrablesLibres } from "@roulterp/servicios";
 import { conEmpresa, tienePermiso } from "@/lib/sesion";
+import { Paginacion } from "@/components/paginacion";
+import { paginaDe, rodaja } from "@/lib/paginacion";
 import { Contenido, Encabezado, EstadoDoc, Importe, Insignia, Vacio } from "@/components/ui";
 import { FormularioPlanilla } from "./formulario";
 
@@ -18,9 +20,11 @@ const ESTADOS = [
 export default async function Planillas({
   searchParams,
 }: {
-  searchParams: Promise<{ estado?: string }>;
+  searchParams: Promise<{ estado?: string; pagina?: string }>;
 }) {
-  const { estado } = await searchParams;
+  const params = await searchParams;
+  const { estado } = params;
+  const pagina = paginaDe(params.pagina);
   const filtro = ESTADOS.some(([v]) => v === estado) ? estado! : "";
   const puedeCrear = await tienePermiso("cxc:crear");
 
@@ -86,6 +90,7 @@ export default async function Planillas({
               />
             </div>
           ) : (
+            <>
             <table className="tabla">
               <thead>
                 <tr>
@@ -99,7 +104,7 @@ export default async function Planillas({
                 </tr>
               </thead>
               <tbody>
-                {datos.planillas.map((p) => (
+                {rodaja(datos.planillas, pagina).map((p) => (
                   <tr key={p.id}>
                     <td>
                       <Link
@@ -120,6 +125,13 @@ export default async function Planillas({
                 ))}
               </tbody>
             </table>
+            <Paginacion
+              total={datos.planillas.length}
+              pagina={pagina}
+              params={params}
+              etiqueta="planillas"
+            />
+            </>
           )}
         </section>
       </Contenido>

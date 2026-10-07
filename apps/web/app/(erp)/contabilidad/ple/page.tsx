@@ -110,46 +110,77 @@ export default async function Ple({
           <button className="boton boton-secundario">Cambiar</button>
         </form>
 
-        <div className="space-y-3">
-          {libros.map((l) => (
-            <div key={l.codigo} className="tarjeta flex flex-wrap items-center gap-4 p-4">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <Insignia>Formato {l.formato}</Insignia>
-                  <h2 className="font-medium">{l.nombre}</h2>
-                </div>
-                <p className="mt-1 text-sm" style={{ color: "var(--texto-suave)" }}>
-                  {l.descripcion}
-                </p>
-                <p className="cifra mt-1.5 text-xs" style={{ color: "var(--texto-suave)", textAlign: "left" }}>
-                  {l.resultado.nombre} · {l.resultado.filas}{" "}
-                  {l.resultado.filas === 1 ? "línea" : "líneas"}
-                </p>
-              </div>
-              <a
-                href={`/api/ple?periodo=${periodo}&libro=${l.codigo}`}
-                className={`boton ${l.resultado.filas === 0 ? "boton-secundario" : "boton-primario"}`}
-                download
-              >
-                Descargar
-              </a>
-            </div>
-          ))}
+        {/*
+          * Siete libros son una tabla, no siete tarjetas.
+          *
+          * Antes cada libro era un panel propio apilado sobre el siguiente:
+          * siete marcos, siete sombras y mil doscientos píxeles para enseñar
+          * siete nombres y siete botones. Una tarjeta tiene sentido cuando su
+          * borde separa cosas distintas; aquí los siete elementos son lo mismo
+          * repetido, y lo que ordena «lo mismo repetido» son filas.
+          */}
+        <div className="tarjeta overflow-x-auto">
+          <table className="tabla">
+            <thead>
+              <tr>
+                <th className="w-24">Formato</th>
+                <th>Libro</th>
+                <th className="text-right">Líneas</th>
+                <th className="w-32" />
+              </tr>
+            </thead>
+            <tbody>
+              {libros.map((l) => (
+                <tr key={l.codigo}>
+                  <td className="cifra" style={{ textAlign: "left" }}>{l.formato}</td>
+                  <td>
+                    <span className="font-medium">{l.nombre}</span>
+                    <span className="mt-0.5 block text-xs" style={{ color: "var(--texto-suave)" }}>
+                      {l.descripcion}
+                    </span>
+                    <span
+                      className="cifra mt-0.5 block text-xs"
+                      style={{ color: "var(--texto-tenue)", textAlign: "left" }}
+                    >
+                      {l.resultado.nombre}
+                    </span>
+                  </td>
+                  <td>
+                    {l.resultado.filas === 0 ? (
+                      <Insignia>sin operaciones</Insignia>
+                    ) : (
+                      <span className="cifra">{l.resultado.filas}</span>
+                    )}
+                  </td>
+                  <td>
+                    <a
+                      href={`/api/ple?periodo=${periodo}&libro=${l.codigo}`}
+                      className={`boton w-full ${l.resultado.filas === 0 ? "boton-secundario" : "boton-primario"}`}
+                      download
+                    >
+                      Descargar
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
-        <div className="tarjeta mt-5 p-4 text-sm">
+        {/* Una nota al pie no necesita el marco de un panel: basta la línea. */}
+        <section className="mt-6 border-t pt-4 text-sm" style={{ borderColor: "var(--borde)" }}>
           <h2 className="mb-2 font-medium">Antes de subirlo al PLE</h2>
           <ul className="space-y-1" style={{ color: "var(--texto-suave)" }}>
             <li>· El archivo va en Latin-1 y con saltos CRLF, que es lo que espera el validador.</li>
             <li>· El nombre no se cambia: el aplicativo lo rechaza por el nombre antes de leerlo.</li>
             <li>· Un libro sin operaciones también se presenta; su nombre lo declara así.</li>
           </ul>
-          <p className="mt-3 text-xs" style={{ color: "var(--texto-suave)" }}>
+          <p className="mt-3 max-w-prose text-xs" style={{ color: "var(--texto-suave)" }}>
             Las estructuras siguen el Anexo 2 de la R.S. 286-2009/SUNAT y sus modificatorias,
             contrastadas contra el archivo oficial «Estructura del PLE.xls» (PLE 5.0.0). Valide
             cada archivo con el aplicativo del PLE antes de la primera presentación.
           </p>
-        </div>
+        </section>
       </Contenido>
     </>
   );

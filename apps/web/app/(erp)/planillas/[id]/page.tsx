@@ -102,7 +102,10 @@ export default async function DetallePlanilla({
           <div className="ml-auto flex items-end gap-2">
             {cabecera.estado === "borrador" && puedeAprobar && <CerrarPlanilla planillaId={id} />}
             {cabecera.asientoId && (
-              <Link href={`/contabilidad/mayor` as Route} className="boton boton-secundario">
+              <Link
+                href={`/contabilidad/asiento?id=${cabecera.asientoId}` as Route}
+                className="boton boton-secundario"
+              >
                 Ver en contabilidad
               </Link>
             )}

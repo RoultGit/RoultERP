@@ -1,6 +1,8 @@
 import { listarCuentas } from "@roulterp/servicios";
 import { conEmpresa, tienePermiso } from "@/lib/sesion";
 import { Contenido, Encabezado, Insignia, BotonEnlace } from "@/components/ui";
+import { Paginacion } from "@/components/paginacion";
+import { paginaDe, rodaja } from "@/lib/paginacion";
 import { Sincronizar } from "./formulario";
 
 export const metadata = { title: "Plan de cuentas · RoultERP" };
@@ -21,9 +23,10 @@ const ELEMENTO: Record<string, string> = {
 export default async function PlanDeCuentas({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; pagina?: string }>;
 }) {
-  const { q } = await searchParams;
+  const params = await searchParams;
+  const { q } = params;
   const [cuentas, puedeEditar] = await Promise.all([
     conEmpresa((db) => listarCuentas(db), "maestros:ver"),
     tienePermiso("maestros:editar"),
@@ -36,6 +39,19 @@ export default async function PlanDeCuentas({
           c.cuenta.startsWith(filtro) || c.descripcion.toLowerCase().includes(filtro),
       )
     : cuentas;
+
+  /*
+   * El plan completo son setecientas cuentas y la tabla medía casi seis mil
+   * píxeles: seis pantallas de rueda para llegar a la 70 y ninguna forma de
+   * saber cuánto falta. Se pagina.
+   *
+   * El corte es en memoria y no en SQL a propósito: el plan de cuentas se
+   * consulta entero para el buscador —filtrar por descripción tiene que mirar
+   * las setecientas, no las cincuenta visibles— así que traerlo partido
+   * obligaría a dos consultas para ahorrar unas decenas de kilobytes.
+   */
+  const pagina = paginaDe(params.pagina);
+  const pagLista = rodaja(visibles, pagina);
 
   return (
     <>
@@ -76,7 +92,7 @@ export default async function PlanDeCuentas({
               </tr>
             </thead>
             <tbody>
-              {visibles.map((c) => (
+              {pagLista.map((c) => (
                 <tr key={c.cuenta}>
                   <td className="cifra" style={{ textAlign: "left" }}>
                     {/* Las de movimiento son las que admiten asiento; las demás
@@ -102,6 +118,7 @@ export default async function PlanDeCuentas({
               ))}
             </tbody>
           </table>
+          <Paginacion total={visibles.length} pagina={pagina} params={params} etiqueta="cuentas" />
         </div>
       </Contenido>
     </>

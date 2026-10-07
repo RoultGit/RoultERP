@@ -6,6 +6,8 @@ import {
   listarCentrosCosto, listarTerceros,
 } from "@roulterp/servicios";
 import { conEmpresa, tienePermiso } from "@/lib/sesion";
+import { Paginacion } from "@/components/paginacion";
+import { paginaDe, rodaja } from "@/lib/paginacion";
 import { Contenido, Encabezado, EstadoDoc, Importe, Insignia, Vacio } from "@/components/ui";
 import { FormularioNota } from "./formulario";
 
@@ -29,9 +31,11 @@ const OPERACION: Record<string, string> = {
 export default async function NotasAlmacen({
   searchParams,
 }: {
-  searchParams: Promise<{ nota?: string }>;
+  searchParams: Promise<{ nota?: string; pagina?: string }>;
 }) {
-  const { nota } = await searchParams;
+  const params = await searchParams;
+  const { nota } = params;
+  const pagina = paginaDe(params.pagina);
   const puedeCrear = await tienePermiso("inventario:crear");
 
   const datos = await conEmpresa(async (db) => {
@@ -108,6 +112,7 @@ export default async function NotasAlmacen({
               />
             </div>
           ) : (
+            <>
             <table className="tabla">
               <thead>
                 <tr>
@@ -122,7 +127,7 @@ export default async function NotasAlmacen({
                 </tr>
               </thead>
               <tbody>
-                {datos.notas.map((n) => (
+                {rodaja(datos.notas, pagina).map((n) => (
                   <tr key={n.id}>
                     <td className="cifra" style={{ textAlign: "left" }}>{n.numero}</td>
                     <td><Insignia>{TIPO[n.tipo] ?? n.tipo}</Insignia></td>
@@ -144,6 +149,13 @@ export default async function NotasAlmacen({
                 ))}
               </tbody>
             </table>
+            <Paginacion
+              total={datos.notas.length}
+              pagina={pagina}
+              params={params}
+              etiqueta="notas"
+            />
+            </>
           )}
         </section>
       </Contenido>

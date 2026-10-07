@@ -111,6 +111,36 @@ describe("órdenes de compra", () => {
     ],
   });
 
+  /*
+   * El número en blanco, que la simulación de un mes destapó.
+   *
+   * Era `datos.numero ?? siguienteNumero(...)`, y la pantalla no tiene campo de
+   * número: la acción mandaba `texto(form, "numero")`, o sea `""`. Una cadena
+   * vacía no es `undefined`, el `??` no entraba, y todas las órdenes se
+   * guardaban sin número. La primera pasaba; la segunda chocaba contra el índice
+   * único quejándose de un número que nadie había escrito. Y la orden se imprime
+   * y se manda al proveedor, que la referencia por su número.
+   */
+  test("con el número en blanco numera sola, y dos seguidas no chocan", async () => {
+    const base = { ...ordenBase(), numero: "" };
+    const a = await con((db) => crearOrden(db, empresaId, usuarioId, base));
+    const b = await con((db) => crearOrden(db, empresaId, usuarioId, base));
+
+    const ordenes = await con((db) => listarOrdenes(db));
+    const numeros = [a, b].map((id) => ordenes.find((o) => o.id === id)?.numero);
+    numeros.forEach((n) => assert.match(n ?? "", /^OC2026-\d{6}$/, `«${n}» no es correlativo`));
+    assert.notEqual(numeros[0], numeros[1], "dos órdenes no pueden compartir número");
+  });
+
+  test("un número explícito se respeta", async () => {
+    // La empresa trae su numeración de Starsoft y puede querer continuarla.
+    const id = await con((db) =>
+      crearOrden(db, empresaId, usuarioId, { ...ordenBase(), numero: "OC-2026-0500" }),
+    );
+    const o = (await con((db) => listarOrdenes(db))).find((x) => x.id === id);
+    assert.equal(o?.numero, "OC-2026-0500");
+  });
+
   test("se crea con sus totales calculados", async () => {
     const id = await con((db) => crearOrden(db, empresaId, usuarioId, ordenBase()));
     const { cabecera, lineas } = await con((db) => cargarOrden(db, id));
@@ -198,6 +228,55 @@ describe("registro de compras", () => {
     assert.equal(saldos.length, 1);
     assert.equal(s2(saldos[0]!.cantidad), "10.00");
     assert.equal(s2(saldos[0]!.valor), "5000.00", "el IGV no es costo del inventario");
+  });
+
+  /*
+   * El caso que la simulación de un mes de operaciones destapó.
+   *
+   * El ingreso al kardex vivía bajo un `if (datos.almacenId)`: sin almacén no se
+   * movía nada y nadie se enteraba, pero el asiento sí cargaba la cuenta 20
+   * porque la línea tiene producto. Quedaban diecisiete mil soles de existencias
+   * en la contabilidad que el kardex no conocía, sin un aviso, hasta que alguien
+   * cuenta el almacén a fin de año.
+   */
+  test("comprar mercadería sin almacén se rechaza, no se registra a medias", async () => {
+    const { almacenId: _, ...sinAlmacen } = compraBase();
+    await assert.rejects(
+      con((db) => registrarCompra(db, empresaId, usuarioId, sinAlmacen)),
+      (e) => /almac[ée]n/i.test(String(e.message ?? e)),
+      "tiene que decir que falta el almacén",
+    );
+
+    // Y no deja rastro: ni deuda, ni asiento, ni cuenta 20 cargada.
+    assert.equal((await con((db) => listarCxp(db))).length, 0);
+    const balance = await con((db) => balanceComprobacion(db, "202609"));
+    assert.equal(balance.find((b) => b.cuenta === "20111"), undefined);
+  });
+
+  test("una compra de servicio sigue sin necesitar almacén", async () => {
+    // El almacén no se vuelve obligatorio para todos: un alquiler no entra a
+    // ningún almacén y tiene que poder registrarse igual.
+    const { almacenId: _, ...base } = compraBase();
+    const [centro] = await raw<{ id: string }[]>`
+      INSERT INTO centros_costo (empresa_id, codigo, nombre)
+      VALUES (${empresaId}, 'ADM', 'Administración') RETURNING id`;
+    const r = await con((db) =>
+      registrarCompra(db, empresaId, usuarioId, {
+        ...base,
+        lineas: [
+          {
+            descripcion: "Alquiler del local de setiembre",
+            cantidad: "1",
+            valorUnitario: "3000",
+            cuenta: "6351",
+            centroCostoId: centro!.id,
+          },
+        ],
+      }),
+    );
+    assert.equal(r.total, "3540.00");
+    const saldos = await con((db) => existencias(db, almacenId));
+    assert.equal(saldos.length, 0, "un servicio no mueve el kardex");
   });
 
   test("el asiento cuadra y separa mercadería de crédito fiscal", async () => {

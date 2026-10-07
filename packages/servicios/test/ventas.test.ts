@@ -260,6 +260,69 @@ describe("emisión de la venta", () => {
 
 // ─── Importe en letras ────────────────────────────────────────────────────
 
+/*
+ * El límite de crédito, que no se comprobaba.
+ *
+ * `cabeEnElLimite` existía con sus pruebas y no la llamaba nadie: el tope se
+ * configuraba por cliente, se veía en su ficha y en la cartera, y al facturar no
+ * se miraba. Una simulación de un mes de operaciones facturó 26 432 soles a un
+ * cliente con tope de 20 000 sin una palabra, y `docs/CONTRATADO.md` afirmaba
+ * que «se comprueba al facturar».
+ */
+describe("límite de crédito al facturar", () => {
+  async function conLimite(importe) {
+    await raw`UPDATE terceros SET limite_credito = ${importe} WHERE id = ${cliente}`;
+  }
+
+  test("rechaza la factura que pasa del límite, con las cifras", async () => {
+    await conLimite("5000");
+    await assert.rejects(
+      con((db) => emitirVenta(db, empresaId, usuarioId, ventaBase())),
+      (e) => {
+        const m = String(e.message ?? e);
+        return /l[íi]mite/i.test(m) && /5000\.00|5,000\.00/.test(m);
+      },
+      "el motivo tiene que traer el límite del cliente",
+    );
+  });
+
+  test("no consume correlativo al rechazarla", async () => {
+    // Un número de serie gastado no se devuelve, y ante SUNAT un salto en la
+    // numeración hay que justificarlo. Por eso el control va antes.
+    await conLimite("5000");
+    await con((db) => emitirVenta(db, empresaId, usuarioId, ventaBase())).catch(() => {});
+    await conLimite("0");
+    const r = await con((db) => emitirVenta(db, empresaId, usuarioId, ventaBase()));
+    assert.equal(r.numero, "00000001", "el correlativo tiene que seguir en el primero");
+  });
+
+  test("con autorización expresa se emite igual", async () => {
+    await conLimite("5000");
+    const r = await con((db) =>
+      emitirVenta(db, empresaId, usuarioId, { ...ventaBase(), autorizadoSobreLimite: true }),
+    );
+    assert.equal(r.numero, "00000001");
+  });
+
+  test("sin límite configurado se vende sin tope", async () => {
+    // Cero no es «no puede comprar nada», es «no se le puso tope».
+    await conLimite("0");
+    const r = await con((db) => emitirVenta(db, empresaId, usuarioId, ventaBase()));
+    assert.ok(r.comprobanteId);
+  });
+
+  test("el consumo acumulado cuenta, no sólo la factura de hoy", async () => {
+    await conLimite("9000");
+    // 10 × 500 + IGV = 5900. La primera cabe; la segunda ya no.
+    await con((db) => emitirVenta(db, empresaId, usuarioId, ventaBase()));
+    await assert.rejects(
+      con((db) => emitirVenta(db, empresaId, usuarioId, ventaBase())),
+      /l[íi]mite/i,
+      "la deuda que ya tiene tiene que descontarse del disponible",
+    );
+  });
+});
+
 describe("importe en letras", () => {
   const l = (v: string, m = "PEN") => enLetras(money.dec(v), m);
 

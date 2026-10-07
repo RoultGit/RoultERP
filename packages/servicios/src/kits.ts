@@ -21,6 +21,7 @@ import { asc, eq, inArray, sql } from "drizzle-orm";
 import { money, inventario as kardex } from "@roulterp/core";
 import { schema as s, type Db } from "@roulterp/db";
 import { registrarMovimiento } from "./inventario.ts";
+import { cuentasDe } from "./parametros.ts";
 import { exigirPeriodoAbierto } from "./contabilidad.ts";
 import { siguienteNumero } from "./correlativos.ts";
 import { ErrorDeNegocio } from "@roulterp/core";
@@ -197,7 +198,18 @@ async function exigirMismaCuenta(db: Db, ids: string[]): Promise<void> {
     .leftJoin(planCuentas, eq(planCuentas.id, productos.cuentaExistenciaId))
     .where(inArray(productos.id, ids));
 
-  const cuentas = new Set(filas.map((f) => f.cuenta ?? "(por defecto)"));
+  /*
+   * «Sin cuenta» no es una cuenta distinta: es la cuenta por omisión.
+   *
+   * Antes se comparaba `f.cuenta ?? "(por defecto)"`, así que un producto con
+   * 20111 escrito a mano y otro sin cuenta salían como dos cuentas diferentes y
+   * el armado se rechazaba, aunque los dos acaban exactamente en 20111. Pasa
+   * siempre que se mezcla un producto traído del maestro antiguo con uno dado de
+   * alta en la pantalla, porque el alta no tiene campo para la cuenta y los deja
+   * todos sin ella.
+   */
+  const porOmision = (await cuentasDe(db)).get("existencias");
+  const cuentas = new Set(filas.map((f) => f.cuenta ?? porOmision));
   if (cuentas.size > 1) {
     throw new ComposicionInvalida([
       `los productos no comparten cuenta de existencias (${[...cuentas].join(", ")}): ` +

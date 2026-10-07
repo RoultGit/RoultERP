@@ -16,7 +16,7 @@
  * transacción. Una mercadería que entró sin su asiento es un descuadre que
  * aparece semanas después.
  */
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { money, tributario, inventario as kardex } from "@roulterp/core";
 import { schema as s, type Db } from "@roulterp/db";
 import { registrarMovimiento } from "./inventario.ts";
@@ -67,6 +67,51 @@ export type DatosOrden = {
   lineas: LineaOrden[];
 };
 
+/**
+ * Resuelve las líneas contra el maestro de productos, en una sola consulta.
+ *
+ * Devuelve dos cosas porque las dos salen de la misma fila, y pedirlas aparte
+ * serían dos viajes a la base para leer la misma tabla:
+ *
+ *  - **La descripción**, para las líneas que sólo traen producto. Quien elige un
+ *    producto del desplegable no vuelve a teclear su nombre, y hace bien: ya
+ *    está en el maestro. Pero la descripción no es decorativa —viaja al detalle
+ *    de la orden que se manda al proveedor y al registro de compras del PLE—, y
+ *    una línea con producto y descripción vacía dejaría un renglón sin concepto
+ *    en un libro que se presenta a SUNAT.
+ *  - **Qué códigos son mercadería**, para exigir almacén sólo cuando lo hay.
+ *
+ * Una consulta para todas las líneas, no una por línea: una factura de
+ * importación trae cuarenta renglones.
+ */
+async function contraElMaestro<T extends { productoId?: string; descripcion: string }>(
+  db: Db,
+  lineas: T[],
+): Promise<{ lineas: T[]; bienes: string[] }> {
+  const ids = [...new Set(lineas.map((l) => l.productoId).filter((x): x is string => Boolean(x)))];
+  if (ids.length === 0) return { lineas, bienes: [] };
+
+  const filas = await db
+    .select({
+      id: productos.id,
+      codigo: productos.codigo,
+      descripcion: productos.descripcion,
+      tipo: productos.tipo,
+    })
+    .from(productos)
+    .where(inArray(productos.id, ids));
+  const porId = new Map(filas.map((f) => [f.id, f]));
+
+  return {
+    lineas: lineas.map((l) =>
+      l.productoId && l.descripcion.trim() === ""
+        ? { ...l, descripcion: porId.get(l.productoId)?.descripcion ?? l.descripcion }
+        : l,
+    ),
+    bienes: filas.filter((f) => f.tipo === "bien").map((f) => f.codigo),
+  };
+}
+
 export async function crearOrden(
   db: Db,
   empresaId: string,
@@ -77,12 +122,24 @@ export async function crearOrden(
     throw new CompraInvalida(["una orden de compra necesita al menos una línea"]);
   }
   await exigirProveedor(db, datos.proveedorId);
+  const { lineas } = await contraElMaestro(db, datos.lineas);
+  /*
+   * Un número en blanco no es un número: es «numérela usted».
+   *
+   * Era `datos.numero ?? siguienteNumero(...)`, y la pantalla no tiene campo de
+   * número, así que la acción mandaba `texto(form, "numero")`, o sea `""`. Una
+   * cadena vacía no es `undefined` y el `??` no entraba: todas las órdenes se
+   * guardaban sin número. La primera pasaba, y la segunda chocaba contra el
+   * índice único con «ya existe una orden con ese número» hablando de un número
+   * que nadie había escrito. Además la orden se imprime y se manda al proveedor,
+   * que la referencia por su número.
+   */
   const numero =
-    datos.numero ??
+    datos.numero?.trim() ||
     (await siguienteNumero(db, ordenesCompra, ordenesCompra.numero, "OC", datos.fecha.slice(0, 4)));
 
   const totales = tributario.totalizar(
-    datos.lineas.map((l) => ({
+    lineas.map((l) => ({
       cantidad: dec(l.cantidad),
       valorUnitario: dec(l.valorUnitario),
       afectacion: (l.afectacionIgv ?? "10") as tributario.Afectacion,
@@ -111,7 +168,7 @@ export async function crearOrden(
     .returning({ id: ordenesCompra.id });
 
   await db.insert(ordenCompraItems).values(
-    datos.lineas.map((l, i) => ({
+    lineas.map((l, i) => ({
       empresaId,
       ordenId: cab!.id,
       linea: i + 1,
@@ -257,12 +314,36 @@ export async function registrarCompra(
   if (motivos.length) throw new CompraInvalida(motivos);
 
   const proveedor = await exigirProveedor(db, datos.proveedorId);
+  // Una sola consulta al maestro: de ahí sale la descripción heredada y qué
+  // líneas son mercadería.
+  const { lineas, bienes } = await contraElMaestro(db, datos.lineas);
+
+  /*
+   * Comprar mercadería exige decir a qué almacén entra.
+   *
+   * El ingreso al kardex estaba bajo un `if (datos.almacenId)`: sin almacén no
+   * se movía nada y nadie se enteraba. Pero el asiento sí cargaba la cuenta 20,
+   * porque la línea tiene producto. El resultado era una compra de veinte bombas
+   * que la contabilidad valoraba en diecisiete mil soles de existencias y el
+   * kardex no registraba: dos verdades distintas sobre la misma mercadería, sin
+   * un aviso, hasta que alguien cuenta el almacén a fin de año.
+   *
+   * El almacén sigue siendo opcional —una factura de alquiler o de honorarios no
+   * entra a ningún almacén— pero deja de serlo en cuanto una línea es un bien.
+   */
+  if (!datos.almacenId && bienes.length > 0) {
+    throw new CompraInvalida([
+      `indique el almacén: ${bienes.length === 1 ? "la línea de" : "las líneas de"} ` +
+        `${bienes.join(", ")} ${bienes.length === 1 ? "es" : "son"} ` +
+        "mercadería y tiene que entrar a un almacén",
+    ]);
+  }
 
   // Una factura del exterior no genera crédito fiscal: el IGV de importación se
   // paga en aduanas y se sustenta con la DUA, no con esta factura. Si aparece
   // IGV aquí, alguien está registrando una importación como compra nacional.
   if (!proveedor.esDomiciliado) {
-    const conIgv = datos.lineas.some((l) => (l.afectacionIgv ?? "10").startsWith("1"));
+    const conIgv = lineas.some((l) => (l.afectacionIgv ?? "10").startsWith("1"));
     if (conIgv) {
       throw new CompraInvalida([
         `${proveedor.razonSocial} no es domiciliado: su factura no genera IGV. ` +
@@ -272,7 +353,7 @@ export async function registrarCompra(
   }
   const periodo = datos.periodo ?? datos.fechaEmision.slice(0, 4) + datos.fechaEmision.slice(5, 7);
 
-  const lineasCalc = datos.lineas.map((l) => ({
+  const lineasCalc = lineas.map((l) => ({
     cantidad: dec(l.cantidad),
     valorUnitario: dec(l.valorUnitario),
     afectacion: (l.afectacionIgv ?? "10") as tributario.Afectacion,
@@ -321,7 +402,7 @@ export async function registrarCompra(
   const compraId = cab!.id;
 
   await db.insert(compraItems).values(
-    datos.lineas.map((l, i) => {
+    lineas.map((l, i) => {
       const calc = totales.lineas[i]!;
       return {
         empresaId,
@@ -344,7 +425,7 @@ export async function registrarCompra(
   // Ingreso al almacén de las líneas que son mercadería.
   const movimientos: string[] = [];
   if (datos.almacenId) {
-    for (const [i, l] of datos.lineas.entries()) {
+    for (const [i, l] of lineas.entries()) {
       if (!l.productoId) continue;
       const [prod] = await db
         .select({ tipo: productos.tipo })
@@ -412,7 +493,7 @@ export async function registrarCompra(
     })
     .returning({ id: documentosCxp.id });
 
-  if (datos.ordenCompraId) await marcarRecepcion(db, datos.ordenCompraId, datos.lineas);
+  if (datos.ordenCompraId) await marcarRecepcion(db, datos.ordenCompraId, lineas);
 
   return {
     compraId,

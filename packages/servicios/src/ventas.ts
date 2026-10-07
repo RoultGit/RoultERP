@@ -25,6 +25,7 @@ import { abrir, type SobreCifrado } from "@roulterp/core/auth";
 import { enEmpresa, schema as s, type Conexion, type Db } from "@roulterp/db";
 import { registrarMovimiento } from "./inventario.ts";
 import { atenderPedido } from "./pedidos.ts";
+import { cabeEnElLimite } from "./cobranzas.ts";
 import { asentar, type LineaAsientoEntrada } from "./contabilidad.ts";
 import { cuentasDe, type Cuentas } from "./parametros.ts";
 import { ErrorDeNegocio } from "@roulterp/core";
@@ -72,6 +73,15 @@ export type DatosVenta = {
   almacenId?: string;
   /** Pedido que se atiende. Descuenta su saldo dentro de esta transacción. */
   pedidoId?: string;
+  /**
+   * Autorización expresa para facturar por encima del límite de crédito.
+   *
+   * Vender al cliente que ya está al tope es una decisión comercial, no un
+   * error de captura: a veces se autoriza y se factura igual. Por eso el sistema
+   * no lo impide sin más, lo bloquea hasta que alguien lo autoriza, y entonces
+   * queda dicho quién y sobre qué cifras.
+   */
+  autorizadoSobreLimite?: boolean;
   detraccionCodigo?: string;
   otrosCargos?: string;
   descuentoGlobal?: string;
@@ -137,6 +147,33 @@ export async function emitirVenta(
       ...(datos.descuentoGlobal ? { descuentoGlobal: dec(datos.descuentoGlobal) } : {}),
     },
   );
+
+  /*
+   * El límite de crédito del cliente, comprobado **antes** de tomar correlativo.
+   *
+   * `cabeEnElLimite` existía desde el principio, con sus pruebas, y no la
+   * llamaba nadie: el límite se configuraba por cliente, se veía en su ficha y
+   * en la cartera, y al facturar no se miraba. `docs/CONTRATADO.md` afirmaba que
+   * «se comprueba al facturar» y no era verdad. Una simulación de un mes de
+   * operaciones facturó 26 432 soles a un cliente con tope de 20 000 sin una
+   * palabra.
+   *
+   * Va antes del correlativo a propósito: un número de serie consumido no se
+   * devuelve, y ante SUNAT un salto en la numeración hay que justificarlo.
+   *
+   * No bloquea para siempre. Vender al cliente que está al tope es una decisión
+   * comercial —a veces se autoriza y se factura igual— así que el sistema la
+   * informa con las cifras y espera que alguien la tome.
+   */
+  if (!datos.autorizadoSobreLimite) {
+    const credito = await cabeEnElLimite(db, datos.clienteId, totales.total);
+    if (!credito.cabe) {
+      throw new VentaInvalida([
+        credito.motivo ?? "la venta supera el límite de crédito del cliente",
+        `Esta venta suma ${txt2(totales.total)}. Si se autoriza igual, márquelo y vuelva a emitir.`,
+      ]);
+    }
+  }
 
   // El correlativo se toma con UPDATE ... RETURNING dentro de la transacción:
   // dos facturas simultáneas no pueden recibir el mismo número, que ante SUNAT

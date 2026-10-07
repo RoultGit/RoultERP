@@ -116,6 +116,10 @@ async function venta(
       clienteId: opts.clienteId ?? cliente,
       tipoDocumento: "01",
       serie: "F001",
+      // Este archivo analiza la cartera, no la puerta del límite de crédito: su
+      // trabajo es dejar una deuda en el sistema, y una de las pruebas la quiere
+      // justamente por encima del tope para comprobar que el cuadro lo avisa.
+      autorizadoSobreLimite: true,
       fechaEmision: opts.fechaEmision ?? "2026-09-01",
       fechaVencimiento: opts.fechaVencimiento ?? "2026-10-01",
       moneda: opts.moneda ?? "PEN",

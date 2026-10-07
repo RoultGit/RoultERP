@@ -220,6 +220,36 @@ describe("armar un kit", () => {
    * Hoy va por `inArray`, que lo manda como parámetro, y la base lo rechaza por
    * no ser un UUID en vez de ejecutarlo.
    */
+  /*
+   * «Sin cuenta» es la cuenta por omisión, no otra cuenta.
+   *
+   * La pantalla de alta de productos no tiene campo para la cuenta de
+   * existencias, así que todo lo que se da de alta ahí queda sin ella. Al
+   * mezclarlo con un producto traído del maestro antiguo —que sí la trae escrita—
+   * el armado se rechazaba, aunque los dos acaban en 20111.
+   */
+  test("armar mezcla un producto con cuenta escrita y otro sin ella", async () => {
+    await conStock();
+    // GASA se queda con la cuenta por omisión; ALCO la lleva escrita a 20111,
+    // que es exactamente la misma cuenta.
+    const [c] = await raw<{ id: string }[]>`
+      SELECT id FROM plan_cuentas WHERE empresa_id = ${empresaId} AND cuenta = '20111'`;
+    await raw`UPDATE productos SET cuenta_existencia_id = NULL
+               WHERE empresa_id = ${empresaId} AND codigo = 'GASA'`;
+    await raw`UPDATE productos SET cuenta_existencia_id = ${c!.id}
+               WHERE empresa_id = ${empresaId} AND codigo = 'ALCO'`;
+
+    const r = await con((db) =>
+      armar(db, empresaId, usuarioId, {
+        productoId: p["KIT-BOT"]!,
+        cantidad: "5",
+        fecha: "2026-09-15",
+        almacenId: almacen,
+      }),
+    );
+    assert.match(r.numero, /^KA2026-\d{6}$/, "tenía que poder armarse");
+  });
+
   test("un identificador con comillas no se ejecuta como SQL", async () => {
     await conStock();
     const antes = await valorDelAlmacen();

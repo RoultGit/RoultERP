@@ -52,6 +52,22 @@ function Resultado({ estado }: { estado: EstadoForm }) {
 export function NuevaPlanilla({ periodoSugerido }: { periodoSugerido: string }) {
   const [estado, accion] = useActionState<EstadoPlanilla, FormData>(calcularAccion, {});
   const [tipo, setTipo] = useState("mensual");
+  const [periodo, setPeriodo] = useState(periodoSugerido);
+
+  /*
+   * El número se propone, no se inventa.
+   *
+   * Era el único documento del sistema que obligaba a teclear su propio número:
+   * la orden de compra, la guía, el recibo y el comprobante se numeran solos.
+   * Quien cierra la planilla del mes no tiene por qué recordar el formato, y
+   * dejarlo vacío hacía que el navegador bloqueara el envío sin decir nada
+   * —`required` no muestra mensaje si el campo no se ha tocado.
+   *
+   * Sigue siendo editable: la empresa puede traer su propia numeración desde
+   * Starsoft y querer continuarla.
+   */
+  const prefijo = tipo === "gratificacion" ? "GRA" : tipo === "cts" ? "CTS" : "PL";
+  const numeroSugerido = `${prefijo}-${periodo}`;
 
   return (
     <form action={accion} className="tarjeta space-y-4 p-4">
@@ -69,7 +85,7 @@ export function NuevaPlanilla({ periodoSugerido }: { periodoSugerido: string }) 
         <div>
           <label className="etiqueta" htmlFor="periodo">Periodo</label>
           <input id="periodo" name="periodo" type="month" className="campo" required
-            defaultValue={periodoSugerido} />
+            value={periodo} onChange={(e) => setPeriodo(e.target.value)} />
         </div>
         {tipo === "mensual" && (
           <div>
@@ -83,8 +99,13 @@ export function NuevaPlanilla({ periodoSugerido }: { periodoSugerido: string }) 
         )}
         <div>
           <label className="etiqueta" htmlFor="numero">Número</label>
-          <input id="numero" name="numero" className="campo" required maxLength={30}
-            placeholder="PL-2026-09" />
+          {/* `key` para que React vuelva a tomar el valor sugerido al cambiar
+              tipo o periodo; sin ella conservaría el de antes. */}
+          <input
+            key={numeroSugerido}
+            id="numero" name="numero" className="campo" required maxLength={30}
+            defaultValue={numeroSugerido}
+          />
         </div>
         <div>
           <label className="etiqueta" htmlFor="fecha">Fecha</label>

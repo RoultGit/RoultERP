@@ -5,9 +5,9 @@ import { redirect } from "next/navigation";
 import type { Route } from "next";
 import { emitirVenta, emitirNota, enviarASunat, type LineaVenta } from "@roulterp/servicios";
 
-import { conEmpresa, exigirEmpresaCon } from "@/lib/sesion";
+import { conEmpresa, exigirEmpresaCon, tienePermiso } from "@/lib/sesion";
 import { conexionApp, kekMaestra } from "@/lib/entorno";
-import { type EstadoForm, texto, filas } from "@/lib/formulario";
+import { type EstadoForm, texto, filas, marcado } from "@/lib/formulario";
 import { traducirError } from "@/lib/errores";
 
 export type { EstadoForm };
@@ -47,6 +47,19 @@ export async function emitirVentaAccion(
   const almacenId = texto(form, "almacenId");
   const detraccionCodigo = texto(form, "detraccionCodigo");
   const pedidoId = texto(form, "pedidoId");
+
+  /*
+   * Facturar por encima del límite de crédito exige permiso de aprobación.
+   *
+   * La casilla la enseña el formulario a cualquiera, porque quien vende tiene
+   * que ver por qué le rechazan la factura. Pero marcarla no basta: autorizar
+   * crédito es una decisión de quien responde por la cobranza, no de quien
+   * teclea el pedido. Si la marca alguien sin `ventas:aprobar`, se ignora y el
+   * límite vuelve a aplicarse.
+   */
+  const autorizadoSobreLimite =
+    marcado(form, "autorizadoSobreLimite") && (await tienePermiso("ventas:aprobar"));
+
   let id: string;
 
   try {
@@ -66,6 +79,7 @@ export async function emitirVentaAccion(
           ...(almacenId ? { almacenId } : {}),
           ...(detraccionCodigo ? { detraccionCodigo } : {}),
           ...(pedidoId ? { pedidoId } : {}),
+          ...(autorizadoSobreLimite ? { autorizadoSobreLimite } : {}),
         }),
       "ventas:crear",
     );

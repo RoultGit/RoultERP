@@ -356,6 +356,30 @@ export function FormularioVenta({
             como costo de ventas. Sin esa segunda mitad, el margen aparecería disparado.
           </p>
         </div>
+
+        {/*
+          * La autorización para pasarse del límite de crédito.
+          *
+          * Se enseña siempre, no sólo cuando el cliente está al tope: para
+          * saberlo habría que consultar su deuda en cuanto se elige, y eso
+          * convertiría esta pantalla en un componente de cliente que habla con
+          * el servidor en cada cambio de desplegable. El servidor rechaza la
+          * factura con las cifras del cliente —límite, usado, disponible— y
+          * entonces se sabe si hay que marcarla.
+          *
+          * Marcarla sin `ventas:aprobar` no sirve de nada: la acción lo
+          * comprueba y la ignora.
+          */}
+        <label className="mt-4 flex items-start gap-2 text-sm">
+          <input type="checkbox" name="autorizadoSobreLimite" className="mt-0.5" />
+          <span>
+            Autorizar por encima del límite de crédito
+            <span className="mt-0.5 block text-xs" style={{ color: "var(--texto-suave)" }}>
+              Sólo si el cliente ya está al tope y se decide venderle igual. Requiere permiso de
+              aprobación en ventas.
+            </span>
+          </span>
+        </label>
       </section>
 
       <div className="flex gap-2">

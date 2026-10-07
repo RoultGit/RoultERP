@@ -65,7 +65,7 @@ creer que importar sale más barato de lo que sale.
 | Cobranzas | ✅ | `/cxc/cobrar`, `/cxc/planillas` |
 | Letras | ✅ | canje, renovación, refinanciación, protesto |
 | Morosidad | ✅ | `/cxc/morosidad` |
-| Límites de crédito | ✅ | por cliente, se comprueba al facturar |
+| Límites de crédito | ✅ | por cliente, comprobado al emitir el comprobante; se puede autorizar por encima con permiso de aprobación |
 | Proyección de cobranzas | ✅ | `/cxc/proyeccion` |
 
 La antigüedad de saldos reparte en cinco tramos, incluye **las letras en

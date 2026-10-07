@@ -702,3 +702,56 @@ contenedor sin tocarlo.
 - **Certificado digital y credenciales SOL** de SERVIDIMAR, para homologar
   contra el entorno beta de SUNAT.
 - **Cuenta de detracciones** del Banco de la Nación, que va dentro del XML.
+
+## Simulación de un mes de operaciones (2026-10-07)
+
+Se recorrió la cadena completa por la interfaz, contra el binario de producción y
+una base sembrada: alta de proveedor, cliente y producto; orden de compra;
+factura del proveedor con ingreso al almacén; factura de venta con salida de
+kardex y cuenta por cobrar; alta de trabajador; planilla del mes; y cierre
+—balance, liquidación de impuestos, los siete libros del PLE y el CSV del PDT.
+
+Veintidós pasos, y al final los números coinciden entre sí: el balance cuadra, el
+inventario valorizado concuerda con el kardex y la cartera con lo facturado y no
+cobrado.
+
+Encontró **cinco fallos que las 1 300 pruebas no veían**, todos en la junta entre
+dos piezas que por separado funcionaban. Están corregidos y cada uno dejó su
+prueba:
+
+1. **La orden de compra y el registro de la factura estaban bloqueados.**
+   `leerLineas` de compras descartaba toda fila cuya descripción estuviera vacía,
+   y elegir un producto del desplegable no la rellena —el producto ya trae la
+   suya—. Quien elegía producto, cantidad y precio leía «necesita al menos una
+   línea con producto» mirando una pantalla que tenía el producto puesto. Era la
+   única de las cinco pantallas con líneas que tenía la regla mal.
+2. **Las órdenes de compra se guardaban sin número.** La pantalla no pide número
+   y el servicio hacía `datos.numero ?? siguienteNumero(...)`; la acción mandaba
+   `""`, que no es `undefined`, así que el `??` no entraba. La primera orden
+   pasaba y la segunda chocaba contra el índice único quejándose de un número que
+   nadie había escrito.
+3. **Comprar mercadería sin indicar almacén descuadraba el kardex.** El ingreso
+   al almacén vivía bajo un `if (datos.almacenId)`: sin almacén no se movía nada,
+   pero el asiento sí cargaba la cuenta 20. Diecisiete mil soles de existencias
+   que la contabilidad tenía y el almacén no, sin un aviso, hasta que alguien
+   cuenta el almacén a fin de año. Ahora el almacén es obligatorio en cuanto una
+   línea es un bien, y sigue siendo opcional para un servicio.
+4. **El límite de crédito no se comprobaba al facturar.** `cabeEnElLimite`
+   existía con sus pruebas y no la llamaba nadie: el tope se configuraba por
+   cliente y se veía en su ficha, y al emitir no se miraba. La simulación facturó
+   26 432 soles a un cliente con tope de 20 000 sin una palabra. Se comprueba
+   antes de tomar correlativo —un número gastado no se devuelve— y se puede
+   autorizar por encima con permiso de aprobación en ventas.
+5. **Armar un kit se rechazaba sin motivo.** La comprobación de «todos los
+   componentes en la misma cuenta de existencias» comparaba la cuenta del
+   producto contra la cadena `"(por defecto)"`, así que un producto con 20111
+   escrito y otro sin cuenta salían como cuentas distintas aunque los dos acaben
+   en 20111. Pasa siempre que se mezcla un producto del maestro antiguo con uno
+   dado de alta en la pantalla, porque el alta no tiene campo para la cuenta.
+
+La simulación queda como prueba permanente en
+`apps/web/test/operacion-mes.test.ts` y corre con `npm run test:navegador`.
+
+**Lo que la simulación no puede probar:** el envío real a SUNAT, que necesita el
+certificado digital de la empresa y sus credenciales SOL. Todo el camino está
+construido y probado contra respuestas simuladas; el juez es la homologación.

@@ -25,10 +25,23 @@ function leerLineas(form: FormData): LineaCompra[] {
   const lineas: LineaCompra[] = [];
   for (const campo of filas(form, "descripcion")) {
     const d = campo("descripcion");
-    // Una fila en blanco es una fila que el usuario dejó sin llenar, no un error.
-    if (d === "") continue;
-
     const productoId = campo("productoId");
+
+    /*
+     * Una fila está vacía cuando no tiene **ni producto ni descripción**.
+     *
+     * Antes bastaba con que la descripción estuviera vacía para tirar la fila, y
+     * elegir un producto del desplegable no la rellena —el producto ya trae la
+     * suya—. Resultado: quien elegía producto, cantidad y precio y pulsaba
+     * «Emitir orden» leía «necesita al menos una línea con producto» mirando una
+     * pantalla que tenía el producto puesto. Bloqueaba la orden de compra y el
+     * registro de la factura, que es por donde entra todo lo demás.
+     *
+     * Es la misma regla que ya usaban ventas, cotizaciones, requisiciones y
+     * guías; compras era la única que se había quedado atrás.
+     */
+    if (d === "" && productoId === "") continue;
+
     const cuenta = campo("cuenta");
     lineas.push({
       descripcion: d,
@@ -111,7 +124,7 @@ export async function crearOrdenAccion(
     id = await conEmpresa(
       (db, sesion) =>
         crearOrden(db, sesion.empresaId, sesion.usuarioId, {
-          numero: texto(form, "numero"),
+          // La pantalla no pide número: lo pone el servicio.
           proveedorId: texto(form, "proveedorId"),
           fecha: texto(form, "fecha"),
           moneda: texto(form, "moneda") || "PEN",

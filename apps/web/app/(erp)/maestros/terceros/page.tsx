@@ -65,7 +65,7 @@ export default async function Terceros({
             accion={puedeCrear && !q && !rol ? <BotonEnlace href="/maestros/terceros/nuevo">Nuevo tercero</BotonEnlace> : null}
           />
         ) : (
-          <div className="tarjeta overflow-x-auto">
+          <div className="bloque overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>

@@ -44,7 +44,7 @@ export default async function Cobrar({
               accion={<BotonEnlace href="/ventas/nueva">Emitir comprobante</BotonEnlace>}
             />
           ) : (
-            <div className="tarjeta divide-y" style={{ borderColor: "var(--borde)" }}>
+            <div className="bloque divide-y" style={{ borderColor: "var(--borde)" }}>
               {datos.cartera.map((c) => (
                 <a
                   key={c.id}

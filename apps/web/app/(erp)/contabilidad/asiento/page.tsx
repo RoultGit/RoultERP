@@ -59,7 +59,7 @@ export default async function Asiento({
               {cabecera.estado}
             </Insignia>
           </div>
-          <div className="tarjeta overflow-x-auto">
+          <div className="bloque overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>

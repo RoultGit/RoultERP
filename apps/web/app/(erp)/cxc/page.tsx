@@ -102,7 +102,7 @@ export default async function Cxc({
             accion={<BotonEnlace href="/ventas/nueva">Emitir comprobante</BotonEnlace>}
           />
         ) : (
-          <div className="tarjeta overflow-x-auto">
+          <div className="bloque overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>
@@ -168,7 +168,7 @@ export default async function Cxc({
         )}
 
         {cartera.length > 0 && (
-          <section className="tarjeta mt-5 overflow-x-auto">
+          <section className="bloque mt-5 overflow-x-auto">
             <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
               Exposición por cliente
             </h2>
@@ -251,7 +251,7 @@ function Tarjeta({
   crudo?: boolean;
 }) {
   return (
-    <div className="tarjeta p-4">
+    <div className="bloque p-4">
       <div className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--texto-suave)" }}>
         {titulo}
       </div>

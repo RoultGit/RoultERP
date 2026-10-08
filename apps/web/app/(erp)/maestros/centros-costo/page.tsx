@@ -39,7 +39,7 @@ export default async function CentrosCosto() {
       />
       <Contenido>
         {puedeEditar && (
-          <section className="tarjeta mb-5 p-4">
+          <section className="bloque mb-5 p-4">
             <h2 className="mb-3 text-sm font-semibold">Nuevo centro de costo</h2>
             <NuevoCentro />
           </section>
@@ -51,7 +51,7 @@ export default async function CentrosCosto() {
             descripcion="Créelos según cómo quiera analizar sus gastos: por área, por sucursal o por línea de negocio."
           />
         ) : (
-          <div className="tarjeta overflow-x-auto">
+          <div className="bloque overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>

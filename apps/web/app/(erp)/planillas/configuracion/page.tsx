@@ -61,7 +61,7 @@ export default async function ConfiguracionPlanillas() {
       />
       <Contenido>
         {/* ── Vigentes hoy ─────────────────────────────────────────────── */}
-        <section className="tarjeta mb-5 p-4">
+        <section className="bloque mb-5 p-4">
           <h2 className="mb-3 text-sm font-semibold">Vigentes hoy</h2>
           <dl className="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-3">
             <div className="flex justify-between gap-3">
@@ -123,7 +123,7 @@ export default async function ConfiguracionPlanillas() {
         </section>
 
         {/* ── Excepciones cargadas ─────────────────────────────────────── */}
-        <section className="tarjeta mb-5 overflow-x-auto">
+        <section className="bloque mb-5 overflow-x-auto">
           <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
             Valores propios de la empresa
           </h2>
@@ -157,7 +157,7 @@ export default async function ConfiguracionPlanillas() {
         </section>
 
         {/* ── Conceptos ────────────────────────────────────────────────── */}
-        <section className="tarjeta overflow-x-auto">
+        <section className="bloque overflow-x-auto">
           <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
             Conceptos de la boleta ({conceptos.length})
           </h2>

@@ -26,7 +26,7 @@ export function Encabezado({
    * apiladas antes del primer dato.
    */
   return (
-    <header className="mx-auto flex max-w-[1180px] flex-wrap items-start justify-between gap-4 px-6 pb-4 pt-7">
+    <header className="flex flex-wrap items-start justify-between gap-4 px-6 pb-4 pt-7">
       <div className="min-w-0">
         <h1 className="text-[clamp(24px,3.2vw,32px)] font-semibold leading-[1.1] tracking-[-0.035em]">
           {titulo}
@@ -60,11 +60,17 @@ export function Vacio({
   descripcion?: string;
   accion?: React.ReactNode;
 }) {
+  /*
+   * Sin recuadro de puntos.
+   *
+   * Era la única cosa que seguía pareciendo una tarjeta, y encima vacía: un
+   * marco discontinuo de doce píxeles de alto rodeando una frase, flotando solo
+   * en la página. Un hueco no necesita que lo enmarquen para que se vea que es
+   * un hueco; con la tipografía apagada y aire alrededor se entiende igual y no
+   * compite con el contenido de al lado.
+   */
   return (
-    <div
-      className="border border-dashed px-6 py-12 text-center"
-      style={{ borderColor: "var(--borde-fuerte)", borderRadius: "var(--radio-panel)" }}
-    >
+    <div className="px-6 py-10 text-center">
       <p className="font-medium">{titulo}</p>
       {descripcion && (
         <p className="mx-auto mt-1 max-w-md text-sm" style={{ color: "var(--texto-suave)" }}>
@@ -201,10 +207,19 @@ export function EstadoDoc({ estado }: { estado: string }) {
 /**
  * El cuerpo de la pantalla, y el que manda el ritmo vertical.
  *
- * Con el mismo ancho máximo y el mismo margen lateral que el encabezado, para
- * que el título y la primera tabla arranquen en la misma vertical. Sin el tope
- * de ancho, en un monitor de 27 pulgadas una tabla de seis columnas se estira
- * hasta que el ojo pierde la fila entre la primera celda y la última.
+ * Con el mismo margen lateral que el encabezado, para que el título y la primera
+ * tabla arranquen en la misma vertical.
+ *
+ * **Sin tope de ancho.** Lo tuvo: 1180 píxeles, con el argumento de que en un
+ * monitor de 27 pulgadas una tabla se estira hasta que el ojo pierde la fila.
+ * El argumento era razonable y la consecuencia no: en una ventana de 1680 había
+ * 1428 píxeles disponibles y se usaban 1180, y ocho pantallas obligaban a
+ * arrastrar la tabla en horizontal **teniendo espacio de sobra al lado**. En
+ * `/contabilidad/registros` la tabla pedía 1429 y recibía 1130.
+ *
+ * Elegir entre «una tabla ancha cuesta de leer» y «la tabla no entra» no es
+ * elegir: la segunda impide trabajar y la primera molesta. Los párrafos largos
+ * se topan ellos, con `max-w-prose`, que es donde el tope sí hace falta.
  *
  * La separación entre bloques la pone aquí, no cada bloque por su cuenta.
  *
@@ -219,7 +234,7 @@ export function EstadoDoc({ estado }: { estado: string }) {
  * de verdad necesita otra cosa, y entonces se ve que es una excepción.
  */
 export function Contenido({ children }: { children: React.ReactNode }) {
-  return <div className="contenido mx-auto max-w-[1180px] space-y-5 px-6 pb-10">{children}</div>;
+  return <div className="contenido space-y-5 px-6 pb-10">{children}</div>;
 }
 
 export function BotonEnlace({

@@ -28,9 +28,25 @@ export default async function EsqueletoErp({ children }: { children: React.React
    * trece pulgadas, 252px de menú fijo se comen el ancho de la tabla.
    */
   return (
-    <div className="lg:grid lg:h-[100dvh] lg:grid-cols-[252px_minmax(0,1fr)] lg:overflow-hidden">
+    /*
+     * `grid-rows-[minmax(0,1fr)]` no es decorativo: sin él, el fondo de todas
+     * las pantallas quedaba inalcanzable.
+     *
+     * La rejilla tiene `h-[100dvh]` y `overflow-hidden`, pero su única fila se
+     * dimensionaba por el más alto de sus dos hijos. En una ventana de 700px la
+     * barra lateral pide 864 —su menú no cabe—, así que la fila medía 864, el
+     * `main` medía 864, y el `overflow-hidden` recortaba los 164 de más. Se
+     * llegaba al final del scroll del `main` y la última fila de la tabla seguía
+     * fuera de la pantalla, sin forma de alcanzarla.
+     *
+     * Con la fila atada a `minmax(0,1fr)` los dos hijos reciben los 700 reales y
+     * cada uno desplaza lo suyo por dentro: el menú su lista, el `main` su
+     * contenido. `min-h-0` en los hijos es la otra mitad de lo mismo, porque un
+     * hijo de rejilla tampoco se encoge por debajo de su contenido sin él.
+     */
+    <div className="lg:grid lg:h-[100dvh] lg:grid-cols-[252px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden">
       <aside
-        className="flex flex-col border-b lg:h-full lg:border-b-0 lg:border-r"
+        className="flex flex-col border-b lg:h-full lg:min-h-0 lg:border-b-0 lg:border-r"
         style={{ background: "var(--rail)", borderColor: "var(--borde-fuerte)" }}
       >
         <div className="px-5 pb-4 pt-5">
@@ -40,7 +56,7 @@ export default async function EsqueletoErp({ children }: { children: React.React
         {/* La empresa activa, en su propio panel. No es decoración: quien
             trabaja con dos empresas necesita ver en cuál está antes de emitir
             un comprobante, y el RUC es la forma de no equivocarse. */}
-        <div className="tarjeta mx-3.5 mb-3 px-3 py-2.5">
+        <div className="bloque mx-3.5 mb-3 px-3 py-2.5">
           <div className="text-[12.5px]" style={{ color: "var(--texto-tenue)" }}>
             Empresa activa
           </div>
@@ -86,7 +102,7 @@ export default async function EsqueletoErp({ children }: { children: React.React
       </aside>
 
       {/* El scroll vive aquí dentro, no en la página. */}
-      <main className="min-w-0 lg:h-full lg:overflow-y-auto">{children}</main>
+      <main className="min-w-0 lg:h-full lg:min-h-0 lg:overflow-y-auto">{children}</main>
     </div>
   );
 }

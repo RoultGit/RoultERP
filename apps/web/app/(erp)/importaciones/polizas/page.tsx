@@ -42,7 +42,7 @@ export default async function Polizas() {
           </div>
         )}
 
-        <section className="tarjeta overflow-x-auto">
+        <section className="bloque overflow-x-auto">
           {datos.polizas.length === 0 ? (
             <div className="p-4">
               <Vacio

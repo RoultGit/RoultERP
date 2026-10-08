@@ -115,7 +115,7 @@ export default async function Cxp({
             descripcion="Las cuentas por pagar nacen al registrar la factura del proveedor en el módulo de compras."
           />
         ) : (
-          <div className="tarjeta overflow-x-auto">
+          <div className="bloque overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>
@@ -195,7 +195,7 @@ function Tarjeta({
   crudo?: boolean;
 }) {
   return (
-    <div className="tarjeta p-4">
+    <div className="bloque p-4">
       <div className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--texto-suave)" }}>
         {titulo}
       </div>

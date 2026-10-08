@@ -109,7 +109,7 @@ export default async function Tablero() {
         </div>
 
         <div className="grid gap-5 xl:grid-cols-2">
-          <section className="tarjeta overflow-hidden">
+          <section className="bloque overflow-hidden">
             <div
               className="flex items-center justify-between border-b px-4 py-2.5"
               style={{ borderColor: "var(--borde)" }}
@@ -129,7 +129,7 @@ export default async function Tablero() {
                   {/* Sin la columna de FOB: el panel es media pantalla y no
                       caben cinco columnas sin recortar el estado, que es lo
                       único que se mira aquí. El FOB total ya está en la
-                      tarjeta de arriba. */}
+                      bloque de arriba. */}
                   <tr>
                     <th>Número</th>
                     <th>Proveedor</th>
@@ -157,7 +157,7 @@ export default async function Tablero() {
             )}
           </section>
 
-          <section className="tarjeta overflow-hidden">
+          <section className="bloque overflow-hidden">
             <div
               className="flex items-center justify-between border-b px-4 py-2.5"
               style={{ borderColor: "var(--borde)" }}
@@ -225,7 +225,7 @@ function Indicador({
   alerta?: boolean;
 }) {
   return (
-    <Link href={href} className="tarjeta block p-4 transition-colors hover:bg-[var(--superficie-2)]">
+    <Link href={href} className="bloque block p-4 transition-colors hover:bg-[var(--superficie-2)]">
       <div className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--texto-suave)" }}>
         {titulo}
       </div>

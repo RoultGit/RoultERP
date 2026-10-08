@@ -33,7 +33,7 @@ export default async function Pagos() {
             accion={puedeCrear ? <BotonEnlace href="/cxp/pagar">Registrar pago</BotonEnlace> : null}
           />
         ) : (
-          <div className="tarjeta overflow-x-auto">
+          <div className="bloque overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>

@@ -43,7 +43,7 @@ export default async function Proyeccion({
         }
       />
       <Contenido>
-        <form className="tarjeta filtro mb-5 flex flex-wrap items-end gap-3 p-4" action="/cxc/proyeccion">
+        <form className="bloque filtro mb-5 flex flex-wrap items-end gap-3 p-4" action="/cxc/proyeccion">
           <div>
             <label className="etiqueta" htmlFor="desde">Desde</label>
             <input id="desde" name="desde" type="date" defaultValue={hoy} className="campo" />
@@ -68,7 +68,7 @@ export default async function Proyeccion({
           />
         ) : (
           <>
-            <section className="tarjeta mb-5 p-4">
+            <section className="bloque mb-5 p-4">
               <h2 className="mb-3 text-sm font-semibold">Por tramo</h2>
               <div className="space-y-2">
                 {p.tramos.map((t) => {
@@ -108,7 +108,7 @@ export default async function Proyeccion({
               </p>
             </section>
 
-            <section className="tarjeta overflow-x-auto">
+            <section className="bloque overflow-x-auto">
               <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
                 Detalle
               </h2>

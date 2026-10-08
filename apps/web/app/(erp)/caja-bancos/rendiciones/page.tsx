@@ -62,7 +62,7 @@ export default async function Rendiciones({
       />
       <Contenido>
         {!money.isZero(porRendir) && (
-          <section className="tarjeta mb-5 p-4">
+          <section className="bloque mb-5 p-4">
             <div className="text-xs" style={{ color: "var(--texto-suave)" }}>
               Pendiente de rendir
             </div>
@@ -107,7 +107,7 @@ export default async function Rendiciones({
           ))}
         </div>
 
-        <section className="tarjeta overflow-x-auto">
+        <section className="bloque overflow-x-auto">
           {datos.entregas.length === 0 ? (
             <div className="p-4">
               <Vacio

@@ -65,7 +65,7 @@ export function FormularioEmpresa({
         </p>
       )}
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Identificación</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -116,7 +116,7 @@ export function FormularioEmpresa({
         </div>
       </section>
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Tributario</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -170,7 +170,7 @@ export function FormularioEmpresa({
         </div>
       </section>
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Inventario y contabilidad</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>

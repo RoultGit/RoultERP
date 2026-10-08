@@ -113,7 +113,7 @@ export default async function Mayor({
         ) : conSaldo.length === 0 ? (
           <Vacio titulo="Sin movimientos" descripcion="Esta cuenta no tiene asientos en el periodo." />
         ) : (
-          <div className="tarjeta overflow-x-auto">
+          <div className="bloque overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>

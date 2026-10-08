@@ -81,7 +81,7 @@ export function FormularioPresupuesto({
         </div>
       )}
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <label className="etiqueta" htmlFor="codigo">Código *</label>
@@ -112,7 +112,7 @@ export function FormularioPresupuesto({
         </div>
       </section>
 
-      <section className="tarjeta overflow-x-auto">
+      <section className="bloque overflow-x-auto">
         <div className="flex items-center justify-between border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
           <h2 className="text-sm font-semibold">Partidas</h2>
           <button

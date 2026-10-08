@@ -37,7 +37,7 @@ export default async function Anexos({
         }
       />
       <Contenido>
-        <form className="tarjeta mb-5 flex flex-wrap items-end gap-3 p-4" action="/contabilidad/anexos">
+        <form className="bloque mb-5 flex flex-wrap items-end gap-3 p-4" action="/contabilidad/anexos">
           <div className="min-w-[300px] flex-1">
             <label className="etiqueta" htmlFor="tercero">Tercero</label>
             <select id="tercero" name="tercero" className="campo" defaultValue={tercero ?? ""}>
@@ -82,7 +82,7 @@ export default async function Anexos({
         ) : (
           <div className="space-y-5">
             {datos.cuenta.cuentas.map((c) => (
-              <section key={c.cuenta} className="tarjeta overflow-x-auto">
+              <section key={c.cuenta} className="bloque overflow-x-auto">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
                   <h2 className="cifra text-sm font-semibold" style={{ textAlign: "left" }}>
                     Cuenta {c.cuenta}

@@ -20,7 +20,7 @@ function periodoActual(): string {
 function Estado({ titulo, renglones }: { titulo: string; renglones: RenglonEstado[] }) {
   if (renglones.length === 0) return null;
   return (
-    <section className="tarjeta overflow-x-auto">
+    <section className="bloque overflow-x-auto">
       <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
         {titulo}
       </h2>
@@ -148,7 +148,7 @@ export default async function EstadosFinancieros({
         }
       />
       <Contenido>
-        <form className="tarjeta filtro mb-5 flex flex-wrap items-end gap-3 p-4" action="/contabilidad/estados">
+        <form className="bloque filtro mb-5 flex flex-wrap items-end gap-3 p-4" action="/contabilidad/estados">
           <div>
             <label className="etiqueta" htmlFor="periodo">Periodo</label>
             <input

@@ -94,7 +94,7 @@ export function FormularioPago({
         ))}
       </div>
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">
           {modo === "pago" ? "Datos del pago" : "Datos de la letra"}
         </h2>
@@ -189,7 +189,7 @@ export function FormularioPago({
         )}
       </section>
 
-      <section className="tarjeta overflow-x-auto">
+      <section className="bloque overflow-x-auto">
         <div className="flex items-center justify-between border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
           <h2 className="text-sm font-semibold">
             Documentos pendientes de {proveedor.nombre}

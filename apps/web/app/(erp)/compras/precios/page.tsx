@@ -58,7 +58,7 @@ export default async function Precios({
         }
       />
       <Contenido>
-        <form className="tarjeta filtro mb-5 flex flex-wrap items-end gap-3 p-4" action="/compras/precios">
+        <form className="bloque filtro mb-5 flex flex-wrap items-end gap-3 p-4" action="/compras/precios">
           <div className="min-w-[200px]">
             <label className="etiqueta" htmlFor="q">Buscar producto</label>
             <input
@@ -84,7 +84,7 @@ export default async function Precios({
             descripcion="Aquí aparecen las compras locales y los embarques importados de este artículo, del más reciente al más antiguo."
           />
         ) : (
-          <section className="tarjeta overflow-x-auto">
+          <section className="bloque overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>

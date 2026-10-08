@@ -60,7 +60,7 @@ export function FormularioProducto({
         </p>
       )}
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Identificación</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -117,7 +117,7 @@ export function FormularioProducto({
         </div>
       </section>
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-1 text-sm font-semibold">Datos para importación</h2>
         <p className="mb-3 text-xs" style={{ color: "var(--texto-suave)" }}>
           El peso y el volumen son la base para prorratear el flete de un embarque. Sin ellos, esos
@@ -149,7 +149,7 @@ export function FormularioProducto({
         </div>
       </section>
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Control de existencias</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>

@@ -75,7 +75,7 @@ export default async function Periodos() {
         {filas.length === 0 ? (
           <Vacio titulo="Todavía no hay periodos" descripcion="Aparecerán al registrar el primer asiento." />
         ) : (
-          <div className="tarjeta overflow-x-auto">
+          <div className="bloque overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>

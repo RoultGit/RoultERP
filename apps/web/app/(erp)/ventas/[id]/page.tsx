@@ -90,7 +90,7 @@ export default async function DetalleVenta({
       />
       <Contenido>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <section className="tarjeta overflow-x-auto">
+          <section className="bloque overflow-x-auto">
             <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
               Detalle
             </h2>
@@ -164,7 +164,7 @@ export default async function DetalleVenta({
 
           <div className="space-y-5">
             {relacionadas.length > 0 && (
-              <section className="tarjeta overflow-x-auto">
+              <section className="bloque overflow-x-auto">
                 <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
                   Documentos relacionados
                 </h2>

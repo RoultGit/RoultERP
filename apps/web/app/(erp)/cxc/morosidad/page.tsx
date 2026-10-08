@@ -52,7 +52,7 @@ export default async function Morosidad({
         }
       />
       <Contenido>
-        <form className="tarjeta filtro mb-5 flex flex-wrap items-end gap-3 p-4" action="/cxc/morosidad">
+        <form className="bloque filtro mb-5 flex flex-wrap items-end gap-3 p-4" action="/cxc/morosidad">
           <div>
             <label className="etiqueta" htmlFor="fecha">Al día</label>
             <input id="fecha" name="fecha" type="date" defaultValue={fecha} className="campo" />
@@ -77,7 +77,7 @@ export default async function Morosidad({
 
         {a.avisos.length > 0 && (
           <div
-            className="tarjeta mb-5 p-4 text-sm"
+            className="bloque mb-5 p-4 text-sm"
             style={{ borderColor: "color-mix(in srgb, var(--alerta) 45%, transparent)" }}
           >
             <p className="font-medium" style={{ color: "var(--alerta)" }}>Antes de leer el cuadro</p>
@@ -95,7 +95,7 @@ export default async function Morosidad({
             descripcion="Ningún cliente tiene saldo pendiente a esta fecha."
           />
         ) : (
-          <section className="tarjeta overflow-x-auto">
+          <section className="bloque overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>

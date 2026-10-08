@@ -95,7 +95,7 @@ export default async function Presupuesto({
           </p>
         )}
 
-        <section className="tarjeta mb-5 overflow-x-auto">
+        <section className="bloque mb-5 overflow-x-auto">
           <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
             Presupuestos
           </h2>
@@ -149,7 +149,7 @@ export default async function Presupuesto({
         {e && !editando && (
           <>
             <form
-              className="tarjeta mb-5 flex flex-wrap items-end gap-3 p-4"
+              className="bloque mb-5 flex flex-wrap items-end gap-3 p-4"
               action="/contabilidad/presupuesto"
             >
               <input type="hidden" name="presupuesto" value={e.presupuesto.id} />
@@ -209,7 +209,7 @@ export default async function Presupuesto({
               </div>
             )}
 
-            <section className="tarjeta overflow-x-auto">
+            <section className="bloque overflow-x-auto">
               <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
                 {e.presupuesto.nombre} · ejecución hasta {MESES[e.hastaMes - 1]}
               </h2>

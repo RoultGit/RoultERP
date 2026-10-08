@@ -50,7 +50,7 @@ export function FormularioRecibir({
         </div>
       )}
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <p className="mb-3 text-sm" style={{ color: "var(--texto-suave)" }}>
           Un cheque del cliente todavía no es dinero: es una promesa con nombre de banco. Se
           registra aquí y se marca cobrado cuando el banco lo acredita.

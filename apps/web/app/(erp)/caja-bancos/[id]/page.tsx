@@ -81,7 +81,7 @@ export default async function DetalleCuenta({
           />
         </div>
 
-        <section className="tarjeta mb-5 overflow-x-auto">
+        <section className="bloque mb-5 overflow-x-auto">
           <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
             Movimientos
           </h2>
@@ -136,7 +136,7 @@ export default async function DetalleCuenta({
 
         {puedeCrear && (
           <div className="grid gap-5 xl:grid-cols-2">
-            <section className="tarjeta p-4">
+            <section className="bloque p-4">
               <h2 className="mb-1 text-sm font-semibold">Registrar movimiento</h2>
               <p className="mb-3 text-xs" style={{ color: "var(--texto-suave)" }}>
                 Para lo que no viene de otro módulo: comisiones, ITF, intereses, aportes. Los pagos
@@ -151,7 +151,7 @@ export default async function DetalleCuenta({
               />
             </section>
 
-            <section className="tarjeta p-4">
+            <section className="bloque p-4">
               <h2 className="mb-1 text-sm font-semibold">Arqueo</h2>
               <p className="mb-3 text-xs" style={{ color: "var(--texto-suave)" }}>
                 Cuente el efectivo y anótelo. La diferencia se contabiliza y se ajusta en el libro,
@@ -203,7 +203,7 @@ function Tarjeta({
   alerta?: boolean;
 }) {
   return (
-    <div className="tarjeta p-4">
+    <div className="bloque p-4">
       <div className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--texto-suave)" }}>
         {titulo}
       </div>

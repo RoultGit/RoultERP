@@ -130,8 +130,11 @@ export default async function Contabilidad({
             descripcion="Los asientos nacen al registrar una compra o al confirmar una liquidación de importación, o se capturan a mano desde «Nuevo asiento»."
           />
         ) : (
-          <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
-            <section className="tarjeta overflow-x-auto">
+          // La columna estrecha era de 420 píxeles y la lista de asientos pide
+          // 632: se arrastraba en horizontal dentro de una columna, con media
+          // pantalla vacía al lado. Mitad y mitad, y las dos caben.
+          <div className="grid gap-5 xl:grid-cols-2">
+            <section className="bloque overflow-x-auto">
               <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
                 Balance de comprobación
               </h2>
@@ -179,7 +182,7 @@ export default async function Contabilidad({
               </table>
             </section>
 
-            <section className="tarjeta overflow-x-auto">
+            <section className="bloque overflow-x-auto">
               <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
                 Asientos del periodo
                 {asientos.length === 500 && (

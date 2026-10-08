@@ -45,7 +45,7 @@ export default async function Pendientes() {
         }
       />
       <Contenido>
-        <dl className="tarjeta mb-5 flex flex-wrap gap-8 p-4">
+        <dl className="bloque mb-5 flex flex-wrap gap-8 p-4">
           <div>
             <dt className="text-xs" style={{ color: "var(--texto-suave)" }}>Embarques abiertos</dt>
             <dd className="text-lg font-medium">{lista.length}</dd>
@@ -70,7 +70,7 @@ export default async function Pendientes() {
           </div>
         </dl>
 
-        <section className="tarjeta overflow-x-auto">
+        <section className="bloque overflow-x-auto">
           {lista.length === 0 ? (
             <div className="p-4">
               <Vacio

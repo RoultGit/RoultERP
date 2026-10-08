@@ -100,7 +100,7 @@ export function FormularioTrabajador({
       <Resultado estado={estado} />
       {inicial?.id && <input type="hidden" name="trabajadorId" value={inicial.id} />}
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Identificación</h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <div>
@@ -163,7 +163,7 @@ export function FormularioTrabajador({
         </div>
       </section>
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Puesto</h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <div>
@@ -212,7 +212,7 @@ export function FormularioTrabajador({
         </div>
       </section>
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Pensiones y salud</h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <div>
@@ -269,7 +269,7 @@ export function FormularioTrabajador({
         </div>
       </section>
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Cuentas</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -410,7 +410,7 @@ export function Renovar({ contratoId, trabajadorId, desde }: { contratoId: strin
 export function Cesar({ trabajadorId, nombre }: { trabajadorId: string; nombre: string }) {
   const [estado, accion] = useActionState<EstadoForm, FormData>(cesarAccion, {});
   return (
-    <details className="tarjeta">
+    <details className="bloque">
       <summary className="cursor-pointer px-4 py-2.5 text-sm font-medium select-none"
         style={{ color: "var(--peligro)" }}>
         Cesar a {nombre} y liquidar

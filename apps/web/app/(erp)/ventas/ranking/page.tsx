@@ -41,7 +41,7 @@ export default async function Ranking({
         }
       />
       <Contenido>
-        <form className="tarjeta mb-5 flex flex-wrap items-end gap-3 p-4" action="/ventas/ranking">
+        <form className="bloque mb-5 flex flex-wrap items-end gap-3 p-4" action="/ventas/ranking">
           <div>
             <label className="etiqueta" htmlFor="desde">Desde</label>
             <input id="desde" name="desde" type="date" defaultValue={desde} className="campo" />
@@ -77,7 +77,7 @@ export default async function Ranking({
           </dl>
         </form>
 
-        <section className="tarjeta overflow-x-auto">
+        <section className="bloque overflow-x-auto">
           {r.lineas.length === 0 ? (
             <div className="p-4">
               <Vacio

@@ -39,7 +39,7 @@ export default async function Parametros({
       />
       <Contenido>
         {hecho && (
-          <p className="tarjeta mb-5 p-3 text-sm" role="status">
+          <p className="bloque mb-5 p-3 text-sm" role="status">
             Cuentas guardadas. Los asientos que se generen desde ahora las usan; los ya
             contabilizados no cambian.
           </p>
@@ -62,7 +62,7 @@ export default async function Parametros({
             cuentas={datos.cuentas.map((c) => ({ cuenta: c.cuenta, descripcion: c.descripcion }))}
           />
         ) : (
-          <section className="tarjeta overflow-x-auto">
+          <section className="bloque overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>

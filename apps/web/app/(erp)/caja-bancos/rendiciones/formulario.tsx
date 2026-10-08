@@ -38,7 +38,7 @@ export function FormularioEntrega({
         </div>
       )}
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <p className="mb-3 text-sm" style={{ color: "var(--texto-suave)" }}>
           Dinero que sale a nombre de alguien y todavía no es gasto. Se carga a la cuenta 14 y ahí
           se queda hasta que se rinda con documentos.

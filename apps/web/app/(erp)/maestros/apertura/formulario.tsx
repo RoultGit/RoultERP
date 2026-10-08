@@ -69,7 +69,7 @@ export function CargaDeApertura({ yaCargada }: { yaCargada: boolean }) {
 
   if (yaCargada) {
     return (
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-2 text-sm font-semibold">Los saldos ya están cargados</h2>
         <p className="text-sm" style={{ color: "var(--texto-suave)" }}>
           Esta empresa ya tiene su apertura hecha. Volver a cargarla duplicaría la cartera y el
@@ -88,7 +88,7 @@ export function CargaDeApertura({ yaCargada }: { yaCargada: boolean }) {
   return (
     <div className="space-y-5">
       <form action={analizar} className="space-y-5">
-        <section className="tarjeta p-4">
+        <section className="bloque p-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="etiqueta" htmlFor="fecha">Fecha de corte</label>
@@ -107,7 +107,7 @@ export function CargaDeApertura({ yaCargada }: { yaCargada: boolean }) {
         </section>
 
         {HOJAS.map((h) => (
-          <section key={h.clave} className="tarjeta p-4">
+          <section key={h.clave} className="bloque p-4">
             <label className="etiqueta" htmlFor={h.clave}>{h.titulo}</label>
             <textarea
               id={h.clave}
@@ -146,7 +146,7 @@ export function CargaDeApertura({ yaCargada }: { yaCargada: boolean }) {
       )}
 
       {a && (
-        <section className="tarjeta">
+        <section className="bloque">
           <div className="grid gap-6 border-b p-4 sm:grid-cols-4" style={{ borderColor: "var(--borde)" }}>
             <div>
               <p className="text-xs" style={{ color: "var(--texto-suave)" }}>Deudas de clientes</p>

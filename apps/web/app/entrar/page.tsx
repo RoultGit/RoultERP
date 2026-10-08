@@ -22,7 +22,7 @@ export default async function Entrar({
             Sistema de gestión empresarial
           </p>
         </div>
-        <div className="tarjeta p-6">
+        <div className="bloque p-6">
           <FormularioEntrar siguiente={siguiente} />
         </div>
       </div>

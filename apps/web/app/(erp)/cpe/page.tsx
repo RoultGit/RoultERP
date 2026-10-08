@@ -81,7 +81,7 @@ export default async function ConfiguracionCpe() {
         )}
 
         <div className="grid gap-5 xl:grid-cols-2">
-          <section className="tarjeta p-4">
+          <section className="bloque p-4">
             <h2 className="mb-1 text-sm font-semibold">Certificado digital</h2>
             <p className="mb-4 text-xs" style={{ color: "var(--texto-suave)" }}>
               El archivo <code>.pfx</code> que emitió la entidad acreditada a nombre del RUC{" "}
@@ -120,7 +120,7 @@ export default async function ConfiguracionCpe() {
             {puedeEditar && <FormularioCertificado tieneUno={!!datos.certificado} />}
           </section>
 
-          <section className="tarjeta p-4">
+          <section className="bloque p-4">
             <h2 className="mb-1 text-sm font-semibold">Credenciales SOL</h2>
             <p className="mb-4 text-xs" style={{ color: "var(--texto-suave)" }}>
               El usuario secundario de SUNAT con el que se envían los comprobantes. Va sin el RUC
@@ -155,7 +155,7 @@ export default async function ConfiguracionCpe() {
             )}
           </section>
 
-          <section className="tarjeta p-4">
+          <section className="bloque p-4">
             <h2 className="mb-1 text-sm font-semibold">Credenciales de la GRE</h2>
             <p className="mb-4 text-xs" style={{ color: "var(--texto-suave)" }}>
               Las guías de remisión van por una API distinta, con un client_id y un client_secret
@@ -181,7 +181,7 @@ export default async function ConfiguracionCpe() {
           </section>
         </div>
 
-        <section className="tarjeta overflow-x-auto">
+        <section className="bloque overflow-x-auto">
           <div className="flex items-center justify-between border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
             <h2 className="text-sm font-semibold">Series de emisión</h2>
             <span className="text-xs" style={{ color: "var(--texto-suave)" }}>

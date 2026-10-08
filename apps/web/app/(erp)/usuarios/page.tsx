@@ -60,7 +60,7 @@ export default async function Usuarios() {
       />
       <Contenido>
         {puedeEditar && (
-          <section className="tarjeta mb-5 p-4">
+          <section className="bloque mb-5 p-4">
             <h2 className="mb-1 text-sm font-semibold">Invitar a alguien</h2>
             <p className="mb-3 text-xs" style={{ color: "var(--texto-suave)" }}>
               La cuenta no sirve hasta que la persona acepte la invitación y elija su contraseña.
@@ -70,7 +70,7 @@ export default async function Usuarios() {
           </section>
         )}
 
-        <section className="tarjeta overflow-x-auto">
+        <section className="bloque overflow-x-auto">
           <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
             Con acceso a esta empresa
           </h2>
@@ -145,7 +145,7 @@ export default async function Usuarios() {
           </table>
         </section>
 
-        <section className="tarjeta mt-5 overflow-x-auto">
+        <section className="bloque mt-5 overflow-x-auto">
           <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
             Roles
           </h2>
@@ -178,7 +178,7 @@ export default async function Usuarios() {
         </section>
 
         {puedeEditar && (
-          <section className="tarjeta mt-5 p-4">
+          <section className="bloque mt-5 p-4">
             <h2 className="mb-1 text-sm font-semibold">Crear un rol propio</h2>
             <p className="mb-3 text-xs" style={{ color: "var(--texto-suave)" }}>
               Los roles del sistema no se editan: son el punto de partida de cada empresa nueva y

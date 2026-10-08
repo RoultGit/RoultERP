@@ -88,7 +88,7 @@ export default async function OrdenPago({
 
         <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
           <div className="space-y-5">
-            <section className="tarjeta p-4">
+            <section className="bloque p-4">
               <dl className="grid gap-4 text-sm sm:grid-cols-3 lg:grid-cols-4">
                 <div>
                   <dt className="etiqueta">Estado</dt>
@@ -127,7 +127,7 @@ export default async function OrdenPago({
               </dl>
             </section>
 
-            <section className="tarjeta overflow-x-auto">
+            <section className="bloque overflow-x-auto">
               <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
                 Documentos que cancela
               </h2>
@@ -176,7 +176,7 @@ export default async function OrdenPago({
           </div>
 
           <aside className="lg:sticky lg:top-6 lg:self-start">
-            <section className="tarjeta">
+            <section className="bloque">
               <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
                 {cabecera.estado === "pendiente"
                   ? "Autorización"

@@ -43,7 +43,7 @@ export function FormularioImportacion({
         </p>
       )}
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Datos del embarque</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -86,7 +86,7 @@ export function FormularioImportacion({
         </div>
       </section>
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-1 text-sm font-semibold">Moneda y tipo de cambio</h2>
         <p className="mb-3 text-xs" style={{ color: "var(--texto-suave)" }}>
           Este tipo de cambio valoriza el FOB. Cada gasto lleva el suyo: el flete se paga a un tipo
@@ -111,7 +111,7 @@ export function FormularioImportacion({
         </div>
       </section>
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Logística</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>

@@ -3,7 +3,7 @@ export const metadata = { title: "Recuperar contraseña · RoultERP" };
 export default function Recuperar() {
   return (
     <main className="flex min-h-screen items-center justify-center px-4">
-      <div className="tarjeta w-full max-w-sm p-6 text-center">
+      <div className="bloque w-full max-w-sm p-6 text-center">
         <h1 className="mb-2 text-lg font-semibold">Recuperar contraseña</h1>
         {/*
           Esta pantalla decía lo mismo cuando el administrador todavía no podía

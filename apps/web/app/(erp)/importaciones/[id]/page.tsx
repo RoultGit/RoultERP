@@ -84,7 +84,7 @@ export default async function DetalleImportacion({
       <Contenido>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-5">
-            <section className="tarjeta overflow-x-auto">
+            <section className="bloque overflow-x-auto">
               <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
                 Mercadería
               </h2>
@@ -196,7 +196,7 @@ export default async function DetalleImportacion({
               editable={editable && puedeEditar}
             />
 
-            <section className="tarjeta overflow-x-auto">
+            <section className="bloque overflow-x-auto">
               <div
                 className="flex items-center justify-between border-b px-4 py-2.5"
                 style={{ borderColor: "var(--borde)" }}

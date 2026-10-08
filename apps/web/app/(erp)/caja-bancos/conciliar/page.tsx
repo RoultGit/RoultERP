@@ -110,7 +110,7 @@ export default async function Conciliar({
         </p>
 
         {vista.length > 0 && (
-          <section className="tarjeta mb-5 overflow-x-auto">
+          <section className="bloque mb-5 overflow-x-auto">
             <div className="flex items-center justify-between border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
               <h2 className="text-sm font-semibold">Parejas propuestas</h2>
               <span className="text-xs" style={{ color: "var(--texto-suave)" }}>
@@ -128,7 +128,7 @@ export default async function Conciliar({
         )}
 
         <div className="grid gap-5 xl:grid-cols-2">
-          <section className="tarjeta overflow-x-auto">
+          <section className="bloque overflow-x-auto">
             <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
               En tránsito · movimientos que el banco aún no reconoce
             </h2>
@@ -161,7 +161,7 @@ export default async function Conciliar({
             )}
           </section>
 
-          <section className="tarjeta overflow-x-auto">
+          <section className="bloque overflow-x-auto">
             <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
               Sin registrar · lo que el banco movió y nadie anotó
             </h2>
@@ -197,7 +197,7 @@ export default async function Conciliar({
         </div>
 
         {puedeImportar && (
-          <section className="tarjeta mt-5 p-4">
+          <section className="bloque mt-5 p-4">
             <h2 className="mb-3 text-sm font-semibold">Importar extracto</h2>
             <FormularioExtracto cuentaId={cta.id} />
           </section>
@@ -217,7 +217,7 @@ function Tarjeta({
   alerta?: boolean;
 }) {
   return (
-    <div className="tarjeta p-4">
+    <div className="bloque p-4">
       <div className="text-xs font-medium uppercase tracking-wide" style={{ color: "var(--texto-suave)" }}>
         {titulo}
       </div>

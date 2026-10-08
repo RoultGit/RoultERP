@@ -53,7 +53,7 @@ export default async function Apertura({
           </p>
         )}
 
-        <div className="tarjeta mb-5 p-4 text-sm">
+        <div className="bloque mb-5 p-4 text-sm">
           <p className="mb-2 font-medium">Antes de cargar</p>
           <ol className="list-decimal space-y-1 pl-5" style={{ color: "var(--texto-suave)" }}>
             <li>

@@ -42,7 +42,7 @@ export function PanelLiquidacion({
 
   return (
     <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-      <section className="tarjeta">
+      <section className="bloque">
         <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
           Liquidación
         </h2>
@@ -101,7 +101,7 @@ export function PanelLiquidacion({
       </section>
 
       {vista && !liquidada && puedeConfirmar && (
-        <form action={accion} className="tarjeta space-y-3 p-4">
+        <form action={accion} className="bloque space-y-3 p-4">
           <input type="hidden" name="importacionId" value={importacionId} />
 
           {resultado.error && (
@@ -144,7 +144,7 @@ export function PanelLiquidacion({
       )}
 
       {liquidada && (
-        <p className="tarjeta px-4 py-3 text-sm" style={{ color: "var(--texto-suave)" }}>
+        <p className="bloque px-4 py-3 text-sm" style={{ color: "var(--texto-suave)" }}>
           Esta importación ya está liquidada. Su costo entró al kardex y al asiento contable.
         </p>
       )}

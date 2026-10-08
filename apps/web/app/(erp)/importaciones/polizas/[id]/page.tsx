@@ -117,7 +117,7 @@ export default async function Poliza({
           </p>
         )}
 
-        <section className="tarjeta mb-5 p-4">
+        <section className="bloque mb-5 p-4">
           <dl className="grid gap-4 text-sm sm:grid-cols-3 lg:grid-cols-5">
             <div>
               <dt className="etiqueta">Estado</dt>
@@ -152,7 +152,7 @@ export default async function Poliza({
 
         <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
           <div className="space-y-5">
-            <section className="tarjeta overflow-hidden">
+            <section className="bloque overflow-hidden">
               <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
                 Embarques amparados
               </h2>
@@ -227,7 +227,7 @@ export default async function Poliza({
               )}
             </section>
 
-            <section className="tarjeta overflow-hidden">
+            <section className="bloque overflow-hidden">
               <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
                 Gastos de la DUA
               </h2>
@@ -289,7 +289,7 @@ export default async function Poliza({
           </div>
 
           <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-            <section className="tarjeta">
+            <section className="bloque">
               <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
                 Reparto
               </h2>
@@ -336,7 +336,7 @@ export default async function Poliza({
             </section>
 
             {puedeAprobar && (
-              <section className="tarjeta">
+              <section className="bloque">
                 <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
                   Liquidación
                 </h2>

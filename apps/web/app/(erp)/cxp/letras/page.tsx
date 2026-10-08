@@ -82,7 +82,7 @@ export default async function Letras({
             accion={puedeOperar ? <BotonEnlace href="/cxp/pagar">Canjear por letra</BotonEnlace> : null}
           />
         ) : (
-          <div className="tarjeta overflow-x-auto">
+          <div className="bloque overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>

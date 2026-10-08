@@ -43,7 +43,7 @@ export default async function EstadoCuentaCliente({
         }
       />
       <Contenido>
-        <form className="tarjeta filtro mb-5 flex flex-wrap items-end gap-3 p-4" action="/cxc/estado-cuenta">
+        <form className="bloque filtro mb-5 flex flex-wrap items-end gap-3 p-4" action="/cxc/estado-cuenta">
           <div className="min-w-[280px] flex-1">
             <label className="etiqueta" htmlFor="cliente">Cliente</label>
             <select id="cliente" name="cliente" className="campo" defaultValue={cliente ?? ""}>
@@ -79,7 +79,7 @@ export default async function EstadoCuentaCliente({
         ) : (
           <div className="space-y-5">
             {datos.cuentas.map((c) => (
-              <section key={c.moneda} className="tarjeta overflow-x-auto">
+              <section key={c.moneda} className="bloque overflow-x-auto">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
                   <h2 className="text-sm font-semibold">Movimientos en {c.moneda}</h2>
                   <div className="text-sm">

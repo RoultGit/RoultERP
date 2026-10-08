@@ -80,7 +80,7 @@ export default async function PlanDeCuentas({
           </span>
         </form>
 
-        <div className="tarjeta overflow-x-auto">
+        <div className="bloque overflow-x-auto">
           <table className="tabla">
             <thead>
               <tr>

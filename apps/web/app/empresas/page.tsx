@@ -22,7 +22,7 @@ export default async function Empresas() {
   if (visibles.length === 0) {
     return (
       <main className="flex min-h-screen items-center justify-center px-4">
-        <div className="tarjeta max-w-md p-6 text-center">
+        <div className="bloque max-w-md p-6 text-center">
           <h1 className="mb-2 text-lg font-semibold">Sin acceso a ninguna empresa</h1>
           <p className="mb-4 text-sm" style={{ color: "var(--texto-suave)" }}>
             Su cuenta existe pero no está asignada a ninguna empresa. Pida a un administrador
@@ -53,7 +53,7 @@ export default async function Empresas() {
     <main className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-md">
         <h1 className="mb-4 text-center text-lg font-semibold">Elija una empresa</h1>
-        <div className="tarjeta divide-y" style={{ borderColor: "var(--borde)" }}>
+        <div className="bloque divide-y" style={{ borderColor: "var(--borde)" }}>
           {empresas.filter(Boolean).map((e) => (
             <form key={e!.id} action={elegirEmpresa}>
               <input type="hidden" name="empresaId" value={e!.id} />

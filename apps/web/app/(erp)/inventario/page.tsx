@@ -68,7 +68,7 @@ export default async function Inventario({
             descripcion="Todavía no ha ingresado mercadería a este almacén. Los ingresos llegan al liquidar una importación o al recibir una compra."
           />
         ) : (
-          <div className="tarjeta overflow-x-auto">
+          <div className="bloque overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>

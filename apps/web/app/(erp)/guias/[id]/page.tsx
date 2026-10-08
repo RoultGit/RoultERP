@@ -47,7 +47,7 @@ export default async function DetalleGuia({ params }: { params: Promise<{ id: st
       />
       <Contenido>
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <section className="tarjeta overflow-x-auto">
+          <section className="bloque overflow-x-auto">
             <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
               Bienes trasladados
             </h2>
@@ -101,7 +101,7 @@ export default async function DetalleGuia({ params }: { params: Promise<{ id: st
             </dl>
           </section>
 
-          <section className="tarjeta p-4">
+          <section className="bloque p-4">
             <h2 className="mb-3 text-sm font-semibold">Envío a SUNAT</h2>
             <dl className="text-sm">
               <Dato etiqueta="Estado" valor="" nodo={<EstadoDoc estado={g.estado} />} />

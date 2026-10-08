@@ -58,7 +58,7 @@ export default async function Retenciones() {
       />
       <Contenido>
         <div className="grid gap-5 xl:grid-cols-2">
-          <section className="tarjeta p-4">
+          <section className="bloque p-4">
             <div className="mb-1 flex items-center gap-2">
               <h2 className="text-sm font-semibold">Pagos con retención</h2>
               {datos.empresa?.esAgenteRetencion ? (
@@ -93,7 +93,7 @@ export default async function Retenciones() {
             )}
           </section>
 
-          <section className="tarjeta p-4">
+          <section className="bloque p-4">
             <div className="mb-1 flex items-center gap-2">
               <h2 className="text-sm font-semibold">Cobranzas con percepción</h2>
               {datos.empresa?.esAgentePercepcion ? (
@@ -127,7 +127,7 @@ export default async function Retenciones() {
           </section>
         </div>
 
-        <section className="tarjeta mt-5 overflow-x-auto">
+        <section className="bloque mt-5 overflow-x-auto">
           <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
             Emitidos
           </h2>

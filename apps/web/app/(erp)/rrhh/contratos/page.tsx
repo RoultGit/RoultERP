@@ -29,7 +29,7 @@ export default async function Contratos({
   const porVencer = lista.filter((c) => !c.vencido);
 
   const Tabla = ({ filas, titulo, tono }: { filas: typeof lista; titulo: string; tono?: "peligro" }) => (
-    <section className="tarjeta mb-5 overflow-x-auto">
+    <section className="bloque mb-5 overflow-x-auto">
       <h2
         className="border-b px-4 py-2.5 text-sm font-semibold"
         style={{ borderColor: "var(--borde)", ...(tono ? { color: "var(--peligro)" } : {}) }}
@@ -97,7 +97,7 @@ export default async function Contratos({
         }
       />
       <Contenido>
-        <form className="tarjeta mb-5 flex flex-wrap items-end gap-3 p-4" action="/rrhh/contratos">
+        <form className="bloque mb-5 flex flex-wrap items-end gap-3 p-4" action="/rrhh/contratos">
           <div>
             <label className="etiqueta" htmlFor="dias">Avisar con</label>
             <select id="dias" name="dias" className="campo" defaultValue={String(dias)}>

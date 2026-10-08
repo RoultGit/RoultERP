@@ -51,7 +51,7 @@ export default async function Planillas({
           </div>
         )}
 
-        <form className="tarjeta mb-5 flex flex-wrap items-end gap-3 p-4" action="/planillas">
+        <form className="bloque mb-5 flex flex-wrap items-end gap-3 p-4" action="/planillas">
           <div>
             <label className="etiqueta" htmlFor="tipo">Tipo</label>
             <select id="tipo" name="tipo" className="campo" defaultValue={tipo ?? ""}>
@@ -65,7 +65,7 @@ export default async function Planillas({
           <button className="boton boton-secundario">Ver</button>
         </form>
 
-        <section className="tarjeta overflow-x-auto">
+        <section className="bloque overflow-x-auto">
           {lista.length === 0 ? (
             <div className="p-4">
               <Vacio

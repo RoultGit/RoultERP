@@ -88,7 +88,7 @@ export default async function Lotes({
           </div>
         )}
 
-        <form className="tarjeta mb-5 flex flex-wrap items-end gap-3 p-4" action="/inventario/lotes">
+        <form className="bloque mb-5 flex flex-wrap items-end gap-3 p-4" action="/inventario/lotes">
           <input type="hidden" name="vista" value={enSeries ? "series" : ""} />
           <div className="min-w-[240px]">
             <label className="etiqueta" htmlFor="almacen">Almacén</label>
@@ -130,7 +130,7 @@ export default async function Lotes({
         </form>
 
         {enSeries ? (
-          <section className="tarjeta overflow-x-auto">
+          <section className="bloque overflow-x-auto">
             <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
               Series en stock
             </h2>
@@ -169,7 +169,7 @@ export default async function Lotes({
             )}
           </section>
         ) : (
-          <section className="tarjeta overflow-x-auto">
+          <section className="bloque overflow-x-auto">
             <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
               Existencias por lote
             </h2>

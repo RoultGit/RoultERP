@@ -61,7 +61,7 @@ export function FormularioTercero({ inicial }: { inicial: TerceroForm }) {
         </p>
       )}
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Identificación</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -128,7 +128,7 @@ export function FormularioTercero({ inicial }: { inicial: TerceroForm }) {
         </div>
       </section>
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Relación comercial</h2>
         <div className="mb-4 flex flex-wrap gap-6">
           <label className="flex items-center gap-2 text-sm">
@@ -183,7 +183,7 @@ export function FormularioTercero({ inicial }: { inicial: TerceroForm }) {
         </div>
       </section>
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Contacto</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>

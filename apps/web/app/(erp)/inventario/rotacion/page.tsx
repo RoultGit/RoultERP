@@ -60,7 +60,7 @@ export default async function Rotacion({
         }
       />
       <Contenido>
-        <form className="tarjeta mb-5 flex flex-wrap items-end gap-3 p-4" action="/inventario/rotacion">
+        <form className="bloque mb-5 flex flex-wrap items-end gap-3 p-4" action="/inventario/rotacion">
           <input type="hidden" name="vista" value={enStock ? "stock" : ""} />
           <div>
             <label className="etiqueta" htmlFor="periodo">Periodo</label>
@@ -108,7 +108,7 @@ export default async function Rotacion({
         </form>
 
         {!enStock && dormido.length > 0 && (
-          <section className="tarjeta mb-5 p-4">
+          <section className="bloque mb-5 p-4">
             <div className="text-xs" style={{ color: "var(--texto-suave)" }}>
               Capital inmovilizado — {dormido.length}{" "}
               {dormido.length === 1 ? "artículo sin salidas" : "artículos sin salidas"} en el periodo
@@ -119,7 +119,7 @@ export default async function Rotacion({
           </section>
         )}
 
-        <section className="tarjeta overflow-x-auto">
+        <section className="bloque overflow-x-auto">
           {enStock ? (
             datos.stock.length === 0 ? (
               <div className="p-4">

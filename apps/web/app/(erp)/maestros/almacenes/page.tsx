@@ -42,7 +42,7 @@ export default async function Almacenes() {
         acciones={<BotonEnlace href="/maestros" variante="secundario">Maestros</BotonEnlace>}
       />
       <Contenido>
-        <section className="tarjeta mb-5 overflow-x-auto">
+        <section className="bloque mb-5 overflow-x-auto">
           <div
             className="flex items-center justify-between border-b px-4 py-2.5"
             style={{ borderColor: "var(--borde)" }}
@@ -109,7 +109,7 @@ export default async function Almacenes() {
           )}
         </section>
 
-        <section className="tarjeta overflow-x-auto">
+        <section className="bloque overflow-x-auto">
           <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
             Almacenes
           </h2>

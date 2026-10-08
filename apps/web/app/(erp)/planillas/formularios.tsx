@@ -70,7 +70,7 @@ export function NuevaPlanilla({ periodoSugerido }: { periodoSugerido: string }) 
   const numeroSugerido = `${prefijo}-${periodo}`;
 
   return (
-    <form action={accion} className="tarjeta space-y-4 p-4">
+    <form action={accion} className="bloque space-y-4 p-4">
       <Resultado estado={estado} />
       <div className="grid gap-4 sm:grid-cols-3">
         <div>
@@ -154,7 +154,7 @@ export function CerrarPlanilla({ planillaId }: { planillaId: string }) {
 export function AnularPlanilla({ planillaId }: { planillaId: string }) {
   const [estado, accion] = useActionState<EstadoPlanilla, FormData>(anularAccion, {});
   return (
-    <details className="tarjeta">
+    <details className="bloque">
       <summary className="cursor-pointer px-4 py-2.5 text-sm font-medium select-none"
         style={{ color: "var(--peligro)" }}>
         Anular la planilla

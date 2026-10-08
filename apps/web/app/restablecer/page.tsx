@@ -12,7 +12,7 @@ export default async function Restablecer({
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4">
-      <div className="tarjeta w-full max-w-sm p-6 text-center">
+      <div className="bloque w-full max-w-sm p-6 text-center">
         <h1 className="mb-2 text-lg font-semibold">Restablecer contraseña</h1>
         {token ? (
           <>

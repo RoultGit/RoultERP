@@ -62,7 +62,7 @@ export default async function Trabajadores({
           </div>
         )}
 
-        <form className="tarjeta mb-5 flex flex-wrap items-end gap-3 p-4" action="/rrhh">
+        <form className="bloque mb-5 flex flex-wrap items-end gap-3 p-4" action="/rrhh">
           <div>
             <label className="etiqueta" htmlFor="situacion">Situación</label>
             <select id="situacion" name="situacion" className="campo" defaultValue={situacion}>
@@ -77,7 +77,7 @@ export default async function Trabajadores({
           </p>
         </form>
 
-        <section className="tarjeta overflow-x-auto">
+        <section className="bloque overflow-x-auto">
           {lista.length === 0 ? (
             <div className="p-4">
               <Vacio

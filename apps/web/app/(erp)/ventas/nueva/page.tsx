@@ -104,7 +104,7 @@ export default async function NuevaVenta({
             que algo falló. */}
         {!datos.preparacion.puedeEnviar && (
           <div
-            className="mb-5 tarjeta p-4 text-sm"
+            className="mb-5 bloque p-4 text-sm"
             style={{ borderColor: "color-mix(in srgb, var(--alerta) 45%, transparent)" }}
           >
             <p className="font-medium" style={{ color: "var(--alerta)" }}>

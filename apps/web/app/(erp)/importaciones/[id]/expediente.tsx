@@ -178,7 +178,7 @@ export function Expediente({
   );
 
   return (
-    <section className="tarjeta overflow-x-auto">
+    <section className="bloque overflow-x-auto">
       <div
         className="flex flex-wrap items-baseline justify-between gap-2 border-b px-4 py-2.5"
         style={{ borderColor: "var(--borde)" }}

@@ -90,7 +90,7 @@ export function FormularioCotizacion({
         </p>
       )}
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Cotización</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2">
@@ -142,7 +142,7 @@ export function FormularioCotizacion({
         </div>
       </section>
 
-      <section className="tarjeta overflow-x-auto">
+      <section className="bloque overflow-x-auto">
         <div className="flex items-center justify-between border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
           <h2 className="text-sm font-semibold">Detalle</h2>
           <button

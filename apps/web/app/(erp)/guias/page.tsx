@@ -40,7 +40,7 @@ export default async function Guias() {
             accion={puedeCrear ? <BotonEnlace href="/guias/nueva">Nueva guía</BotonEnlace> : undefined}
           />
         ) : (
-          <div className="tarjeta overflow-x-auto">
+          <div className="bloque overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>

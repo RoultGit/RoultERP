@@ -115,11 +115,11 @@ export default async function Ple({
           *
           * Antes cada libro era un panel propio apilado sobre el siguiente:
           * siete marcos, siete sombras y mil doscientos píxeles para enseñar
-          * siete nombres y siete botones. Una tarjeta tiene sentido cuando su
+          * siete nombres y siete botones. Una bloque tiene sentido cuando su
           * borde separa cosas distintas; aquí los siete elementos son lo mismo
           * repetido, y lo que ordena «lo mismo repetido» son filas.
           */}
-        <div className="tarjeta overflow-x-auto">
+        <div className="bloque overflow-x-auto">
           <table className="tabla">
             <thead>
               <tr>

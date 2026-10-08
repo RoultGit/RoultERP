@@ -68,7 +68,7 @@ export default async function Pagar({
               accion={<BotonEnlace href="/compras/nueva">Registrar compra</BotonEnlace>}
             />
           ) : (
-            <div className="tarjeta divide-y" style={{ borderColor: "var(--borde)" }}>
+            <div className="bloque divide-y" style={{ borderColor: "var(--borde)" }}>
               {datos.proveedores.map((p) => (
                 <a
                   key={p.id}

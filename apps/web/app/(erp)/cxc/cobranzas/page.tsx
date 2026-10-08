@@ -31,7 +31,7 @@ export default async function Cobranzas() {
             descripcion="Registrar una cobranza baja el saldo de los comprobantes y contabiliza el ingreso."
           />
         ) : (
-          <div className="tarjeta overflow-x-auto">
+          <div className="bloque overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>

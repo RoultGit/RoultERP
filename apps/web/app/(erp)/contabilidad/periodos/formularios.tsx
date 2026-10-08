@@ -69,7 +69,7 @@ export function CierreEjercicio({ ejercicio }: { ejercicio: string }) {
 
   return (
     <div className="grid gap-5 lg:grid-cols-2">
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-1 text-sm font-semibold">1 · Ajuste por diferencia de cambio</h2>
         <p className="mb-3 text-xs" style={{ color: "var(--texto-suave)" }}>
           Revalúa las partidas monetarias en moneda extranjera —caja, cuentas por cobrar y por
@@ -102,7 +102,7 @@ export function CierreEjercicio({ ejercicio }: { ejercicio: string }) {
         <Resultado estado={ajuste} />
       </section>
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-1 text-sm font-semibold">2 · Cierre del ejercicio</h2>
         <p className="mb-3 text-xs" style={{ color: "var(--texto-suave)" }}>
           Cancela las cuentas de resultado contra la 89 y traslada el resultado a resultados

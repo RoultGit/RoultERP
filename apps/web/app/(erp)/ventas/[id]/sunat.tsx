@@ -82,7 +82,7 @@ export function PanelSunat({
 
   return (
     <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-      <section className="tarjeta">
+      <section className="bloque">
         <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
           Estado ante SUNAT
         </h2>
@@ -138,7 +138,7 @@ export function PanelSunat({
       </section>
 
       {puedeEnviar && puedeReintentar && (
-        <form action={accion} className="tarjeta space-y-3 p-4">
+        <form action={accion} className="bloque space-y-3 p-4">
           <input type="hidden" name="comprobanteId" value={comprobanteId} />
 
           {resultado.error && (
@@ -164,7 +164,7 @@ export function PanelSunat({
       )}
 
       {aceptado && (
-        <p className="tarjeta px-4 py-3 text-xs" style={{ color: "var(--texto-suave)" }}>
+        <p className="bloque px-4 py-3 text-xs" style={{ color: "var(--texto-suave)" }}>
           Para dejar sin efecto un comprobante aceptado hay que emitir una nota de crédito o
           comunicar su baja; ninguna de las dos está implementada todavía.
         </p>

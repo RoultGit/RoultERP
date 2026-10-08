@@ -41,7 +41,7 @@ export function FormularioLote({ productos }: { productos: Opcion[] }) {
         </p>
       )}
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <p className="mb-3 text-sm" style={{ color: "var(--texto-suave)" }}>
           La cantidad de cada lote sale del kardex. Aquí sólo se declara lo que el kardex no sabe.
         </p>

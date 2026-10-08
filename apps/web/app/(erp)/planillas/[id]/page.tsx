@@ -74,7 +74,7 @@ export default async function DetallePlanilla({
           </div>
         )}
 
-        <dl className="tarjeta mb-5 flex flex-wrap gap-8 p-4">
+        <dl className="bloque mb-5 flex flex-wrap gap-8 p-4">
           <div>
             <dt className="text-xs" style={{ color: "var(--texto-suave)" }}>Trabajadores</dt>
             <dd className="text-lg font-medium">{boletas.length}</dd>
@@ -112,7 +112,7 @@ export default async function DetallePlanilla({
           </div>
         </dl>
 
-        <section className="tarjeta mb-5 overflow-x-auto">
+        <section className="bloque mb-5 overflow-x-auto">
           <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
             Boletas
           </h2>
@@ -165,7 +165,7 @@ export default async function DetallePlanilla({
 
         {/* El detalle de conceptos: lo que el contador revisa línea por línea. */}
         {boletas.map((b) => (
-          <details key={b.id} className="tarjeta mb-3">
+          <details key={b.id} className="bloque mb-3">
             <summary className="cursor-pointer px-4 py-2.5 text-sm font-medium select-none">
               {`${b.apellidoPaterno} ${b.apellidoMaterno ?? ""}`.trim()}, {b.nombres} —{" "}
               <span style={{ color: "var(--texto-suave)" }}>{b.lineas.length} conceptos</span>

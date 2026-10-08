@@ -69,7 +69,7 @@ export function FormularioReglas({
         </div>
       )}
 
-      <section className="tarjeta overflow-x-auto">
+      <section className="bloque overflow-x-auto">
         <div className="flex items-center justify-between border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
           <h2 className="text-sm font-semibold">Reglas</h2>
           <button

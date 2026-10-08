@@ -16,7 +16,7 @@ function periodoActual(): string {
 function Bloque({ titulo, casillas }: { titulo: string; casillas: Casilla[] }) {
   if (casillas.length === 0) return null;
   return (
-    <section className="tarjeta overflow-hidden">
+    <section className="bloque overflow-hidden">
       <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
         {titulo}
       </h2>
@@ -91,7 +91,7 @@ export default async function Impuestos({
         }
       />
       <Contenido>
-        <form className="tarjeta mb-5 flex flex-wrap items-end gap-3 p-4" action="/contabilidad/impuestos">
+        <form className="bloque mb-5 flex flex-wrap items-end gap-3 p-4" action="/contabilidad/impuestos">
           <div>
             <label className="etiqueta" htmlFor="periodo">Periodo</label>
             <input
@@ -138,7 +138,7 @@ export default async function Impuestos({
 
         {l.avisos.length > 0 && (
           <div
-            className="tarjeta mb-5 p-4 text-sm"
+            className="bloque mb-5 p-4 text-sm"
             style={{ borderColor: "color-mix(in srgb, var(--alerta) 45%, transparent)" }}
           >
             <p className="font-medium" style={{ color: "var(--alerta)" }}>Antes de declarar</p>

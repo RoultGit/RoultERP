@@ -64,7 +64,7 @@ export default async function Cheques({
         )}
 
         {enCirculacion.length > 0 && (
-          <section className="tarjeta mb-5 p-4">
+          <section className="bloque mb-5 p-4">
             <h2 className="mb-2 text-sm font-semibold">En circulación</h2>
             <div className="flex flex-wrap gap-6">
               {enCirculacion.map((c) => (
@@ -114,7 +114,7 @@ export default async function Cheques({
           ))}
         </div>
 
-        <section className="tarjeta overflow-x-auto">
+        <section className="bloque overflow-x-auto">
           {cheques.length === 0 ? (
             <div className="p-4">
               <Vacio

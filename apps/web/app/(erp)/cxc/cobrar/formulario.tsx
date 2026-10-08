@@ -85,7 +85,7 @@ export function FormularioCobranza({
         ))}
       </div>
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">
           {modo === "cobro" ? "Datos de la cobranza" : "Datos de la letra"}
         </h2>
@@ -155,7 +155,7 @@ export function FormularioCobranza({
         </div>
       </section>
 
-      <section className="tarjeta overflow-x-auto">
+      <section className="bloque overflow-x-auto">
         <div className="flex items-center justify-between border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
           <h2 className="text-sm font-semibold">Comprobantes pendientes de {cliente.nombre}</h2>
           <button

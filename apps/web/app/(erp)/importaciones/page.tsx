@@ -28,7 +28,7 @@ export default async function Importaciones() {
             accion={puedeCrear ? <BotonEnlace href="/importaciones/nueva">Nueva importación</BotonEnlace> : null}
           />
         ) : (
-          <div className="tarjeta overflow-x-auto">
+          <div className="bloque overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>

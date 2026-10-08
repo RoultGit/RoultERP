@@ -44,7 +44,7 @@ export function FormularioRespuesta({
 
   if (proveedores.length === 0) {
     return (
-      <p className="tarjeta p-4 text-sm" style={{ color: "var(--texto-suave)" }}>
+      <p className="bloque p-4 text-sm" style={{ color: "var(--texto-suave)" }}>
         Todos los proveedores registrados ya respondieron esta solicitud.
       </p>
     );
@@ -67,7 +67,7 @@ export function FormularioRespuesta({
         </p>
       )}
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Cotización del proveedor</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2">
@@ -131,7 +131,7 @@ export function FormularioRespuesta({
         )}
       </section>
 
-      <section className="tarjeta overflow-x-auto">
+      <section className="bloque overflow-x-auto">
         <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
           Precios ofrecidos
         </h2>

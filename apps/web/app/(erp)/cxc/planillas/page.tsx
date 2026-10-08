@@ -81,7 +81,7 @@ export default async function Planillas({
           ))}
         </div>
 
-        <section className="tarjeta overflow-x-auto">
+        <section className="bloque overflow-x-auto">
           {datos.planillas.length === 0 ? (
             <div className="p-4">
               <Vacio

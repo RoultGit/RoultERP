@@ -145,14 +145,14 @@ export function FormularioVenta({
         <>
           <input type="hidden" name="pedidoId" value={pedido.id} />
           <input type="hidden" name="clienteId" value={pedido.clienteId} />
-          <p className="tarjeta p-3 text-sm" role="status">
+          <p className="bloque p-3 text-sm" role="status">
             Atendiendo el pedido <strong>{pedido.numero}</strong>. El detalle trae lo que falta por
             despachar; puede facturar menos, y el saldo queda pendiente en el pedido.
           </p>
         </>
       )}
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Comprobante</h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="sm:col-span-2">
@@ -228,7 +228,7 @@ export function FormularioVenta({
         </div>
       </section>
 
-      <section className="tarjeta overflow-x-auto">
+      <section className="bloque overflow-x-auto">
         <div className="flex items-center justify-between border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
           <h2 className="text-sm font-semibold">Detalle</h2>
           <button
@@ -338,7 +338,7 @@ export function FormularioVenta({
         </table>
       </section>
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Salida de mercadería</h2>
         <div className="max-w-md">
           <label className="etiqueta" htmlFor="almacenId">Almacén</label>

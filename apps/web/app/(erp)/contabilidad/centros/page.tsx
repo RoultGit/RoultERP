@@ -50,7 +50,7 @@ export default async function Centros({
         }
       />
       <Contenido>
-        <form className="tarjeta mb-5 flex flex-wrap items-end gap-3 p-4" action="/contabilidad/centros">
+        <form className="bloque mb-5 flex flex-wrap items-end gap-3 p-4" action="/contabilidad/centros">
           <div>
             <label className="etiqueta" htmlFor="periodo">Desde el periodo</label>
             <input
@@ -88,7 +88,7 @@ export default async function Centros({
           </p>
         )}
 
-        <section className="tarjeta overflow-x-auto">
+        <section className="bloque overflow-x-auto">
           {filas.length === 0 ? (
             <div className="p-4">
               <Vacio

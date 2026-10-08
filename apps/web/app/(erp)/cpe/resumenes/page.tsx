@@ -59,7 +59,7 @@ export default async function Resumenes() {
       />
       <Contenido>
         <div className="grid gap-5 xl:grid-cols-2">
-          <section className="tarjeta p-4">
+          <section className="bloque p-4">
             <h2 className="mb-1 text-sm font-semibold">Boletas sin resumir</h2>
             <p className="mb-3 text-xs" style={{ color: "var(--texto-suave)" }}>
               Un día por resumen. El plazo es de siete días calendario desde la emisión.
@@ -75,7 +75,7 @@ export default async function Resumenes() {
             )}
           </section>
 
-          <section className="tarjeta p-4">
+          <section className="bloque p-4">
             <h2 className="mb-1 text-sm font-semibold">Dar de baja un comprobante</h2>
             <p className="mb-3 text-xs" style={{ color: "var(--texto-suave)" }}>
               Sólo facturas y notas ya aceptadas, y todas del mismo día. Una boleta se anula
@@ -95,7 +95,7 @@ export default async function Resumenes() {
           </section>
         </div>
 
-        <section className="tarjeta mt-5 overflow-x-auto">
+        <section className="bloque mt-5 overflow-x-auto">
           <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
             Enviados
           </h2>

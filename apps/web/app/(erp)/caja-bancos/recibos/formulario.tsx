@@ -70,7 +70,7 @@ export function FormularioRecibo({
         ))}
       </div>
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <p className="mb-3 text-sm" style={{ color: "var(--texto-suave)" }}>
           {tipo === "ingreso"
             ? "Dinero que entra a caja y no viene de una cobranza: devoluciones, venta de chatarra, aportes."

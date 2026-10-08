@@ -75,7 +75,7 @@ export default async function Ventas({
             sin certificado se puede seguir vendiendo, y decir lo contrario
             paraliza a una empresa que aún espera el trámite. */}
         {!preparacion.puedeEmitir ? (
-          <div className="mb-5 tarjeta p-4" style={{ borderColor: "color-mix(in srgb, var(--alerta) 45%, transparent)" }}>
+          <div className="mb-5 bloque p-4" style={{ borderColor: "color-mix(in srgb, var(--alerta) 45%, transparent)" }}>
             <p className="font-medium" style={{ color: "var(--alerta)" }}>
               Falta configurar la numeración
             </p>
@@ -89,7 +89,7 @@ export default async function Ventas({
             </div>
           </div>
         ) : !preparacion.puedeEnviar ? (
-          <div className="mb-5 tarjeta p-4" style={{ borderColor: "color-mix(in srgb, var(--alerta) 45%, transparent)" }}>
+          <div className="mb-5 bloque p-4" style={{ borderColor: "color-mix(in srgb, var(--alerta) 45%, transparent)" }}>
             <p className="font-medium" style={{ color: "var(--alerta)" }}>
               Puede facturar, pero todavía no enviar a SUNAT
             </p>
@@ -151,7 +151,7 @@ export default async function Ventas({
             }
           />
         ) : (
-          <div className="tarjeta overflow-x-auto">
+          <div className="bloque overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>

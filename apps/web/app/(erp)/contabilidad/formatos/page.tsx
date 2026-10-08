@@ -68,7 +68,7 @@ export default async function Formatos({
           </p>
         )}
 
-        <section className="tarjeta mb-5 overflow-x-auto">
+        <section className="bloque mb-5 overflow-x-auto">
           <div className="flex items-center justify-between border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
             <h2 className="text-sm font-semibold">Plantillas</h2>
             {puedeEditar && (

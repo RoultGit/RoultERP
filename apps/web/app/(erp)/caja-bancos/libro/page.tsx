@@ -55,7 +55,7 @@ export default async function Libro({
         }
       />
       <Contenido>
-        <form className="tarjeta filtro mb-5 flex flex-wrap items-end gap-3 p-4" action="/caja-bancos/libro">
+        <form className="bloque filtro mb-5 flex flex-wrap items-end gap-3 p-4" action="/caja-bancos/libro">
           <div className="min-w-[260px]">
             <label className="etiqueta" htmlFor="cuenta">Cuenta</label>
             <select id="cuenta" name="cuenta" className="campo" defaultValue={l?.cuenta.id ?? ""}>
@@ -84,7 +84,7 @@ export default async function Libro({
           />
         ) : (
           <>
-            <div className="tarjeta mb-5 grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="bloque mb-5 grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-5">
               {[
                 ["Saldo inicial", l.saldoInicial],
                 ["Ingresos", l.ingresos],
@@ -118,7 +118,7 @@ export default async function Libro({
 
             {l.avisos.length > 0 && (
               <div
-                className="tarjeta mb-5 p-4 text-sm"
+                className="bloque mb-5 p-4 text-sm"
                 style={{ borderColor: "color-mix(in srgb, var(--alerta) 45%, transparent)" }}
               >
                 <p className="font-medium" style={{ color: "var(--alerta)" }}>Revise antes de archivar</p>
@@ -130,7 +130,7 @@ export default async function Libro({
               </div>
             )}
 
-            <section className="tarjeta overflow-x-auto">
+            <section className="bloque overflow-x-auto">
               <table className="tabla">
                 <thead>
                   <tr>

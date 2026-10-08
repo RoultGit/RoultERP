@@ -83,7 +83,7 @@ export default async function Destino({
           </p>
         )}
 
-        <form className="tarjeta mb-5 flex flex-wrap items-end gap-3 p-4" action="/contabilidad/destino">
+        <form className="bloque mb-5 flex flex-wrap items-end gap-3 p-4" action="/contabilidad/destino">
           <div>
             <label className="etiqueta" htmlFor="periodo">Periodo</label>
             <input
@@ -128,7 +128,7 @@ export default async function Destino({
         )}
 
         <div className="grid gap-5 lg:grid-cols-2">
-          <section className="tarjeta overflow-x-auto">
+          <section className="bloque overflow-x-auto">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
               <h2 className="text-sm font-semibold">Reparto del periodo {periodo}</h2>
               {puedeCrear && vista && Number(vista.pendiente) > 0 && (
@@ -164,7 +164,7 @@ export default async function Destino({
             )}
           </section>
 
-          <section className="tarjeta overflow-x-auto">
+          <section className="bloque overflow-x-auto">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
               <h2 className="text-sm font-semibold">Estado de resultados por función</h2>
               {funcion.completo ? (

@@ -52,7 +52,7 @@ export function FormularioParametros({
       )}
 
       {modulos.map((modulo) => (
-        <section key={modulo} className="tarjeta overflow-x-auto">
+        <section key={modulo} className="bloque overflow-x-auto">
           <h2
             className="border-b px-4 py-2.5 text-sm font-semibold"
             style={{ borderColor: "var(--borde)" }}
@@ -74,11 +74,20 @@ export function FormularioParametros({
                 .map((p) => (
                   <tr key={p.clave}>
                     <td className="font-medium">{p.nombre}</td>
-                    <td className="max-w-[360px] text-sm" style={{ color: "var(--texto-suave)" }}>
-                      {p.descripcion}
+                    <td className="text-sm" style={{ color: "var(--texto-suave)" }}>
+                      {/*
+                        El tope va en un bloque dentro de la celda, no en la
+                        celda: el `max-width` de un `<td>` lo ignora el reparto
+                        automático de la tabla, y esta columna se estiraba a 523
+                        píxeles de prosa hasta sacar la tabla de la pantalla.
+                      */}
+                      <span className="block max-w-[28rem]">{p.descripcion}</span>
                     </td>
                     <td>
-                      <select name={p.clave} defaultValue={p.cuenta} className="campo">
+                      {/* El ancho de un `select` lo fija su opción más larga:
+                          sin tope, «20111 — Mercaderías manufacturadas» decide
+                          por toda la columna. */}
+                      <select name={p.clave} defaultValue={p.cuenta} className="campo w-full max-w-[16rem]">
                         {cuentas.map((c) => (
                           <option key={c.cuenta} value={c.cuenta}>
                             {c.cuenta} — {c.descripcion}

@@ -65,7 +65,7 @@ export default async function ChequesRecibidos({
         )}
 
         {(enCirculacion.length > 0 || rebotados.length > 0) && (
-          <section className="tarjeta mb-5 flex flex-wrap gap-8 p-4">
+          <section className="bloque mb-5 flex flex-wrap gap-8 p-4">
             {enCirculacion.map((c) => (
               <div key={c.moneda}>
                 <div className="text-xs" style={{ color: "var(--texto-suave)" }}>
@@ -119,7 +119,7 @@ export default async function ChequesRecibidos({
           ))}
         </div>
 
-        <section className="tarjeta overflow-x-auto">
+        <section className="bloque overflow-x-auto">
           {cheques.length === 0 ? (
             <div className="p-4">
               <Vacio

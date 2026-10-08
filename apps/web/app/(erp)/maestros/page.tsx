@@ -64,7 +64,7 @@ export default async function Maestros() {
             <Link
               key={f.href}
               href={f.href as Route}
-              className="tarjeta block p-4 transition-colors hover:bg-[var(--superficie-2)]"
+              className="bloque block p-4 transition-colors hover:bg-[var(--superficie-2)]"
             >
               <div className="flex items-baseline justify-between gap-3">
                 <h2 className="font-medium">{f.titulo}</h2>

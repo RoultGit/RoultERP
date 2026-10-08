@@ -89,7 +89,7 @@ export default async function Pedidos({
           ))}
         </div>
 
-        <section className="tarjeta overflow-x-auto">
+        <section className="bloque overflow-x-auto">
           {pedidos.length === 0 ? (
             <div className="p-4">
               <Vacio

@@ -68,7 +68,7 @@ export function FormularioOrden({
         </div>
       )}
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2">
             <label className="etiqueta" htmlFor="proveedorSelect">Proveedor</label>
@@ -120,7 +120,7 @@ export function FormularioOrden({
         </label>
       </section>
 
-      <section className="tarjeta overflow-x-auto">
+      <section className="bloque overflow-x-auto">
         <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
           Documentos por pagar
         </h2>

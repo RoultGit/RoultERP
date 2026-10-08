@@ -99,7 +99,7 @@ export default async function Recibos({
           ))}
         </div>
 
-        <section className="tarjeta overflow-x-auto">
+        <section className="bloque overflow-x-auto">
           {datos.recibos.length === 0 ? (
             <div className="p-4">
               <Vacio

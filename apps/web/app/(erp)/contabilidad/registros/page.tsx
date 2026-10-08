@@ -54,7 +54,7 @@ export default async function Registros({
       />
       <Contenido>
         <form
-          className="tarjeta filtro mb-5 flex flex-wrap items-end gap-3 p-4"
+          className="bloque filtro mb-5 flex flex-wrap items-end gap-3 p-4"
           action="/contabilidad/registros"
         >
           <div>
@@ -90,7 +90,7 @@ export default async function Registros({
 
         {r.avisos.length > 0 && (
           <div
-            className="tarjeta mb-5 p-4 text-sm"
+            className="bloque mb-5 p-4 text-sm"
             style={{ borderColor: "color-mix(in srgb, var(--alerta) 45%, transparent)" }}
           >
             <p className="font-medium" style={{ color: "var(--alerta)" }}>Al revisar el libro</p>
@@ -102,7 +102,7 @@ export default async function Registros({
           </div>
         )}
 
-        <section className="tarjeta overflow-x-auto">
+        <section className="bloque overflow-x-auto">
           {r.renglones.length === 0 ? (
             <p className="px-4 py-6 text-sm" style={{ color: "var(--texto-suave)" }}>
               No hay documentos en el periodo {periodo}.

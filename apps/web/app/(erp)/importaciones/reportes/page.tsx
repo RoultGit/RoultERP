@@ -67,7 +67,7 @@ export default async function ReportesImportacion({
       />
       <Contenido>
         <form
-          className="tarjeta mb-5 flex flex-wrap items-end gap-3 p-4"
+          className="bloque mb-5 flex flex-wrap items-end gap-3 p-4"
           action="/importaciones/reportes"
         >
           <div>
@@ -86,7 +86,7 @@ export default async function ReportesImportacion({
         </form>
 
         {/* ─── Gasto por agencia de aduanas ─────────────────────────────── */}
-        <section className="tarjeta mb-5 overflow-x-auto">
+        <section className="bloque mb-5 overflow-x-auto">
           <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
             Gasto por agencia de aduanas y servicios
           </h2>
@@ -136,7 +136,7 @@ export default async function ReportesImportacion({
         </section>
 
         {/* ─── Compras por proveedor del exterior ────────────────────────── */}
-        <section className="tarjeta mb-5 overflow-x-auto">
+        <section className="bloque mb-5 overflow-x-auto">
           <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
             Compras por proveedor del exterior
           </h2>
@@ -191,7 +191,7 @@ export default async function ReportesImportacion({
         </section>
 
         {/* ─── Artículos más importados ──────────────────────────────────── */}
-        <section className="tarjeta overflow-x-auto">
+        <section className="bloque overflow-x-auto">
           <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
             Artículos más importados
           </h2>

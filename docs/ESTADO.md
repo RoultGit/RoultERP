@@ -755,3 +755,43 @@ La simulación queda como prueba permanente en
 **Lo que la simulación no puede probar:** el envío real a SUNAT, que necesita el
 certificado digital de la empresa y sus credenciales SOL. Todo el camino está
 construido y probado contra respuestas simuladas; el juez es la homologación.
+
+## Rediseño sin tarjetas (2026-10-07)
+
+El cliente lo dijo en tres frases y las tres eran medibles:
+
+**«No deja scrolear para ver más abajo».** Era un fallo del layout, no una
+impresión. La rejilla del ERP tiene `h-[100dvh]` y `overflow-hidden`, pero su
+única fila se dimensionaba por el más alto de sus dos hijos. En una ventana de
+700 píxeles la barra lateral pide 864 —su menú no cabe—, así que la fila medía
+864, el `main` medía 864, y el `overflow-hidden` recortaba los 164 de más. Se
+llegaba al final del scroll y la última fila de la tabla seguía fuera de la
+pantalla, sin forma de alcanzarla. En monitores altos no se notaba; en un
+portátil con la barra del navegador, sí. Arreglado con
+`grid-rows-[minmax(0,1fr)]` y `min-h-0` en los dos hijos.
+
+**«Las cards hacen que horizontalmente no entre todo habiendo espacio».** Cierto
+y cuantificable: en una ventana de 1680 había 1428 píxeles disponibles y el
+contenido estaba topado a 1180. Ocho pantallas obligaban a arrastrar la tabla en
+horizontal con un cuarto de la pantalla vacío al lado. Fuera el tope.
+
+**«Usas demasiadas cards para todo, NO ME GUSTA».** Eran 275 usos. Cada pantalla
+de un ERP es cabecera, filtros, tabla y totales; enmarcar cada una no jerarquiza
+nada, sólo repite el mismo recuadro cuarenta veces. Ahora el contenido se apoya
+en la página, que pasó a ser blanca, y lo que separa es el aire y una línea de un
+píxel donde hace falta: encima de la cabecera de la tabla y debajo de la última
+fila. La clase se llama `.bloque` y no dibuja nada.
+
+| | antes | después |
+|---|---|---|
+| Ancho usable (ventana de 1680) | 1180 px | 1428 px |
+| Pantallas con scroll horizontal | 8 | 3 (por 28, 129 y 5 px) |
+| Contenido inalcanzable al final | sí, 164 px | no |
+| Paneles con borde y sombra | 275 | 0 |
+
+Lo que quedaba enmarcado y también se fue: el estado vacío, que era un recuadro
+de puntos rodeando una frase. Un hueco no necesita marco para leerse como hueco.
+
+Las tres pantallas que aún se arrastran en horizontal lo hacen por su contenido,
+no por el envoltorio: el registro de compras del PLE tiene catorce columnas y no
+hay ancho que las meta sin encoger la letra.

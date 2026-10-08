@@ -86,7 +86,7 @@ export function FormularioRequisicion({
         ))}
       </div>
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <p className="mb-3 text-sm" style={{ color: "var(--texto-suave)" }}>
           {tipo === "compra"
             ? "Lo que el área necesita del almacén o del mercado. No compromete a nadie hasta que se apruebe."
@@ -132,7 +132,7 @@ export function FormularioRequisicion({
         </div>
       </section>
 
-      <section className="tarjeta overflow-x-auto">
+      <section className="bloque overflow-x-auto">
         <div className="flex items-center justify-between border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
           <h2 className="text-sm font-semibold">Artículos</h2>
           <button

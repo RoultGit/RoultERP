@@ -65,7 +65,7 @@ export default async function Kits({
           </p>
         )}
 
-        <form className="tarjeta mb-5 flex flex-wrap items-end gap-3 p-4" action="/inventario/kits">
+        <form className="bloque mb-5 flex flex-wrap items-end gap-3 p-4" action="/inventario/kits">
           <div className="min-w-[320px] flex-1">
             <label className="etiqueta" htmlFor="producto">Producto</label>
             <select id="producto" name="producto" className="campo" defaultValue={producto ?? ""}>
@@ -99,7 +99,7 @@ export default async function Kits({
                     .map((p) => ({ id: p.id, etiqueta: `${p.codigo} — ${p.descripcion}` }))}
                 />
               ) : (
-                <div className="tarjeta p-4 text-sm" style={{ color: "var(--texto-suave)" }}>
+                <div className="bloque p-4 text-sm" style={{ color: "var(--texto-suave)" }}>
                   No tiene permiso para editar composiciones.
                 </div>
               )}
@@ -110,7 +110,7 @@ export default async function Kits({
                 {datos.elegido.tipo === "conversion" ? "Convertir" : "Armar o desarmar"}
               </h2>
               {datos.elegido.componentes.length === 0 ? (
-                <div className="tarjeta p-4 text-sm" style={{ color: "var(--texto-suave)" }}>
+                <div className="bloque p-4 text-sm" style={{ color: "var(--texto-suave)" }}>
                   Defina primero de qué está hecho.
                 </div>
               ) : puedeCrear ? (
@@ -122,7 +122,7 @@ export default async function Kits({
                     .map((a) => ({ id: a.id, etiqueta: a.nombre }))}
                 />
               ) : (
-                <div className="tarjeta p-4 text-sm" style={{ color: "var(--texto-suave)" }}>
+                <div className="bloque p-4 text-sm" style={{ color: "var(--texto-suave)" }}>
                   No tiene permiso para mover inventario.
                 </div>
               )}
@@ -130,7 +130,7 @@ export default async function Kits({
           </div>
         )}
 
-        <section className="tarjeta overflow-x-auto">
+        <section className="bloque overflow-x-auto">
           <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
             Productos con composición
           </h2>

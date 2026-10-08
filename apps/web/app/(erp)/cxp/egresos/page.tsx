@@ -67,7 +67,7 @@ export default async function Egresos({
             descripcion="Aquí aparecen las facturas con saldo y las letras aceptadas, ordenadas por vencimiento."
           />
         ) : (
-          <div className="tarjeta overflow-x-auto">
+          <div className="bloque overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>

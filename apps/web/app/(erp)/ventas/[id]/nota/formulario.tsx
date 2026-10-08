@@ -104,7 +104,7 @@ export function FormularioNota({
         </p>
       )}
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Nota sobre {documento}</h2>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
@@ -150,7 +150,7 @@ export function FormularioNota({
         </div>
       </section>
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Alcance</h2>
         <div className="flex flex-wrap gap-4 text-sm">
           <label className="flex items-center gap-2">
@@ -220,7 +220,7 @@ export function FormularioNota({
       </section>
 
       {esCredito && tieneAlmacen && (
-        <section className="tarjeta p-4">
+        <section className="bloque p-4">
           <label className="flex items-start gap-2 text-sm">
             <input type="checkbox" name="devuelveMercaderia" value="1" className="mt-0.5" />
             <span>

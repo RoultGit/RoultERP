@@ -95,7 +95,7 @@ export default async function Ratios({
         }
       />
       <Contenido>
-        <form className="tarjeta mb-5 flex flex-wrap items-end gap-3 p-4" action="/contabilidad/ratios">
+        <form className="bloque mb-5 flex flex-wrap items-end gap-3 p-4" action="/contabilidad/ratios">
           <div>
             <label className="etiqueta" htmlFor="periodo">Periodo</label>
             <input
@@ -135,7 +135,7 @@ export default async function Ratios({
           <>
             {a.avisos.length > 0 && (
               <div
-                className="tarjeta mb-5 p-4 text-sm"
+                className="bloque mb-5 p-4 text-sm"
                 style={{ borderColor: "color-mix(in srgb, var(--alerta) 45%, transparent)" }}
               >
                 <p className="font-medium" style={{ color: "var(--alerta)" }}>
@@ -149,12 +149,17 @@ export default async function Ratios({
               </div>
             )}
 
-            <div className="grid gap-5 xl:grid-cols-2">
+            {/*
+              Una sola columna: estos cuadros piden hasta 1400 píxeles de ancho y
+              en media pantalla quedaban en 680, con scroll horizontal dentro de
+              cada uno. Apilados usan el ancho entero y se leen de corrido.
+            */}
+            <div className="grid gap-5">
               {GRUPOS.map(([grupo, titulo, subtitulo]) => {
                 const ratios = a.ratios.filter((r) => r.grupo === grupo);
                 if (ratios.length === 0) return null;
                 return (
-                  <section key={grupo} className="tarjeta overflow-x-auto">
+                  <section key={grupo} className="bloque overflow-x-auto">
                     <div className="border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
                       <h2 className="text-sm font-semibold">{titulo}</h2>
                       <p className="text-xs" style={{ color: "var(--texto-suave)" }}>{subtitulo}</p>

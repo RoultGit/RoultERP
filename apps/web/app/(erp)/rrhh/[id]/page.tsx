@@ -75,7 +75,7 @@ export default async function FichaTrabajador({ params }: { params: Promise<{ id
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="space-y-5">
             {/* ── Historial de remuneraciones ─────────────────────────── */}
-            <section className="tarjeta overflow-x-auto">
+            <section className="bloque overflow-x-auto">
               <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
                 Historial de remuneraciones
               </h2>
@@ -124,7 +124,7 @@ export default async function FichaTrabajador({ params }: { params: Promise<{ id
             </section>
 
             {/* ── Contratos ───────────────────────────────────────────── */}
-            <section className="tarjeta overflow-x-auto">
+            <section className="bloque overflow-x-auto">
               <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
                 Contratos
               </h2>
@@ -174,7 +174,7 @@ export default async function FichaTrabajador({ params }: { params: Promise<{ id
 
             {/* ── Datos ───────────────────────────────────────────────── */}
             {puedeEditar && (
-              <details className="tarjeta">
+              <details className="bloque">
                 <summary className="cursor-pointer px-4 py-2.5 text-sm font-medium select-none">
                   Editar datos del trabajador
                 </summary>
@@ -218,7 +218,7 @@ export default async function FichaTrabajador({ params }: { params: Promise<{ id
 
           {/* ── Lateral ───────────────────────────────────────────────── */}
           <aside className="space-y-5">
-            <section className="tarjeta p-4">
+            <section className="bloque p-4">
               <h2 className="mb-3 text-sm font-semibold">Resumen</h2>
               <dl className="space-y-2 text-sm">
                 <div className="flex justify-between gap-3">
@@ -251,7 +251,7 @@ export default async function FichaTrabajador({ params }: { params: Promise<{ id
             </section>
 
             {liquidaciones.length > 0 && (
-              <section className="tarjeta overflow-hidden">
+              <section className="bloque overflow-hidden">
                 <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
                   Sus planillas
                 </h2>

@@ -92,7 +92,7 @@ export default async function Compras({
               descripcion="Una orden deja constancia de lo pedido para poder compararlo con lo que llega."
             />
           ) : (
-            <div className="tarjeta overflow-x-auto">
+            <div className="bloque overflow-x-auto">
               <table className="tabla">
                 <thead>
                   <tr>
@@ -138,7 +138,7 @@ export default async function Compras({
             accion={puedeCrear ? <BotonEnlace href="/compras/nueva">Registrar compra</BotonEnlace> : null}
           />
         ) : (
-          <div className="tarjeta overflow-x-auto">
+          <div className="bloque overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>

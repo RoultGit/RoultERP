@@ -164,7 +164,7 @@ export default async function Kardex({
             descripcion="Este producto todavía no ha entrado ni salido de este almacén."
           />
         ) : (
-          <div className="tarjeta overflow-x-auto">
+          <div className="bloque overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>

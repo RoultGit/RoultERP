@@ -100,7 +100,7 @@ export default async function NotasAlmacen({
           </div>
         )}
 
-        <section className="tarjeta overflow-x-auto">
+        <section className="bloque overflow-x-auto">
           <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
             Registradas
           </h2>

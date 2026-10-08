@@ -34,12 +34,12 @@ export default async function Cuenta() {
       />
       <Contenido>
         <div className="grid gap-5 lg:grid-cols-2">
-          <section className="tarjeta p-4">
+          <section className="bloque p-4">
             <h2 className="mb-3 text-sm font-semibold">Contraseña</h2>
             <CambiarPassword />
           </section>
 
-          <section className="tarjeta p-4">
+          <section className="bloque p-4">
             <div className="mb-3 flex items-center gap-2">
               <h2 className="text-sm font-semibold">Segundo factor</h2>
               {datos.usuario.mfa_activo ? (
@@ -67,7 +67,7 @@ export default async function Cuenta() {
             )}
           </section>
 
-          <section className="tarjeta p-4">
+          <section className="bloque p-4">
             <h2 className="mb-1 text-sm font-semibold">Sesiones</h2>
             <p className="mb-3 text-sm" style={{ color: "var(--texto-suave)" }}>
               {datos.sesiones === 1

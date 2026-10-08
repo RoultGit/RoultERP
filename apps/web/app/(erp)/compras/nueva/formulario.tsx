@@ -107,7 +107,7 @@ export function FormularioCompra({
         </p>
       )}
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Documento del proveedor</h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="sm:col-span-3">
@@ -168,7 +168,7 @@ export function FormularioCompra({
         </div>
       </section>
 
-      <section className="tarjeta overflow-x-auto">
+      <section className="bloque overflow-x-auto">
         <div className="flex items-center justify-between border-b px-4 py-2.5" style={{ borderColor: "var(--borde)" }}>
           <h2 className="text-sm font-semibold">Detalle</h2>
           <button
@@ -249,7 +249,9 @@ export function FormularioCompra({
                       <select
                         name={`lineas[${i}].cuenta`} value={l.cuenta}
                         onChange={(e) => actualizar(l.clave, { cuenta: e.target.value })}
-                        className="campo campo-chico" required
+                        /* Con tope: el ancho de un `select` lo fija su opción
+                           más larga, y esta columna se iba a 453 píxeles. */
+                        className="campo campo-chico w-full max-w-[12rem]" required
                       >
                         <option value="">Elija la cuenta</option>
                         {cuentas.map((c) => (
@@ -312,7 +314,7 @@ export function FormularioCompra({
         </p>
       </section>
 
-      <section className="tarjeta p-4">
+      <section className="bloque p-4">
         <h2 className="mb-3 text-sm font-semibold">Inventario y régimen tributario</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>

@@ -50,7 +50,7 @@ export default async function CajaBancos() {
             descripcion="Registre las cajas y las cuentas bancarias de la empresa para poder pagar, cobrar y conciliar."
           />
         ) : (
-          <div className="tarjeta mb-5 overflow-x-auto">
+          <div className="bloque mb-5 overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>
@@ -120,7 +120,7 @@ export default async function CajaBancos() {
         )}
 
         {puedeCrear && (
-          <section className="tarjeta p-4">
+          <section className="bloque p-4">
             <h2 className="mb-3 text-sm font-semibold">Nueva cuenta</h2>
             <FormularioCuenta
               cuentasContables={contables.map((c) => ({

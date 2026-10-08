@@ -83,7 +83,7 @@ export function FormularioRendicion({
         </div>
       )}
 
-      <section className="tarjeta overflow-hidden">
+      <section className="bloque overflow-hidden">
         <div className="flex flex-wrap items-end justify-between gap-3 border-b px-4 py-3" style={{ borderColor: "var(--borde)" }}>
           <div>
             <label className="etiqueta" htmlFor="fecha">Fecha de la rendición *</label>

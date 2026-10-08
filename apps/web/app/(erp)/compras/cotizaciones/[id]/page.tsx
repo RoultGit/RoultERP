@@ -81,7 +81,7 @@ export default async function Cuadro({
           </p>
         )}
 
-        <section className="tarjeta mb-5 p-4">
+        <section className="bloque mb-5 p-4">
           <dl className="grid gap-4 text-sm sm:grid-cols-4">
             <div>
               <dt className="etiqueta">Estado</dt>
@@ -102,7 +102,7 @@ export default async function Cuadro({
           </dl>
         </section>
 
-        <section className="tarjeta mb-5 overflow-x-auto">
+        <section className="bloque mb-5 overflow-x-auto">
           <h2 className="border-b px-4 py-2.5 text-sm font-semibold" style={{ borderColor: "var(--borde)" }}>
             Cuadro comparativo
           </h2>

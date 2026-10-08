@@ -53,13 +53,13 @@ export default async function Planilla({
       />
       <Contenido>
         {hecho && anuncio[hecho] && (
-          <p className="tarjeta mb-5 p-3 text-sm" role="status">
+          <p className="bloque mb-5 p-3 text-sm" role="status">
             {anuncio[hecho]}
           </p>
         )}
 
         <div className="grid gap-5 lg:grid-cols-[2fr_1fr]">
-          <section className="tarjeta overflow-x-auto">
+          <section className="bloque overflow-x-auto">
             <div
               className="flex items-center justify-between border-b px-4 py-2.5"
               style={{ borderColor: "var(--borde)" }}
@@ -107,7 +107,7 @@ export default async function Planilla({
           </section>
 
           <aside className="space-y-4">
-            <section className="tarjeta">
+            <section className="bloque">
               <h2
                 className="border-b px-4 py-2.5 text-sm font-semibold"
                 style={{ borderColor: "var(--borde)" }}
@@ -140,7 +140,7 @@ export default async function Planilla({
             </section>
 
             {puedeEditar && p.estado === "abierta" && (
-              <section className="tarjeta">
+              <section className="bloque">
                 <h2
                   className="border-b px-4 py-2.5 text-sm font-semibold"
                   style={{ borderColor: "var(--borde)" }}

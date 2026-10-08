@@ -65,7 +65,7 @@ export default async function Productos({
             accion={puedeCrear && !q ? <BotonEnlace href="/maestros/productos/nuevo">Nuevo producto</BotonEnlace> : null}
           />
         ) : (
-          <div className="tarjeta overflow-x-auto">
+          <div className="bloque overflow-x-auto">
             <table className="tabla">
               <thead>
                 <tr>

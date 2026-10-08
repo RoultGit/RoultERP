@@ -35,7 +35,7 @@
      La página es gris y el contenido va en paneles blancos encima. Un
      `--superficie` blanco sobre `--fondo` blanco no se distingue, y ahí es
      donde la interfaz empieza a parecer una hoja de cálculo sin bordes. */
-  --fondo: #edeff3;
+  --fondo: #ffffff;
   --superficie: #ffffff;
   --superficie-2: #f7f8fa;
   /* La barra lateral: ni el gris de la página ni el blanco del panel. */
@@ -258,17 +258,46 @@ body {
   /* ── Superficies ───────────────────────────────────────────────────── */
 
   /*
-   * El panel sobre el que se apoya el contenido.
+   * Un bloque de contenido. Ya no es una tarjeta, y eso es el cambio.
    *
-   * Lleva borde **y** sombra muy difusa: el borde lo recorta contra el gris de
-   * la página y la sombra lo despega. Con sombra sola, en modo oscuro el panel
-   * se funde con el fondo; con borde solo, en claro parece un recuadro dibujado.
+   * Antes cada cosa iba dentro de un panel blanco con borde, esquina redonda y
+   * sombra, sobre una página gris. Tres problemas, y los tres los dijo el
+   * cliente antes que nadie:
+   *
+   *  1. **Se comía el ancho.** El panel metía borde y relleno a cada lado y el
+   *     contenido quedaba con menos sitio del que había. En ocho pantallas la
+   *     tabla no entraba y obligaba a arrastrar en horizontal **teniendo
+   *     pantalla de sobra**: en `/contabilidad/registros` la tabla pedía 1429
+   *     píxeles y el panel le daba 1130.
+   *  2. **Marcaba lo que no hay que marcar.** Un ERP es una pantalla tras otra
+   *     de cabecera, filtros, tabla y totales. Enmarcar cada una no jerarquiza
+   *     nada: sólo repite el mismo recuadro cuarenta veces.
+   *  3. **Estiraba la página.** Un panel con ciento veintiocho filas mide seis
+   *     mil píxeles y no hay nada que lo contenga.
+   *
+   * Ahora el contenido se apoya en la página, que es blanca, y lo que separa es
+   * el aire y alguna línea de un píxel donde de verdad hace falta. La clase se
+   * queda por compatibilidad de nombre con los 275 sitios que la usan, pero ya
+   * no dibuja nada: existe para marcar «esto es un bloque» y para que las reglas
+   * de tabla de más abajo sepan dónde están.
    */
-  .tarjeta {
-    background: var(--superficie);
-    border: 1px solid var(--borde);
-    border-radius: var(--radio-panel);
-    box-shadow: var(--sombra);
+  .bloque {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  /*
+   * La tabla se enmarca sola, con dos líneas.
+   *
+   * Sin el panel, una tabla suelta sobre el blanco no se lee como una unidad:
+   * flota. Una línea encima de la cabecera y otra debajo de la última fila
+   * bastan, y no cuestan ni un píxel de ancho.
+   */
+  .bloque > .tabla {
+    border-top: 1px solid var(--borde-fuerte);
+    border-bottom: 1px solid var(--borde-fuerte);
   }
 
   /* ── Tablas ────────────────────────────────────────────────────────── */
@@ -277,15 +306,18 @@ body {
     @apply w-full border-collapse text-sm;
   }
   .tabla thead th {
-    @apply px-3.5 py-2.5 text-left text-[12.5px] font-medium;
+    @apply px-3 py-2.5 text-left text-[12.5px] font-medium;
     color: var(--texto-tenue);
     background: transparent;
     border-bottom: 1px solid var(--borde-fuerte);
     letter-spacing: 0.01em;
     position: sticky;
     top: 0;
-    /* Sin fondo propio la cabecera pegajosa deja ver las filas por debajo. */
-    background: var(--superficie);
+    /*
+     * Sin fondo propio la cabecera pegajosa deja ver las filas por debajo. Va
+     * con el color de la página, no de un panel: ya no hay panel.
+     */
+    background: var(--fondo);
   }
   /*
    * Una fila, una línea.
@@ -302,7 +334,7 @@ body {
     white-space: nowrap;
   }
   .tabla tbody td {
-    @apply px-3.5 py-2.5;
+    @apply px-3 py-2.5;
     border-bottom: 1px solid var(--borde);
   }
   /* La última fila no dibuja raya: la cierra el borde del panel. */
@@ -316,7 +348,7 @@ body {
     background: var(--superficie-2);
   }
   .tabla tfoot td {
-    @apply px-3.5 py-2.5;
+    @apply px-3 py-2.5;
     border-top: 1px solid var(--borde-fuerte);
   }
 
@@ -452,7 +484,7 @@ body {
     width: 100%;
   }
 
-  .tarjeta {
+  .bloque {
     border: none;
     box-shadow: none;
   }
